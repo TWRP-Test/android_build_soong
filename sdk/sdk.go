@@ -211,6 +211,11 @@ func (s *sdk) AndroidMkEntries() []android.AndroidMkEntries {
 		OutputFile: s.snapshotFile,
 		DistFiles:  android.MakeDefaultDistFiles(s.snapshotFile.Path(), s.infoFile.Path()),
 		Include:    "$(BUILD_PHONY_PACKAGE)",
+		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
+			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
+				entries.SetBool("LOCAL_DONT_CHECK_MODULE", true)
+			},
+		},
 		ExtraFooters: []android.AndroidMkExtraFootersFunc{
 			func(w io.Writer, name, prefix, moduleDir string) {
 				// Allow the sdk to be built by simply passing its name on the command line.

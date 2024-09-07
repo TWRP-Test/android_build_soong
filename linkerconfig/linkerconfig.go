@@ -98,6 +98,7 @@ func BuildLinkerConfig(ctx android.ModuleContext, builder *android.RuleBuilder,
 	builder.Command().
 		BuiltTool("conv_linker_config").
 		Flag("proto").
+		Flag("--force").
 		FlagWithInput("-s ", input).
 		FlagWithOutput("-o ", interimOutput)
 

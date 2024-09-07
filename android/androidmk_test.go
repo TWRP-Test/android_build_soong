@@ -46,7 +46,6 @@ const (
 
 func (m *customModule) GenerateAndroidBuildActions(ctx ModuleContext) {
 
-	m.base().licenseMetadataFile = PathForOutput(ctx, "meta_lic")
 	var defaultDistPaths Paths
 
 	// If the dist_output_file: true then create an output file that is stored in
@@ -276,7 +275,8 @@ func TestGetDistForGoals(t *testing.T) {
 		)
 	}
 	for idx, line := range androidMkLines {
-		expectedLine := strings.ReplaceAll(expectedAndroidMkLines[idx], "meta_lic", module.base().licenseMetadataFile.String())
+		expectedLine := strings.ReplaceAll(expectedAndroidMkLines[idx], "meta_lic",
+			OtherModuleProviderOrDefault(ctx, module, InstallFilesProvider).LicenseMetadataFile.String())
 		if line != expectedLine {
 			t.Errorf(
 				"Expected AndroidMk line to be '%s', got '%s'",

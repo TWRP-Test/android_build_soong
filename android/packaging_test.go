@@ -28,6 +28,7 @@ type componentTestModule struct {
 	props struct {
 		Deps         []string
 		Skip_install *bool
+		Overrides    []string
 	}
 }
 
@@ -647,6 +648,67 @@ func TestPrefer32Deps(t *testing.T) {
 		}
 		bp := strings.Replace(bpTemplate, "%COMPILE_MULTILIB%", tc.compileMultilib, -1)
 		bp = strings.Replace(bp, "%DEPS%", `["`+strings.Join(tc.deps, `", "`)+`"]`, -1)
+		runPackagingTest(t, config, bp, tc.expected)
+	}
+}
+
+func TestOverrides(t *testing.T) {
+	bpTemplate := `
+		component {
+			name: "foo",
+			deps: ["bar"],
+		}
+
+		component {
+			name: "bar",
+		}
+
+		component {
+			name: "bar_override",
+			overrides: ["bar"],
+		}
+
+		component {
+			name: "baz",
+			deps: ["bar_override"],
+		}
+
+		package_module {
+			name: "package",
+			deps: %DEPS%,
+		}
+	`
+	testcases := []struct {
+		deps     []string
+		expected []string
+	}{
+		{
+			deps:     []string{"foo"},
+			expected: []string{"lib64/foo", "lib64/bar"},
+		},
+		{
+			deps:     []string{"foo", "bar_override"},
+			expected: []string{"lib64/foo", "lib64/bar_override"},
+		},
+		{
+			deps:     []string{"foo", "bar", "bar_override"},
+			expected: []string{"lib64/foo", "lib64/bar_override"},
+		},
+		{
+			deps:     []string{"bar", "bar_override"},
+			expected: []string{"lib64/bar_override"},
+		},
+		{
+			deps:     []string{"foo", "baz"},
+			expected: []string{"lib64/foo", "lib64/baz", "lib64/bar_override"},
+		},
+	}
+	for _, tc := range testcases {
+		config := testConfig{
+			multiTarget:                true,
+			depsCollectFirstTargetOnly: false,
+		}
+		bp := strings.Replace(bpTemplate, "%DEPS%", `["`+strings.Join(tc.deps, `", "`)+`"]`, -1)
 		runPackagingTest(t, config, bp, tc.expected)
 	}
 }

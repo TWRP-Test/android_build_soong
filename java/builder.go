@@ -265,6 +265,13 @@ var (
 		},
 	)
 
+	apimapper = pctx.AndroidStaticRule("apimapper",
+		blueprint.RuleParams{
+			Command:     "${apimapper} --in-jar $in --out-jar $out",
+			CommandDeps: []string{"${apimapper}"},
+		},
+	)
+
 	zipalign = pctx.AndroidStaticRule("zipalign",
 		blueprint.RuleParams{
 			Command: "if ! ${config.ZipAlign} -c -p 4 $in > /dev/null; then " +
@@ -315,6 +322,7 @@ func init() {
 
 	pctx.HostBinToolVariable("aconfig", "aconfig")
 	pctx.HostBinToolVariable("ravenizer", "ravenizer")
+	pctx.HostBinToolVariable("apimapper", "apimapper")
 	pctx.HostBinToolVariable("keep-flagged-apis", "keep-flagged-apis")
 }
 

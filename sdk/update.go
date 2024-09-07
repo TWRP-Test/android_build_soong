@@ -563,11 +563,11 @@ be unnecessary as every module in the sdk already has its own licenses property.
 	}
 	builder.infoContents = string(output)
 	android.WriteFileRuleVerbatim(ctx, info, builder.infoContents)
-	installedInfo := ctx.InstallFile(android.PathForMainlineSdksInstall(ctx), info.Base(), info)
+	installedInfo := ctx.InstallFileWithoutCheckbuild(android.PathForMainlineSdksInstall(ctx), info.Base(), info)
 	s.infoFile = android.OptionalPathForPath(installedInfo)
 
 	// Install the zip, making sure that the info file has been installed as well.
-	installedZip := ctx.InstallFile(android.PathForMainlineSdksInstall(ctx), outputZipFile.Base(), outputZipFile, installedInfo)
+	installedZip := ctx.InstallFileWithoutCheckbuild(android.PathForMainlineSdksInstall(ctx), outputZipFile.Base(), outputZipFile, installedInfo)
 	s.snapshotFile = android.OptionalPathForPath(installedZip)
 }
 
@@ -1109,20 +1109,22 @@ func (s *snapshotBuilder) AddPrebuiltModule(member android.SdkMember, moduleType
 		// same package so can be marked as private.
 		m.AddProperty("visibility", []string{"//visibility:private"})
 	} else {
-		// Extract visibility information from a member variant. All variants have the same
-		// visibility so it doesn't matter which one is used.
-		visibilityRules := android.EffectiveVisibilityRules(s.ctx, variant)
-
-		// Add any additional visibility rules needed for the prebuilts to reference each other.
-		err := visibilityRules.Widen(s.sdk.properties.Prebuilt_visibility)
-		if err != nil {
-			s.ctx.PropertyErrorf("prebuilt_visibility", "%s", err)
-		}
-
-		visibility := visibilityRules.Strings()
-		if len(visibility) != 0 {
-			m.AddProperty("visibility", visibility)
-		}
+		// Change the visibility of the module SDK prebuilts to public.
+		// This includes
+		// 1. Stub libraries of `sdk` modules
+		// 2. Binaries and libraries of `module_exports` modules
+		//
+		// This is a workaround to improve maintainlibility of the module SDK.
+		// Since module sdks are generated from release branches and dropped to development
+		// branches, there might be a visibility skew between the sources and prebuilts
+		// of a specific module.
+		// To reconcile this potential skew, change the visibility to public
+		//
+		// This is safe for (1) since these are stub libraries.
+		// This is ok for (2) since these are host and test exports and are intended for
+		// ART development.
+		// TODO (b/361303067): This can be removed if ART uses full manifests.
+		m.AddProperty("visibility", []string{"//visibility:public"})
 	}
 
 	// Where available copy apex_available properties from the member.

@@ -209,16 +209,25 @@ func disableSourceApexVariant(ctx android.BaseModuleContext) bool {
 			psi = prebuiltSelectionInfo
 		}
 	})
+
 	// Find the apex variant for this module
-	_, apexVariantsWithoutTestApexes, _ := android.ListSetDifference(apexInfo.InApexVariants, apexInfo.TestApexes)
+	apexVariantsWithoutTestApexes := []string{}
+	if apexInfo.BaseApexName != "" {
+		// This is a transitive dependency of an override_apex
+		apexVariantsWithoutTestApexes = append(apexVariantsWithoutTestApexes, apexInfo.BaseApexName)
+	} else {
+		_, variants, _ := android.ListSetDifference(apexInfo.InApexVariants, apexInfo.TestApexes)
+		apexVariantsWithoutTestApexes = append(apexVariantsWithoutTestApexes, variants...)
+	}
+	if apexInfo.ApexAvailableName != "" {
+		apexVariantsWithoutTestApexes = append(apexVariantsWithoutTestApexes, apexInfo.ApexAvailableName)
+	}
 	disableSource := false
 	// find the selected apexes
 	for _, apexVariant := range apexVariantsWithoutTestApexes {
-		for _, selected := range psi.GetSelectedModulesForApiDomain(apexVariant) {
-			// If the apex_contribution for this api domain contains a prebuilt apex, disable the source variant
-			if strings.HasPrefix(selected, "prebuilt_com.google.android") {
-				disableSource = true
-			}
+		if len(psi.GetSelectedModulesForApiDomain(apexVariant)) > 0 {
+			// If the apex_contribution for this api domain is non-empty, disable the source variant
+			disableSource = true
 		}
 	}
 	return disableSource
@@ -485,6 +494,7 @@ func (d *dexpreopter) dexpreopt(ctx android.ModuleContext, libName string, dexJa
 
 	d.configPath = android.PathForModuleOut(ctx, "dexpreopt", dexJarStem, "dexpreopt.config")
 	dexpreopt.WriteModuleConfig(ctx, dexpreoptConfig, d.configPath)
+	ctx.CheckbuildFile(d.configPath)
 
 	if d.dexpreoptDisabled(ctx, libName) {
 		return
@@ -588,7 +598,8 @@ func (d *dexpreopter) dexpreopt(ctx android.ModuleContext, libName string, dexJa
 
 			}
 		} else if !d.preventInstall {
-			ctx.InstallFile(installPath, installBase, install.From)
+			// Install without adding to checkbuild to match behavior of previous Make-based checkbuild rules
+			ctx.InstallFileWithoutCheckbuild(installPath, installBase, install.From)
 		}
 	}
 

@@ -17,6 +17,7 @@ package android
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/gob"
 	"fmt"
 	"slices"
 	"strconv"
@@ -131,6 +132,28 @@ func NewComplianceMetadataInfo() *ComplianceMetadataInfo {
 	}
 }
 
+func (c *ComplianceMetadataInfo) GobEncode() ([]byte, error) {
+	w := new(bytes.Buffer)
+	encoder := gob.NewEncoder(w)
+	err := encoder.Encode(c.properties)
+	if err != nil {
+		return nil, err
+	}
+
+	return w.Bytes(), nil
+}
+
+func (c *ComplianceMetadataInfo) GobDecode(data []byte) error {
+	r := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(r)
+	err := decoder.Decode(&c.properties)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *ComplianceMetadataInfo) SetStringValue(propertyName string, value string) {
 	if !slices.Contains(COMPLIANCE_METADATA_PROPS, propertyName) {
 		panic(fmt.Errorf("Unknown metadata property: %s.", propertyName))
@@ -189,8 +212,8 @@ func buildComplianceMetadataProvider(ctx *moduleContext, m *ModuleBase) {
 		installed = append(installed, ctx.installFiles...)
 		installed = append(installed, ctx.katiInstalls.InstallPaths()...)
 		installed = append(installed, ctx.katiSymlinks.InstallPaths()...)
-		installed = append(installed, m.katiInitRcInstalls.InstallPaths()...)
-		installed = append(installed, m.katiVintfInstalls.InstallPaths()...)
+		installed = append(installed, ctx.katiInitRcInstalls.InstallPaths()...)
+		installed = append(installed, ctx.katiVintfInstalls.InstallPaths()...)
 		complianceMetadataInfo.SetListValue(ComplianceMetadataProp.INSTALLED_FILES, FirstUniqueStrings(installed.Strings()))
 	}
 	ctx.setProvider(ComplianceMetadataProvider, complianceMetadataInfo)

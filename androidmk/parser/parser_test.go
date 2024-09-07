@@ -124,3 +124,25 @@ func TestParse(t *testing.T) {
 		})
 	}
 }
+
+func TestRuleEnd(t *testing.T) {
+	name := "ruleEndTest"
+	in := `all:
+ifeq (A, A)
+	echo foo
+	echo foo
+	echo foo
+	echo foo
+endif
+	echo bar
+`
+	p := NewParser(name, bytes.NewBufferString(in))
+	got, errs := p.Parse()
+	if len(errs) != 0 {
+		t.Fatalf("Unexpected errors while parsing: %v", errs)
+	}
+
+	if got[0].End() < got[len(got) -1].Pos() {
+		t.Errorf("Rule's end (%d) is smaller than directive that inside of rule's start (%v)\n", got[0].End(), got[len(got) -1].Pos())
+	}
+}

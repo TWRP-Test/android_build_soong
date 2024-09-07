@@ -79,7 +79,6 @@ func init() {
 func RegisterNdkModuleTypes(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("ndk_headers", NdkHeadersFactory)
 	ctx.RegisterModuleType("ndk_library", NdkLibraryFactory)
-	ctx.RegisterModuleType("versioned_ndk_headers", VersionedNdkHeadersFactory)
 	ctx.RegisterModuleType("preprocessed_ndk_headers", preprocessedNdkHeadersFactory)
 	ctx.RegisterParallelSingletonType("ndk", NdkSingleton)
 }
@@ -226,17 +225,6 @@ func (n *ndkSingleton) GenerateBuildActions(ctx android.SingletonContext) {
 					})
 				}
 			}
-			installPaths = append(installPaths, m.installPaths...)
-			licensePaths = append(licensePaths, m.licensePath)
-		}
-
-		if m, ok := module.(*versionedHeaderModule); ok {
-			headerSrcPaths = append(headerSrcPaths, m.srcPaths...)
-			headerInstallPaths = append(headerInstallPaths, m.installPaths...)
-			// Verification intentionally not done for headers that go through
-			// versioner. It'd be nice to have, but the only user is bionic, and
-			// that one module would also need to use skip_verification, so it
-			// wouldn't help at all.
 			installPaths = append(installPaths, m.installPaths...)
 			licensePaths = append(licensePaths, m.licensePath)
 		}

@@ -1495,11 +1495,6 @@ func (c *deviceConfig) NativeCoverageEnabledForPath(path string) bool {
 		}
 	}
 	if coverage && len(c.config.productVariables.NativeCoverageExcludePaths) > 0 {
-		// Workaround coverage boot failure.
-		// http://b/269981180
-		if strings.HasPrefix(path, "external/protobuf") {
-			coverage = false
-		}
 		if HasAnyPrefix(path, c.config.productVariables.NativeCoverageExcludePaths) {
 			coverage = false
 		}
@@ -1967,6 +1962,10 @@ func (c *config) UseResourceProcessorByDefault() bool {
 	return c.productVariables.GetBuildFlagBool("RELEASE_USE_RESOURCE_PROCESSOR_BY_DEFAULT")
 }
 
+func (c *config) UseTransitiveJarsInClasspath() bool {
+	return c.productVariables.GetBuildFlagBool("RELEASE_USE_TRANSITIVE_JARS_IN_CLASSPATH")
+}
+
 var (
 	mainlineApexContributionBuildFlagsToApexNames = map[string]string{
 		"RELEASE_APEX_CONTRIBUTIONS_ADBD":                    "com.android.adbd",
@@ -2062,6 +2061,26 @@ func (c *config) ProductPropFiles(ctx PathContext) Paths {
 	return PathsForSource(ctx, c.productVariables.ProductPropFiles)
 }
 
+func (c *config) OdmPropFiles(ctx PathContext) Paths {
+	return PathsForSource(ctx, c.productVariables.OdmPropFiles)
+}
+
 func (c *config) EnableUffdGc() string {
 	return String(c.productVariables.EnableUffdGc)
+}
+
+func (c *config) DeviceFrameworkCompatibilityMatrixFile() []string {
+	return c.productVariables.DeviceFrameworkCompatibilityMatrixFile
+}
+
+func (c *config) DeviceProductCompatibilityMatrixFile() []string {
+	return c.productVariables.DeviceProductCompatibilityMatrixFile
+}
+
+func (c *config) BoardAvbEnable() bool {
+	return Bool(c.productVariables.BoardAvbEnable)
+}
+
+func (c *config) BoardAvbSystemAddHashtreeFooterArgs() []string {
+	return c.productVariables.BoardAvbSystemAddHashtreeFooterArgs
 }

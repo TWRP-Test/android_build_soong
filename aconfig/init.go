@@ -15,8 +15,6 @@
 package aconfig
 
 import (
-	"encoding/gob"
-
 	"android/soong/android"
 
 	"github.com/google/blueprint"
@@ -108,10 +106,6 @@ func init() {
 	RegisterBuildComponents(android.InitRegistrationContext)
 	pctx.HostBinToolVariable("aconfig", "aconfig")
 	pctx.HostBinToolVariable("soong_zip", "soong_zip")
-
-	gob.Register(android.AconfigDeclarationsProviderData{})
-	gob.Register(android.AconfigReleaseDeclarationsProviderData{})
-	gob.Register(android.ModuleOutPath{})
 }
 
 func RegisterBuildComponents(ctx android.RegistrationContext) {

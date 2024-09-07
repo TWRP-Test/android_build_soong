@@ -50,7 +50,6 @@ var (
 
 const (
 	nsjailPath = "prebuilts/build-tools/linux-x86/bin/nsjail"
-	abfsSrcDir = "/src"
 )
 
 var sandboxConfig struct {
@@ -148,20 +147,42 @@ func (c *Cmd) sandboxSupported() bool {
 	return sandboxConfig.working
 }
 
-func (c *Cmd) srcDirArg() string {
-	if !c.config.UseABFS() {
-		return sandboxConfig.srcDir
+// Assumes input path is absolute, clean, and if applicable, an evaluated
+// symlink. If path is not a subdirectory of src dir or relative path
+// cannot be determined, return the input untouched.
+func (c *Cmd) relFromSrcDir(path string) string {
+	if !strings.HasPrefix(path, sandboxConfig.srcDir) {
+		return path
 	}
 
-	return sandboxConfig.srcDir + ":" + abfsSrcDir
+	rel, err := filepath.Rel(sandboxConfig.srcDir, path)
+	if err != nil {
+		return path
+	}
+
+	return rel
+}
+
+func (c *Cmd) dirArg(path string) string {
+	if !c.config.UseABFS() {
+		return path
+	}
+
+	rel := c.relFromSrcDir(path)
+
+	return path + ":" + filepath.Join(abfsSrcDir, rel)
+}
+
+func (c *Cmd) srcDirArg() string {
+	return c.dirArg(sandboxConfig.srcDir)
 }
 
 func (c *Cmd) outDirArg() string {
-	if !c.config.UseABFS() {
-		return sandboxConfig.outDir
-	}
+	return c.dirArg(sandboxConfig.outDir)
+}
 
-	return sandboxConfig.outDir + ":" + filepath.Join(abfsSrcDir, sandboxConfig.outDir)
+func (c *Cmd) distDirArg() string {
+	return c.dirArg(sandboxConfig.distDir)
 }
 
 // When configured to use ABFS, we need to allow the creation of the /src
@@ -187,8 +208,17 @@ func (c *Cmd) readMountArgs() []string {
 	return args
 }
 
+func (c *Cmd) workDir() string {
+	if !c.config.UseABFS() {
+		wd, _ := os.Getwd()
+		return wd
+	}
+
+	return abfsSrcDir
+}
+
 func (c *Cmd) wrapSandbox() {
-	wd, _ := os.Getwd()
+	wd := c.workDir()
 
 	var sandboxArgs []string
 	sandboxArgs = append(sandboxArgs,
@@ -226,7 +256,7 @@ func (c *Cmd) wrapSandbox() {
 	)
 
 	sandboxArgs = append(sandboxArgs,
-		c.readMountArgs()...
+		c.readMountArgs()...,
 	)
 
 	sandboxArgs = append(sandboxArgs,
@@ -264,7 +294,7 @@ func (c *Cmd) wrapSandbox() {
 
 	if _, err := os.Stat(sandboxConfig.distDir); !os.IsNotExist(err) {
 		//Mount dist dir as read-write if it already exists
-		sandboxArgs = append(sandboxArgs, "-B", sandboxConfig.distDir)
+		sandboxArgs = append(sandboxArgs, "-B", c.distDirArg())
 	}
 
 	if c.Sandbox.AllowBuildBrokenUsesNetwork && c.config.BuildBrokenUsesNetwork() {

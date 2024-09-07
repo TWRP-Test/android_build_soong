@@ -927,7 +927,7 @@ func TestLlndkLibrary(t *testing.T) {
 
 	cc_prebuilt_library_shared {
 		name: "libllndkprebuilt",
-		stubs: { versions: ["1", "2"] },
+		stubs: { versions: ["1", "2"] , symbol_file: "libllndkprebuilt.map.txt" },
 		llndk: {
 			symbol_file: "libllndkprebuilt.map.txt",
 		},

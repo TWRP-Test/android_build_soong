@@ -103,8 +103,17 @@ type libraryProperties struct {
 	// https://github.com/android-ndk/ndk/issues/265.
 	Unversioned_until *string
 
-	// Headers presented by this library to the Public API Surface
+	// DO NOT USE THIS
+	// NDK libraries should not export their headers. Headers belonging to NDK
+	// libraries should be added to the NDK with an ndk_headers module.
 	Export_header_libs []string
+
+	// Do not add other export_* properties without consulting with danalbert@.
+	// Consumers of ndk_library modules should emulate the typical NDK build
+	// behavior as closely as possible (that is, all NDK APIs are exposed to
+	// builds via --sysroot). Export behaviors used in Soong will not be present
+	// for app developers as they don't use Soong, and reliance on these export
+	// behaviors can mask issues with the NDK sysroot.
 }
 
 type stubDecorator struct {
@@ -484,7 +493,8 @@ func (c *stubDecorator) compile(ctx ModuleContext, flags Flags, deps PathDeps) O
 // Add a dependency on the header modules of this ndk_library
 func (linker *stubDecorator) linkerDeps(ctx DepsContext, deps Deps) Deps {
 	return Deps{
-		HeaderLibs: linker.properties.Export_header_libs,
+		ReexportHeaderLibHeaders: linker.properties.Export_header_libs,
+		HeaderLibs:               linker.properties.Export_header_libs,
 	}
 }
 

@@ -293,6 +293,7 @@ func TestPlatformBootclasspathDependencies(t *testing.T) {
 			],
 			srcs: ["b.java"],
 			installable: true,
+			sdk_version: "core_current",
 		}
 
 		// Add a java_import that is not preferred and so won't have an appropriate apex variant created
@@ -789,6 +790,128 @@ func TestNonBootJarInFragment(t *testing.T) {
 				}],
 			}
 		`)
+}
+
+// Skip bcp_fragment content validation of source apexes if prebuilts are active.
+func TestNonBootJarInPrebuilts(t *testing.T) {
+	testCases := []struct {
+		description               string
+		selectedApexContributions string
+		expectedError             string
+	}{
+		{
+			description:               "source is active",
+			selectedApexContributions: "",
+			expectedError:             "in contents must also be declared in PRODUCT_APEX_BOOT_JARS",
+		},
+		{
+			description:               "prebuilts are active",
+			selectedApexContributions: "myapex.prebuilt.contributions",
+			expectedError:             "", // skip content validation of source bcp fragment
+		},
+	}
+	bp := `
+// Source
+apex {
+	name: "myapex",
+	key: "myapex.key",
+	bootclasspath_fragments: ["apex-fragment"],
+	updatable: false,
+	min_sdk_version: "29",
+}
+
+override_apex {
+	name: "myapex.override", // overrides the min_sdk_version, thereby creating different variants of its transitive deps
+	base: "myapex",
+	min_sdk_version: "34",
+}
+
+apex_key {
+	name: "myapex.key",
+	public_key: "testkey.avbpubkey",
+	private_key: "testkey.pem",
+}
+
+java_library {
+	name: "foo",
+	srcs: ["b.java"],
+	installable: true,
+	apex_available: ["myapex"],
+	permitted_packages: ["foo"],
+	min_sdk_version: "29",
+}
+
+java_library {
+	name: "bar",
+	srcs: ["b.java"],
+	installable: true,
+	apex_available: ["myapex"],
+	permitted_packages: ["bar"],
+	min_sdk_version: "29",
+}
+
+bootclasspath_fragment {
+	name: "apex-fragment",
+	contents: ["foo", "bar"],
+	apex_available:[ "myapex" ],
+	hidden_api: {
+		split_packages: ["*"],
+	},
+}
+
+platform_bootclasspath {
+	name: "myplatform-bootclasspath",
+	fragments: [{
+			apex: "myapex",
+			module:"apex-fragment",
+	}],
+}
+
+// prebuilts
+prebuilt_apex {
+	name: "myapex",
+		apex_name: "myapex",
+		src: "myapex.apex",
+		exported_bootclasspath_fragments: ["apex-fragment"],
+	}
+
+	prebuilt_bootclasspath_fragment {
+		name: "apex-fragment",
+		contents: ["foo"],
+		hidden_api: {
+			annotation_flags: "my-bootclasspath-fragment/annotation-flags.csv",
+			metadata: "my-bootclasspath-fragment/metadata.csv",
+			index: "my-bootclasspath-fragment/index.csv",
+			stub_flags: "my-bootclasspath-fragment/stub-flags.csv",
+			all_flags: "my-bootclasspath-fragment/all-flags.csv",
+		},
+	}
+	java_import {
+		name: "foo",
+		jars: ["foo.jar"],
+	}
+
+apex_contributions {
+	name: "myapex.prebuilt.contributions",
+	api_domain: "myapex",
+	contents: ["prebuilt_myapex"],
+}
+`
+
+	for _, tc := range testCases {
+		fixture := android.GroupFixturePreparers(
+			prepareForTestWithPlatformBootclasspath,
+			PrepareForTestWithApexBuildComponents,
+			prepareForTestWithMyapex,
+			java.FixtureConfigureApexBootJars("myapex:foo"),
+			android.PrepareForTestWithBuildFlag("RELEASE_APEX_CONTRIBUTIONS_ADSERVICES", tc.selectedApexContributions),
+		)
+		if tc.expectedError != "" {
+			fixture = fixture.ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(tc.expectedError))
+		}
+		fixture.RunTestWithBp(t, bp)
+	}
+
 }
 
 // Source and prebuilt apex provide different set of boot jars

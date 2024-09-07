@@ -1766,6 +1766,32 @@ type InstallPath struct {
 	fullPath string
 }
 
+func (p *InstallPath) GobEncode() ([]byte, error) {
+	w := new(bytes.Buffer)
+	encoder := gob.NewEncoder(w)
+	err := errors.Join(encoder.Encode(p.basePath), encoder.Encode(p.soongOutDir),
+		encoder.Encode(p.partitionDir), encoder.Encode(p.partition),
+		encoder.Encode(p.makePath), encoder.Encode(p.fullPath))
+	if err != nil {
+		return nil, err
+	}
+
+	return w.Bytes(), nil
+}
+
+func (p *InstallPath) GobDecode(data []byte) error {
+	r := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(r)
+	err := errors.Join(decoder.Decode(&p.basePath), decoder.Decode(&p.soongOutDir),
+		decoder.Decode(&p.partitionDir), decoder.Decode(&p.partition),
+		decoder.Decode(&p.makePath), decoder.Decode(&p.fullPath))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Will panic if called from outside a test environment.
 func ensureTestOnly() {
 	if PrefixInList(os.Args, "-test.") {

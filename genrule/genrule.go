@@ -243,13 +243,35 @@ func toolDepsMutator(ctx android.BottomUpMutatorContext) {
 	}
 }
 
+var buildNumberAllowlistKey = android.NewOnceKey("genruleBuildNumberAllowlistKey")
+
 // This allowlist should be kept to the bare minimum, it's
 // intended for things that existed before the build number
 // was tightly controlled. Prefer using libbuildversion
 // via the use_version_lib property of cc modules.
-var genrule_build_number_allowlist = map[string]bool{
-	"build/soong/tests:gen":                   true,
-	"tools/tradefederation/core:tradefed_zip": true,
+// This is a function instead of a global map so that
+// soong plugins cannot add entries to the allowlist
+func isModuleInBuildNumberAllowlist(ctx android.ModuleContext) bool {
+	allowlist := ctx.Config().Once(buildNumberAllowlistKey, func() interface{} {
+		// Define the allowlist as a list and then copy it into a map so that
+		// gofmt doesn't change unnecessary lines trying to align the values of the map.
+		allowlist := []string{
+			// go/keep-sorted start
+			"build/soong/tests:gen",
+			"hardware/google/camera/common/hal/aidl_service:aidl_camera_build_version",
+			"tools/tradefederation/core:tradefed_zip",
+			"vendor/google/services/LyricCameraHAL/src/apex:com.google.pixel.camera.hal.manifest",
+			// go/keep-sorted end
+		}
+		allowlistMap := make(map[string]bool, len(allowlist))
+		for _, a := range allowlist {
+			allowlistMap[a] = true
+		}
+		return allowlistMap
+	}).(map[string]bool)
+
+	_, ok := allowlist[ctx.ModuleDir()+":"+ctx.ModuleName()]
+	return ok
 }
 
 // generateCommonBuildActions contains build action generation logic
@@ -547,7 +569,7 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 		cmd.ImplicitTools(tools)
 		cmd.ImplicitPackagedTools(packagedTools)
 		if proptools.Bool(g.properties.Uses_order_only_build_number_file) {
-			if _, ok := genrule_build_number_allowlist[ctx.ModuleDir()+":"+ctx.ModuleName()]; !ok {
+			if !isModuleInBuildNumberAllowlist(ctx) {
 				ctx.ModuleErrorf("Only allowlisted modules may use uses_order_only_build_number_file: true")
 			}
 			cmd.OrderOnly(ctx.Config().BuildNumberFile(ctx))
@@ -625,7 +647,7 @@ func (g *Module) setOutputFiles(ctx android.ModuleContext) {
 }
 
 // Collect information for opening IDE project files in java/jdeps.go.
-func (g *Module) IDEInfo(dpInfo *android.IdeInfo) {
+func (g *Module) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	dpInfo.Srcs = append(dpInfo.Srcs, g.Srcs().Strings()...)
 	for _, src := range g.properties.ResolvedSrcs {
 		if strings.HasPrefix(src, ":") {

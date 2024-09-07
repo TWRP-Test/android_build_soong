@@ -570,6 +570,8 @@ type apexFile struct {
 	customStem string
 	symlinks   []string // additional symlinks
 
+	checkbuildTarget android.Path
+
 	// Info for Android.mk Module name of `module` in AndroidMk. Note the generated AndroidMk
 	// module for apexFile is named something like <AndroidMk module name>.<apex name>[<apex
 	// suffix>]
@@ -605,6 +607,9 @@ func newApexFile(ctx android.BaseModuleContext, builtFile android.Path, androidM
 		module:              module,
 	}
 	if module != nil {
+		if installFilesInfo, ok := android.OtherModuleProvider(ctx, module, android.InstallFilesProvider); ok {
+			ret.checkbuildTarget = installFilesInfo.CheckbuildTarget
+		}
 		ret.moduleDir = ctx.OtherModuleDir(module)
 		ret.partition = module.PartitionTag(ctx.DeviceConfig())
 		ret.requiredModuleNames = module.RequiredModuleNames(ctx)
@@ -1066,6 +1071,7 @@ func (a *apexBundle) ApexInfoMutator(mctx android.TopDownMutatorContext) {
 		ApexContents:      []*android.ApexContents{apexContents},
 		TestApexes:        testApexes,
 		BaseApexName:      mctx.ModuleName(),
+		ApexAvailableName: proptools.String(a.properties.Apex_available_name),
 	}
 	mctx.WalkDeps(func(child, parent android.Module) bool {
 		if !continueApexDepsWalk(child, parent) {
@@ -1925,8 +1931,6 @@ type visitorContext struct {
 
 	// visitor skips these from this list of module names
 	unwantedTransitiveDeps []string
-
-	aconfigFiles []android.Path
 }
 
 func (vctx *visitorContext) normalizeFileInfo(mctx android.ModuleContext) {
@@ -1993,7 +1997,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 				fi := apexFileForNativeLibrary(ctx, ch, vctx.handleSpecialLibs)
 				fi.isJniLib = isJniLib
 				vctx.filesInfo = append(vctx.filesInfo, fi)
-				addAconfigFiles(vctx, ctx, child)
 				// Collect the list of stub-providing libs except:
 				// - VNDK libs are only for vendors
 				// - bootstrap bionic libs are treated as provided by system
@@ -2005,7 +2008,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 				fi := apexFileForRustLibrary(ctx, ch)
 				fi.isJniLib = isJniLib
 				vctx.filesInfo = append(vctx.filesInfo, fi)
-				addAconfigFiles(vctx, ctx, child)
 				return true // track transitive dependencies
 			default:
 				ctx.PropertyErrorf(propertyName, "%q is not a cc_library or cc_library_shared module", depName)
@@ -2014,11 +2016,9 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 			switch ch := child.(type) {
 			case *cc.Module:
 				vctx.filesInfo = append(vctx.filesInfo, apexFileForExecutable(ctx, ch))
-				addAconfigFiles(vctx, ctx, child)
 				return true // track transitive dependencies
 			case *rust.Module:
 				vctx.filesInfo = append(vctx.filesInfo, apexFileForRustExecutable(ctx, ch))
-				addAconfigFiles(vctx, ctx, child)
 				return true // track transitive dependencies
 			default:
 				ctx.PropertyErrorf("binaries",
@@ -2058,7 +2058,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 					return false
 				}
 				vctx.filesInfo = append(vctx.filesInfo, af)
-				addAconfigFiles(vctx, ctx, child)
 				return true // track transitive dependencies
 			default:
 				ctx.PropertyErrorf("java_libs", "%q of type %q is not supported", depName, ctx.OtherModuleType(child))
@@ -2067,14 +2066,11 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 			switch ap := child.(type) {
 			case *java.AndroidApp:
 				vctx.filesInfo = append(vctx.filesInfo, apexFilesForAndroidApp(ctx, ap)...)
-				addAconfigFiles(vctx, ctx, child)
 				return true // track transitive dependencies
 			case *java.AndroidAppImport:
 				vctx.filesInfo = append(vctx.filesInfo, apexFilesForAndroidApp(ctx, ap)...)
-				addAconfigFiles(vctx, ctx, child)
 			case *java.AndroidTestHelperApp:
 				vctx.filesInfo = append(vctx.filesInfo, apexFilesForAndroidApp(ctx, ap)...)
-				addAconfigFiles(vctx, ctx, child)
 			case *java.AndroidAppSet:
 				appDir := "app"
 				if ap.Privileged() {
@@ -2088,7 +2084,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 				af := newApexFile(ctx, ap.OutputFile(), ap.BaseModuleName(), appDirName, appSet, ap)
 				af.certificate = java.PresignedCertificate
 				vctx.filesInfo = append(vctx.filesInfo, af)
-				addAconfigFiles(vctx, ctx, child)
 			default:
 				ctx.PropertyErrorf("apps", "%q is not an android_app module", depName)
 			}
@@ -2120,7 +2115,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 				for _, etcFile := range filesToCopy {
 					vctx.filesInfo = append(vctx.filesInfo, apexFileForPrebuiltEtc(ctx, prebuilt, etcFile))
 				}
-				addAconfigFiles(vctx, ctx, child)
 			} else {
 				ctx.PropertyErrorf("prebuilts", "%q is not a prebuilt_etc module", depName)
 			}
@@ -2135,7 +2129,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 				af := apexFileForExecutable(ctx, ccTest)
 				af.class = nativeTest
 				vctx.filesInfo = append(vctx.filesInfo, af)
-				addAconfigFiles(vctx, ctx, child)
 				return true // track transitive dependencies
 			} else {
 				ctx.PropertyErrorf("tests", "%q is not a cc module", depName)
@@ -2215,13 +2208,15 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 			}
 
 			vctx.filesInfo = append(vctx.filesInfo, af)
-			addAconfigFiles(vctx, ctx, child)
 			return true // track transitive dependencies
 		} else if rm, ok := child.(*rust.Module); ok {
+			if !android.IsDepInSameApex(ctx, am, am) {
+				return false
+			}
+
 			af := apexFileForRustLibrary(ctx, rm)
 			af.transitiveDep = true
 			vctx.filesInfo = append(vctx.filesInfo, af)
-			addAconfigFiles(vctx, ctx, child)
 			return true // track transitive dependencies
 		}
 	} else if cc.IsHeaderDepTag(depTag) {
@@ -2237,10 +2232,13 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 		}
 	} else if rust.IsDylibDepTag(depTag) {
 		if rustm, ok := child.(*rust.Module); ok && rustm.IsInstallableToApex() {
+			if !android.IsDepInSameApex(ctx, am, am) {
+				return false
+			}
+
 			af := apexFileForRustLibrary(ctx, rustm)
 			af.transitiveDep = true
 			vctx.filesInfo = append(vctx.filesInfo, af)
-			addAconfigFiles(vctx, ctx, child)
 			return true // track transitive dependencies
 		}
 	} else if rust.IsRlibDepTag(depTag) {
@@ -2259,7 +2257,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 				return false
 			}
 			vctx.filesInfo = append(vctx.filesInfo, af)
-			addAconfigFiles(vctx, ctx, child)
 			return true // track transitive dependencies
 		default:
 			ctx.PropertyErrorf("bootclasspath_fragments",
@@ -2274,7 +2271,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 			if profileAf := apexFileForJavaModuleProfile(ctx, child.(javaModule)); profileAf != nil {
 				vctx.filesInfo = append(vctx.filesInfo, *profileAf)
 			}
-			addAconfigFiles(vctx, ctx, child)
 			return true // track transitive dependencies
 		default:
 			ctx.PropertyErrorf("systemserverclasspath_fragments",
@@ -2290,19 +2286,6 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 		ctx.ModuleErrorf("unexpected tag %s for indirect dependency %q", android.PrettyPrintTag(depTag), depName)
 	}
 	return false
-}
-
-func addAconfigFiles(vctx *visitorContext, ctx android.ModuleContext, module blueprint.Module) {
-	if dep, ok := android.OtherModuleProvider(ctx, module, android.AconfigPropagatingProviderKey); ok {
-		if len(dep.AconfigFiles) > 0 && dep.AconfigFiles[ctx.ModuleName()] != nil {
-			vctx.aconfigFiles = append(vctx.aconfigFiles, dep.AconfigFiles[ctx.ModuleName()]...)
-		}
-	}
-
-	validationFlag := ctx.DeviceConfig().AconfigContainerValidation()
-	if validationFlag == "error" || validationFlag == "warning" {
-		android.VerifyAconfigBuildMode(ctx, ctx.ModuleName(), module, validationFlag == "error")
-	}
 }
 
 func (a *apexBundle) shouldCheckDuplicate(ctx android.ModuleContext) bool {
@@ -2386,11 +2369,14 @@ func (a *apexBundle) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	// 3) some fields in apexBundle struct are configured
 	a.installDir = android.PathForModuleInstall(ctx, "apex")
 	a.filesInfo = vctx.filesInfo
-	a.aconfigFiles = android.FirstUniquePaths(vctx.aconfigFiles)
 
 	a.setPayloadFsType(ctx)
 	a.setSystemLibLink(ctx)
 	a.compatSymlinks = makeCompatSymlinks(a.BaseModuleName(), ctx)
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+	// 3.a) some artifacts are generated from the collected files
+	a.filesInfo = append(a.filesInfo, a.buildAconfigFiles(ctx)...)
 
 	////////////////////////////////////////////////////////////////////////////////////////////
 	// 4) generate the build rules to create the APEX. This is done in builder.go.
@@ -2853,7 +2839,7 @@ func isStaticExecutableAllowed(apex string, exec string) bool {
 }
 
 // Collect information for opening IDE project files in java/jdeps.go.
-func (a *apexBundle) IDEInfo(dpInfo *android.IdeInfo) {
+func (a *apexBundle) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.Java_libs...)
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.Bootclasspath_fragments...)
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.ResolvedSystemserverclasspathFragments...)

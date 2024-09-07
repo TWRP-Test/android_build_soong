@@ -239,7 +239,7 @@ func (s *SystemServerClasspathModule) ComponentDepsMutator(ctx android.BottomUpM
 }
 
 // Collect information for opening IDE project files in java/jdeps.go.
-func (s *SystemServerClasspathModule) IDEInfo(dpInfo *android.IdeInfo) {
+func (s *SystemServerClasspathModule) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	dpInfo.Deps = append(dpInfo.Deps, s.properties.Contents...)
 	dpInfo.Deps = append(dpInfo.Deps, s.properties.Standalone_contents...)
 }

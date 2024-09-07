@@ -70,6 +70,10 @@ type LibraryCompilerProperties struct {
 
 	// Whether this library is part of the Rust toolchain sysroot.
 	Sysroot *bool
+
+	// Exclude this rust_ffi target from being included in APEXes.
+	// TODO(b/362509506): remove this once stubs are properly supported by rust_ffi targets.
+	Apex_exclude *bool
 }
 
 type LibraryMutatedProperties struct {
@@ -122,6 +126,7 @@ type libraryInterface interface {
 	shared() bool
 	sysroot() bool
 	source() bool
+	apexExclude() bool
 
 	// Returns true if the build options for the module have selected a particular build type
 	buildRlib() bool
@@ -184,6 +189,10 @@ func (library *libraryDecorator) static() bool {
 
 func (library *libraryDecorator) source() bool {
 	return library.MutatedProperties.VariantIsSource
+}
+
+func (library *libraryDecorator) apexExclude() bool {
+	return Bool(library.Properties.Apex_exclude)
 }
 
 func (library *libraryDecorator) buildRlib() bool {

@@ -219,11 +219,4 @@ func (module *DeclarationsModule) GenerateAndroidBuildActions(ctx android.Module
 	android.SetProvider(ctx, android.AconfigReleaseDeclarationsProviderKey, providerData)
 }
 
-func (module *DeclarationsModule) BuildActionProviderKeys() []blueprint.AnyProviderKey {
-	return []blueprint.AnyProviderKey{
-		android.AconfigDeclarationsProviderKey,
-		android.AconfigReleaseDeclarationsProviderKey,
-	}
-}
-
 var _ blueprint.Incremental = &DeclarationsModule{}

@@ -32,9 +32,7 @@ func TestCollectJavaLibraryPropertiesAddLibsDeps(t *testing.T) {
 		}
 	`)
 	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
-	dpInfo := &android.IdeInfo{}
-
-	module.IDEInfo(dpInfo)
+	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
 
 	for _, expected := range []string{"Foo", "Bar"} {
 		if !android.InList(expected, dpInfo.Deps) {
@@ -54,9 +52,7 @@ func TestCollectJavaLibraryPropertiesAddStaticLibsDeps(t *testing.T) {
 		}
 	`)
 	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
-	dpInfo := &android.IdeInfo{}
-
-	module.IDEInfo(dpInfo)
+	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
 
 	for _, expected := range []string{"Foo", "Bar"} {
 		if !android.InList(expected, dpInfo.Deps) {
@@ -66,26 +62,36 @@ func TestCollectJavaLibraryPropertiesAddStaticLibsDeps(t *testing.T) {
 }
 
 func TestCollectJavaLibraryPropertiesAddScrs(t *testing.T) {
-	expected := []string{"Foo", "Bar"}
-	module := LibraryFactory().(*Library)
-	module.expandIDEInfoCompiledSrcs = append(module.expandIDEInfoCompiledSrcs, expected...)
-	dpInfo := &android.IdeInfo{}
+	ctx, _ := testJava(t,
+		`
+		java_library {
+			name: "javalib",
+			srcs: ["Foo.java", "Bar.java"],
+		}
+	`)
+	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
+	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
 
-	module.IDEInfo(dpInfo)
-
+	expected := []string{"Foo.java", "Bar.java"}
 	if !reflect.DeepEqual(dpInfo.Srcs, expected) {
 		t.Errorf("Library.IDEInfo() Srcs = %v, want %v", dpInfo.Srcs, expected)
 	}
 }
 
 func TestCollectJavaLibraryPropertiesAddAidlIncludeDirs(t *testing.T) {
+	ctx, _ := testJava(t,
+		`
+		java_library {
+			name: "javalib",
+			aidl: {
+				include_dirs: ["Foo", "Bar"],
+			},
+		}
+	`)
+	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
+	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
+
 	expected := []string{"Foo", "Bar"}
-	module := LibraryFactory().(*Library)
-	module.deviceProperties.Aidl.Include_dirs = append(module.deviceProperties.Aidl.Include_dirs, expected...)
-	dpInfo := &android.IdeInfo{}
-
-	module.IDEInfo(dpInfo)
-
 	if !reflect.DeepEqual(dpInfo.Aidl_include_dirs, expected) {
 		t.Errorf("Library.IDEInfo() Aidl_include_dirs = %v, want %v", dpInfo.Aidl_include_dirs, expected)
 	}
@@ -101,9 +107,8 @@ func TestCollectJavaLibraryWithJarJarRules(t *testing.T) {
 		}
 	`)
 	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
-	dpInfo := &android.IdeInfo{}
+	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
 
-	module.IDEInfo(dpInfo)
 	android.AssertBoolEquals(t, "IdeInfo.Srcs of repackaged library should be empty", true, len(dpInfo.Srcs) == 0)
 	android.AssertStringEquals(t, "IdeInfo.Jar_rules of repackaged library should not be empty", "jarjar_rules.txt", dpInfo.Jarjar_rules[0])
 	if !android.SubstringInList(dpInfo.Jars, "soong/.intermediates/javalib/android_common/jarjar/turbine/javalib.jar") {
@@ -125,8 +130,7 @@ func TestCollectJavaLibraryLinkingAgainstVersionedSdk(t *testing.T) {
 		}
 	`)
 	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
-	dpInfo := &android.IdeInfo{}
+	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
 
-	module.IDEInfo(dpInfo)
 	android.AssertStringListContains(t, "IdeInfo.Deps should contain versioned sdk module", dpInfo.Deps, "sdk_public_29_android")
 }

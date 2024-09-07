@@ -275,7 +275,10 @@ func createEnv(command *sbox_proto.Command) ([]string, error) {
 			if !state.Inherit {
 				return nil, fmt.Errorf("Can't have inherit set to false")
 			}
-			env = append(env, *envVar.Name+"="+os.Getenv(*envVar.Name))
+			val, ok := os.LookupEnv(*envVar.Name)
+			if ok {
+				env = append(env, *envVar.Name+"="+val)
+			}
 		default:
 			return nil, fmt.Errorf("Unhandled state type")
 		}

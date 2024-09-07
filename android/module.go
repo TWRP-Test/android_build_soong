@@ -15,6 +15,9 @@
 package android
 
 import (
+	"bytes"
+	"encoding/gob"
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -87,8 +90,6 @@ type Module interface {
 	ReplacedByPrebuilt()
 	IsReplacedByPrebuilt() bool
 	ExportedToMake() bool
-	InitRc() Paths
-	VintfFragments() Paths
 	EffectiveLicenseKinds() []string
 	EffectiveLicenseFiles() Paths
 
@@ -113,14 +114,7 @@ type Module interface {
 	TargetRequiredModuleNames() []string
 	VintfFragmentModuleNames(ctx ConfigAndErrorContext) []string
 
-	// TransitivePackagingSpecs returns the PackagingSpecs for this module and any transitive
-	// dependencies with dependency tags for which IsInstallDepNeeded() returns true.
-	TransitivePackagingSpecs() []PackagingSpec
-
 	ConfigurableEvaluator(ctx ConfigAndErrorContext) proptools.ConfigurableEvaluator
-
-	// Get the information about the containers this module belongs to.
-	ContainersInfo() ContainersInfo
 }
 
 // Qualified id for a module
@@ -501,6 +495,10 @@ type commonProperties struct {
 
 	// vintf_fragment Modules required from this module.
 	Vintf_fragment_modules proptools.Configurable[[]string] `android:"path"`
+
+	// List of module names that are prevented from being installed when this module gets
+	// installed.
+	Overrides []string
 }
 
 type distProperties struct {
@@ -835,15 +833,7 @@ type ModuleBase struct {
 	// The primary licenses property, may be nil, records license metadata for the module.
 	primaryLicensesProperty applicableLicensesProperty
 
-	noAddressSanitizer   bool
-	packagingSpecsDepSet *DepSet[PackagingSpec]
-	// katiInitRcInstalls and katiVintfInstalls track the install rules created by Soong that are
-	// allowed to have duplicates across modules and variants.
-	katiInitRcInstalls katiInstalls
-	katiVintfInstalls  katiInstalls
-
-	// The files to copy to the dist as explicitly specified in the .bp file.
-	distFiles TaggedDistFiles
+	noAddressSanitizer bool
 
 	hooks hooks
 
@@ -853,30 +843,6 @@ type ModuleBase struct {
 	buildParams []BuildParams
 	ruleParams  map[blueprint.Rule]blueprint.RuleParams
 	variables   map[string]string
-
-	initRcPaths         Paths
-	vintfFragmentsPaths Paths
-
-	installedInitRcPaths         InstallPaths
-	installedVintfFragmentsPaths InstallPaths
-
-	// Merged Aconfig files for all transitive deps.
-	aconfigFilePaths Paths
-
-	// The path to the generated license metadata file for the module.
-	licenseMetadataFile WritablePath
-
-	// moduleInfoJSON can be filled out by GenerateAndroidBuildActions to write a JSON file that will
-	// be included in the final module-info.json produced by Make.
-	moduleInfoJSON *ModuleInfoJSON
-
-	// complianceMetadataInfo is for different module types to dump metadata.
-	// See android.ModuleContext interface.
-	complianceMetadataInfo *ComplianceMetadataInfo
-
-	// containersInfo stores the information about the containers and the information of the
-	// apexes the module belongs to.
-	containersInfo ContainersInfo
 }
 
 func (m *ModuleBase) AddJSONData(d *map[string]interface{}) {
@@ -1473,10 +1439,6 @@ func isInstallDepNeeded(dep Module, tag blueprint.DependencyTag) bool {
 	return IsInstallDepNeededTag(tag)
 }
 
-func (m *ModuleBase) TransitivePackagingSpecs() []PackagingSpec {
-	return m.packagingSpecsDepSet.ToList()
-}
-
 func (m *ModuleBase) NoAddressSanitizer() bool {
 	return m.noAddressSanitizer
 }
@@ -1590,38 +1552,43 @@ func (m *ModuleBase) VintfFragmentModuleNames(ctx ConfigAndErrorContext) []strin
 	return m.base().commonProperties.Vintf_fragment_modules.GetOrDefault(m.ConfigurableEvaluator(ctx), nil)
 }
 
-func (m *ModuleBase) InitRc() Paths {
-	return append(Paths{}, m.initRcPaths...)
-}
+func (m *ModuleBase) generateVariantTarget(ctx *moduleContext) {
+	namespacePrefix := ctx.Namespace().id
+	if namespacePrefix != "" {
+		namespacePrefix = namespacePrefix + "-"
+	}
 
-func (m *ModuleBase) VintfFragments() Paths {
-	return append(Paths{}, m.vintfFragmentsPaths...)
-}
+	if !ctx.uncheckedModule {
+		name := namespacePrefix + ctx.ModuleName() + "-" + ctx.ModuleSubDir() + "-checkbuild"
+		ctx.Phony(name, ctx.checkbuildFiles...)
+		ctx.checkbuildTarget = PathForPhony(ctx, name)
+	}
 
-func (m *ModuleBase) CompileMultilib() *string {
-	return m.base().commonProperties.Compile_multilib
 }
 
 func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 	var allInstalledFiles InstallPaths
-	var allCheckbuildFiles Paths
+	var allCheckbuildTargets Paths
 	ctx.VisitAllModuleVariants(func(module Module) {
 		a := module.base()
-		var checkBuilds Paths
+		var checkbuildTarget Path
+		var uncheckedModule bool
 		if a == m {
 			allInstalledFiles = append(allInstalledFiles, ctx.installFiles...)
-			checkBuilds = ctx.checkbuildFiles
+			checkbuildTarget = ctx.checkbuildTarget
+			uncheckedModule = ctx.uncheckedModule
 		} else {
 			info := OtherModuleProviderOrDefault(ctx, module, InstallFilesProvider)
 			allInstalledFiles = append(allInstalledFiles, info.InstallFiles...)
-			checkBuilds = info.CheckbuildFiles
+			checkbuildTarget = info.CheckbuildTarget
+			uncheckedModule = info.UncheckedModule
 		}
 		// A module's -checkbuild phony targets should
 		// not be created if the module is not exported to make.
 		// Those could depend on the build target and fail to compile
 		// for the current build target.
-		if !ctx.Config().KatiEnabled() || !shouldSkipAndroidMkProcessing(ctx, a) {
-			allCheckbuildFiles = append(allCheckbuildFiles, checkBuilds...)
+		if (!ctx.Config().KatiEnabled() || !shouldSkipAndroidMkProcessing(ctx, a)) && !uncheckedModule && checkbuildTarget != nil {
+			allCheckbuildTargets = append(allCheckbuildTargets, checkbuildTarget)
 		}
 	})
 
@@ -1642,11 +1609,10 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 		deps = append(deps, info.InstallTarget)
 	}
 
-	if len(allCheckbuildFiles) > 0 {
+	if len(allCheckbuildTargets) > 0 {
 		name := namespacePrefix + ctx.ModuleName() + "-checkbuild"
-		ctx.Phony(name, allCheckbuildFiles...)
-		info.CheckbuildTarget = PathForPhony(ctx, name)
-		deps = append(deps, info.CheckbuildTarget)
+		ctx.Phony(name, allCheckbuildTargets...)
+		deps = append(deps, PathForPhony(ctx, name))
 	}
 
 	if len(deps) > 0 {
@@ -1763,17 +1729,33 @@ func (m *ModuleBase) archModuleContextFactory(ctx archModuleContextFactoryContex
 }
 
 type InstallFilesInfo struct {
-	InstallFiles    InstallPaths
-	CheckbuildFiles Paths
-	PackagingSpecs  []PackagingSpec
+	InstallFiles     InstallPaths
+	CheckbuildFiles  Paths
+	CheckbuildTarget Path
+	UncheckedModule  bool
+	PackagingSpecs   []PackagingSpec
 	// katiInstalls tracks the install rules that were created by Soong but are being exported
 	// to Make to convert to ninja rules so that Make can add additional dependencies.
-	KatiInstalls katiInstalls
-	KatiSymlinks katiInstalls
-	TestData     []DataPath
-	// This was private before, make it private again once we have better solution.
-	TransitiveInstallFiles   *DepSet[InstallPath]
+	KatiInstalls             katiInstalls
+	KatiSymlinks             katiInstalls
+	TestData                 []DataPath
 	TransitivePackagingSpecs *DepSet[PackagingSpec]
+	LicenseMetadataFile      WritablePath
+
+	// The following fields are private before, make it private again once we have
+	// better solution.
+	TransitiveInstallFiles *DepSet[InstallPath]
+	// katiInitRcInstalls and katiVintfInstalls track the install rules created by Soong that are
+	// allowed to have duplicates across modules and variants.
+	KatiInitRcInstalls           katiInstalls
+	KatiVintfInstalls            katiInstalls
+	InitRcPaths                  Paths
+	VintfFragmentsPaths          Paths
+	InstalledInitRcPaths         InstallPaths
+	InstalledVintfFragmentsPaths InstallPaths
+
+	// The files to copy to the dist as explicitly specified in the .bp file.
+	DistFiles TaggedDistFiles
 }
 
 var InstallFilesProvider = blueprint.NewProvider[InstallFilesInfo]()
@@ -1798,8 +1780,11 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 	}
 
 	setContainerInfo(ctx)
+	if ctx.Config().Getenv("DISABLE_CONTAINER_CHECK") != "true" {
+		checkContainerViolations(ctx)
+	}
 
-	m.licenseMetadataFile = PathForModuleOut(ctx, "meta_lic")
+	ctx.licenseMetadataFile = PathForModuleOut(ctx, "meta_lic")
 
 	dependencyInstallFiles, dependencyPackagingSpecs := m.computeInstallDeps(ctx)
 	// set the TransitiveInstallFiles to only the transitive dependencies to be used as the dependencies
@@ -1868,30 +1853,36 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			// so only a single rule is created for each init.rc or vintf fragment file.
 
 			if !m.InVendorRamdisk() {
-				m.initRcPaths = PathsForModuleSrc(ctx, m.commonProperties.Init_rc)
+				ctx.initRcPaths = PathsForModuleSrc(ctx, m.commonProperties.Init_rc)
 				rcDir := PathForModuleInstall(ctx, "etc", "init")
-				for _, src := range m.initRcPaths {
+				for _, src := range ctx.initRcPaths {
 					installedInitRc := rcDir.Join(ctx, src.Base())
-					m.katiInitRcInstalls = append(m.katiInitRcInstalls, katiInstall{
+					ctx.katiInitRcInstalls = append(ctx.katiInitRcInstalls, katiInstall{
 						from: src,
 						to:   installedInitRc,
 					})
 					ctx.PackageFile(rcDir, src.Base(), src)
-					m.installedInitRcPaths = append(m.installedInitRcPaths, installedInitRc)
+					ctx.installedInitRcPaths = append(ctx.installedInitRcPaths, installedInitRc)
 				}
+				installFiles.InitRcPaths = ctx.initRcPaths
+				installFiles.KatiInitRcInstalls = ctx.katiInitRcInstalls
+				installFiles.InstalledInitRcPaths = ctx.installedInitRcPaths
 			}
 
-			m.vintfFragmentsPaths = PathsForModuleSrc(ctx, m.commonProperties.Vintf_fragments.GetOrDefault(ctx, nil))
+			ctx.vintfFragmentsPaths = PathsForModuleSrc(ctx, m.commonProperties.Vintf_fragments.GetOrDefault(ctx, nil))
 			vintfDir := PathForModuleInstall(ctx, "etc", "vintf", "manifest")
-			for _, src := range m.vintfFragmentsPaths {
+			for _, src := range ctx.vintfFragmentsPaths {
 				installedVintfFragment := vintfDir.Join(ctx, src.Base())
-				m.katiVintfInstalls = append(m.katiVintfInstalls, katiInstall{
+				ctx.katiVintfInstalls = append(ctx.katiVintfInstalls, katiInstall{
 					from: src,
 					to:   installedVintfFragment,
 				})
 				ctx.PackageFile(vintfDir, src.Base(), src)
-				m.installedVintfFragmentsPaths = append(m.installedVintfFragmentsPaths, installedVintfFragment)
+				ctx.installedVintfFragmentsPaths = append(ctx.installedVintfFragmentsPaths, installedVintfFragment)
 			}
+			installFiles.VintfFragmentsPaths = ctx.vintfFragmentsPaths
+			installFiles.KatiVintfInstalls = ctx.katiVintfInstalls
+			installFiles.InstalledVintfFragmentsPaths = ctx.installedVintfFragmentsPaths
 		}
 
 		licensesPropertyFlattener(ctx)
@@ -1913,67 +1904,34 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			return
 		}
 
-		incrementalAnalysis := false
-		incrementalEnabled := false
-		var cacheKey *blueprint.BuildActionCacheKey = nil
-		var incrementalModule *blueprint.Incremental = nil
-		if ctx.bp.GetIncrementalEnabled() {
-			if im, ok := m.module.(blueprint.Incremental); ok {
-				incrementalModule = &im
-				incrementalEnabled = im.IncrementalSupported()
-				incrementalAnalysis = ctx.bp.GetIncrementalAnalysis() && incrementalEnabled
-			}
-		}
-		if incrementalEnabled {
-			hash, err := proptools.CalculateHash(m.GetProperties())
-			if err != nil {
-				ctx.ModuleErrorf("failed to calculate properties hash: %s", err)
-				return
-			}
-			cacheInput := new(blueprint.BuildActionCacheInput)
-			cacheInput.PropertiesHash = hash
-			ctx.VisitDirectDeps(func(module Module) {
-				cacheInput.ProvidersHash =
-					append(cacheInput.ProvidersHash, ctx.bp.OtherModuleProviderInitialValueHashes(module))
-			})
-			hash, err = proptools.CalculateHash(&cacheInput)
-			if err != nil {
-				ctx.ModuleErrorf("failed to calculate cache input hash: %s", err)
-				return
-			}
-			cacheKey = &blueprint.BuildActionCacheKey{
-				Id:        ctx.bp.ModuleCacheKey(),
-				InputHash: hash,
-			}
+		m.module.GenerateAndroidBuildActions(ctx)
+		if ctx.Failed() {
+			return
 		}
 
-		restored := false
-		if incrementalAnalysis && cacheKey != nil {
-			restored = ctx.bp.RestoreBuildActions(cacheKey)
-		}
-
-		if !restored {
-			m.module.GenerateAndroidBuildActions(ctx)
-			if ctx.Failed() {
-				return
-			}
-		}
-
-		if incrementalEnabled && cacheKey != nil {
-			ctx.bp.CacheBuildActions(cacheKey, incrementalModule)
+		if x, ok := m.module.(IDEInfo); ok {
+			var result IdeInfo
+			x.IDEInfo(ctx, &result)
+			result.BaseModuleName = x.BaseModuleName()
+			SetProvider(ctx, IdeInfoProviderKey, result)
 		}
 
 		// Create the set of tagged dist files after calling GenerateAndroidBuildActions
 		// as GenerateTaggedDistFiles() calls OutputFiles(tag) and so relies on the
 		// output paths being set which must be done before or during
 		// GenerateAndroidBuildActions.
-		m.distFiles = m.GenerateTaggedDistFiles(ctx)
+		installFiles.DistFiles = m.GenerateTaggedDistFiles(ctx)
 		if ctx.Failed() {
 			return
 		}
 
+		m.generateVariantTarget(ctx)
+
+		installFiles.LicenseMetadataFile = ctx.licenseMetadataFile
 		installFiles.InstallFiles = ctx.installFiles
 		installFiles.CheckbuildFiles = ctx.checkbuildFiles
+		installFiles.CheckbuildTarget = ctx.checkbuildTarget
+		installFiles.UncheckedModule = ctx.uncheckedModule
 		installFiles.PackagingSpecs = ctx.packagingSpecs
 		installFiles.KatiInstalls = ctx.katiInstalls
 		installFiles.KatiSymlinks = ctx.katiSymlinks
@@ -1995,18 +1953,17 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 
 	ctx.TransitiveInstallFiles = NewDepSet[InstallPath](TOPOLOGICAL, ctx.installFiles, dependencyInstallFiles)
 	installFiles.TransitiveInstallFiles = ctx.TransitiveInstallFiles
-	m.packagingSpecsDepSet = NewDepSet[PackagingSpec](TOPOLOGICAL, ctx.packagingSpecs, dependencyPackagingSpecs)
-	installFiles.TransitivePackagingSpecs = m.packagingSpecsDepSet
+	installFiles.TransitivePackagingSpecs = NewDepSet[PackagingSpec](TOPOLOGICAL, ctx.packagingSpecs, dependencyPackagingSpecs)
 
 	SetProvider(ctx, InstallFilesProvider, installFiles)
-	buildLicenseMetadata(ctx, m.licenseMetadataFile)
+	buildLicenseMetadata(ctx, ctx.licenseMetadataFile)
 
-	if m.moduleInfoJSON != nil {
+	if ctx.moduleInfoJSON != nil {
 		var installed InstallPaths
 		installed = append(installed, ctx.katiInstalls.InstallPaths()...)
 		installed = append(installed, ctx.katiSymlinks.InstallPaths()...)
-		installed = append(installed, m.katiInitRcInstalls.InstallPaths()...)
-		installed = append(installed, m.katiVintfInstalls.InstallPaths()...)
+		installed = append(installed, ctx.katiInitRcInstalls.InstallPaths()...)
+		installed = append(installed, ctx.katiVintfInstalls.InstallPaths()...)
 		installedStrings := installed.Strings()
 
 		var targetRequired, hostRequired []string
@@ -2021,28 +1978,28 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			data = append(data, d.ToRelativeInstallPath())
 		}
 
-		if m.moduleInfoJSON.Uninstallable {
+		if ctx.moduleInfoJSON.Uninstallable {
 			installedStrings = nil
-			if len(m.moduleInfoJSON.CompatibilitySuites) == 1 && m.moduleInfoJSON.CompatibilitySuites[0] == "null-suite" {
-				m.moduleInfoJSON.CompatibilitySuites = nil
-				m.moduleInfoJSON.TestConfig = nil
-				m.moduleInfoJSON.AutoTestConfig = nil
+			if len(ctx.moduleInfoJSON.CompatibilitySuites) == 1 && ctx.moduleInfoJSON.CompatibilitySuites[0] == "null-suite" {
+				ctx.moduleInfoJSON.CompatibilitySuites = nil
+				ctx.moduleInfoJSON.TestConfig = nil
+				ctx.moduleInfoJSON.AutoTestConfig = nil
 				data = nil
 			}
 		}
 
-		m.moduleInfoJSON.core = CoreModuleInfoJSON{
-			RegisterName:       m.moduleInfoRegisterName(ctx, m.moduleInfoJSON.SubName),
+		ctx.moduleInfoJSON.core = CoreModuleInfoJSON{
+			RegisterName:       m.moduleInfoRegisterName(ctx, ctx.moduleInfoJSON.SubName),
 			Path:               []string{ctx.ModuleDir()},
 			Installed:          installedStrings,
-			ModuleName:         m.BaseModuleName() + m.moduleInfoJSON.SubName,
+			ModuleName:         m.BaseModuleName() + ctx.moduleInfoJSON.SubName,
 			SupportedVariants:  []string{m.moduleInfoVariant(ctx)},
 			TargetDependencies: targetRequired,
 			HostDependencies:   hostRequired,
 			Data:               data,
-			Required:           m.RequiredModuleNames(ctx),
+			Required:           append(m.RequiredModuleNames(ctx), m.VintfFragmentModuleNames(ctx)...),
 		}
-		SetProvider(ctx, ModuleInfoJSONProvider, m.moduleInfoJSON)
+		SetProvider(ctx, ModuleInfoJSONProvider, ctx.moduleInfoJSON)
 	}
 
 	m.buildParams = ctx.buildParams
@@ -2105,10 +2062,6 @@ func (m *ModuleBase) moduleInfoVariant(ctx ModuleContext) string {
 	return variant
 }
 
-func (m *ModuleBase) ContainersInfo() ContainersInfo {
-	return m.containersInfo
-}
-
 // Check the supplied dist structure to make sure that it is valid.
 //
 // property - the base property, e.g. dist or dists[1], which is combined with the
@@ -2147,9 +2100,59 @@ type katiInstall struct {
 	absFrom string
 }
 
+func (p *katiInstall) GobEncode() ([]byte, error) {
+	w := new(bytes.Buffer)
+	encoder := gob.NewEncoder(w)
+	err := errors.Join(encoder.Encode(p.from), encoder.Encode(p.to),
+		encoder.Encode(p.implicitDeps), encoder.Encode(p.orderOnlyDeps),
+		encoder.Encode(p.executable), encoder.Encode(p.extraFiles),
+		encoder.Encode(p.absFrom))
+	if err != nil {
+		return nil, err
+	}
+
+	return w.Bytes(), nil
+}
+
+func (p *katiInstall) GobDecode(data []byte) error {
+	r := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(r)
+	err := errors.Join(decoder.Decode(&p.from), decoder.Decode(&p.to),
+		decoder.Decode(&p.implicitDeps), decoder.Decode(&p.orderOnlyDeps),
+		decoder.Decode(&p.executable), decoder.Decode(&p.extraFiles),
+		decoder.Decode(&p.absFrom))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type extraFilesZip struct {
 	zip Path
 	dir InstallPath
+}
+
+func (p *extraFilesZip) GobEncode() ([]byte, error) {
+	w := new(bytes.Buffer)
+	encoder := gob.NewEncoder(w)
+	err := errors.Join(encoder.Encode(p.zip), encoder.Encode(p.dir))
+	if err != nil {
+		return nil, err
+	}
+
+	return w.Bytes(), nil
+}
+
+func (p *extraFilesZip) GobDecode(data []byte) error {
+	r := bytes.NewBuffer(data)
+	decoder := gob.NewDecoder(r)
+	err := errors.Join(decoder.Decode(&p.zip), decoder.Decode(&p.dir))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type katiInstalls []katiInstall
@@ -2741,7 +2744,7 @@ func (c *buildTargetSingleton) GenerateBuildActions(ctx SingletonContext) {
 
 // Collect information for opening IDE project files in java/jdeps.go.
 type IDEInfo interface {
-	IDEInfo(ideInfo *IdeInfo)
+	IDEInfo(ctx BaseModuleContext, ideInfo *IdeInfo)
 	BaseModuleName() string
 }
 
@@ -2753,7 +2756,9 @@ type IDECustomizedModuleName interface {
 	IDECustomizedModuleName() string
 }
 
+// Collect information for opening IDE project files in java/jdeps.go.
 type IdeInfo struct {
+	BaseModuleName    string   `json:"-"`
 	Deps              []string `json:"dependencies,omitempty"`
 	Srcs              []string `json:"srcs,omitempty"`
 	Aidl_include_dirs []string `json:"aidl_include_dirs,omitempty"`
@@ -2766,6 +2771,31 @@ type IdeInfo struct {
 	Static_libs       []string `json:"static_libs,omitempty"`
 	Libs              []string `json:"libs,omitempty"`
 }
+
+// Merge merges two IdeInfos and produces a new one, leaving the origional unchanged
+func (i IdeInfo) Merge(other IdeInfo) IdeInfo {
+	return IdeInfo{
+		Deps:              mergeStringLists(i.Deps, other.Deps),
+		Srcs:              mergeStringLists(i.Srcs, other.Srcs),
+		Aidl_include_dirs: mergeStringLists(i.Aidl_include_dirs, other.Aidl_include_dirs),
+		Jarjar_rules:      mergeStringLists(i.Jarjar_rules, other.Jarjar_rules),
+		Jars:              mergeStringLists(i.Jars, other.Jars),
+		Classes:           mergeStringLists(i.Classes, other.Classes),
+		Installed_paths:   mergeStringLists(i.Installed_paths, other.Installed_paths),
+		SrcJars:           mergeStringLists(i.SrcJars, other.SrcJars),
+		Paths:             mergeStringLists(i.Paths, other.Paths),
+		Static_libs:       mergeStringLists(i.Static_libs, other.Static_libs),
+		Libs:              mergeStringLists(i.Libs, other.Libs),
+	}
+}
+
+// mergeStringLists appends the two string lists together and returns a new string list,
+// leaving the originals unchanged. Duplicate strings will be deduplicated.
+func mergeStringLists(a, b []string) []string {
+	return FirstUniqueStrings(Concat(a, b))
+}
+
+var IdeInfoProviderKey = blueprint.NewProvider[IdeInfo]()
 
 func CheckBlueprintSyntax(ctx BaseModuleContext, filename string, contents string) []error {
 	bpctx := ctx.blueprintBaseModuleContext()

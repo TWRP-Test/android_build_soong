@@ -294,6 +294,15 @@ func (mod *Module) StaticExecutable() bool {
 	return mod.StaticallyLinked()
 }
 
+func (mod *Module) ApexExclude() bool {
+	if mod.compiler != nil {
+		if library, ok := mod.compiler.(libraryInterface); ok {
+			return library.apexExclude()
+		}
+	}
+	return false
+}
+
 func (mod *Module) Object() bool {
 	// Rust has no modules which produce only object files.
 	return false
@@ -938,6 +947,7 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			sourceLib := sourceMod.(*Module).compiler.(*libraryDecorator)
 			mod.sourceProvider.setOutputFiles(sourceLib.sourceProvider.Srcs())
 		}
+		ctx.CheckbuildFile(mod.sourceProvider.Srcs()...)
 		android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: mod.sourceProvider.Srcs().Strings()})
 	}
 
@@ -948,15 +958,13 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			return
 		}
 		mod.outputFile = android.OptionalPathForPath(buildOutput.outputFile)
+		ctx.CheckbuildFile(buildOutput.outputFile)
 		if buildOutput.kytheFile != nil {
 			mod.kytheFiles = append(mod.kytheFiles, buildOutput.kytheFile)
 		}
 		bloaty.MeasureSizeForPaths(ctx, mod.compiler.strippedOutputFilePath(), android.OptionalPathForPath(mod.compiler.unstrippedOutputFilePath()))
 
 		mod.docTimestampFile = mod.compiler.rustdoc(ctx, flags, deps)
-		if mod.docTimestampFile.Valid() {
-			ctx.CheckbuildFile(mod.docTimestampFile.Path())
-		}
 
 		apexInfo, _ := android.ModuleProvider(actx, android.ApexInfoProvider)
 		if !proptools.BoolDefault(mod.Installable(), mod.EverInstallable()) && !mod.ProcMacro() {
@@ -1860,6 +1868,10 @@ func (mod *Module) DepIsInSameApex(ctx android.BaseModuleContext, dep android.Mo
 	}
 
 	if depTag == procMacroDepTag || depTag == customBindgenDepTag {
+		return false
+	}
+
+	if rustDep, ok := dep.(*Module); ok && rustDep.ApexExclude() {
 		return false
 	}
 

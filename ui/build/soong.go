@@ -244,7 +244,6 @@ func (pb PrimaryBuilderFactory) primaryBuilderInvocation(config Config) bootstra
 	globfiles := bootstrap.GlobFileListFiles(bootstrap.GlobDirectory(config.SoongOutDir(), globPathName))
 
 	return bootstrap.PrimaryBuilderInvocation{
-		Inputs:      []string{"Android.bp"},
 		Implicits:   globfiles,
 		Outputs:     []string{pb.output},
 		Args:        allArgs,

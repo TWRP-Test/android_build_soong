@@ -463,6 +463,12 @@ func (b *BootclasspathFragmentModule) DepsMutator(ctx android.BottomUpMutatorCon
 	// Add a dependency onto the dex2oat tool which is needed for creating the boot image. The
 	// path is retrieved from the dependency by GetGlobalSoongConfig(ctx).
 	dexpreopt.RegisterToolDeps(ctx)
+
+	// Add a dependency to `all_apex_contributions` to determine if prebuilts are active.
+	// If prebuilts are active, `contents` validation on the source bootclasspath fragment should be disabled.
+	if _, isPrebuiltModule := ctx.Module().(*PrebuiltBootclasspathFragmentModule); !isPrebuiltModule {
+		ctx.AddDependency(b, android.AcDepTag, "all_apex_contributions")
+	}
 }
 
 func (b *BootclasspathFragmentModule) BootclasspathDepsMutator(ctx android.BottomUpMutatorContext) {
@@ -836,7 +842,7 @@ func (b *BootclasspathFragmentModule) getProfilePath() android.Path {
 }
 
 // Collect information for opening IDE project files in java/jdeps.go.
-func (b *BootclasspathFragmentModule) IDEInfo(dpInfo *android.IdeInfo) {
+func (b *BootclasspathFragmentModule) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	dpInfo.Deps = append(dpInfo.Deps, b.properties.Contents...)
 }
 

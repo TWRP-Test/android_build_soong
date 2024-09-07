@@ -56,6 +56,13 @@ func TestKotlin(t *testing.T) {
 		"out/soong/.intermediates/default/java/kotlin-annotations/android_common/turbine-combined/kotlin-annotations.jar",
 	}
 
+	kotlinStdlibTurbineJars := []string{
+		"out/soong/.intermediates/default/java/kotlin-stdlib/android_common/turbine/kotlin-stdlib.jar",
+		"out/soong/.intermediates/default/java/kotlin-stdlib-jdk7/android_common/turbine/kotlin-stdlib-jdk7.jar",
+		"out/soong/.intermediates/default/java/kotlin-stdlib-jdk8/android_common/turbine/kotlin-stdlib-jdk8.jar",
+		"out/soong/.intermediates/default/java/kotlin-annotations/android_common/turbine/kotlin-annotations.jar",
+	}
+
 	kotlinStdlibJavacJars := []string{
 		"out/soong/.intermediates/default/java/kotlin-stdlib/android_common/javac/kotlin-stdlib.jar",
 		"out/soong/.intermediates/default/java/kotlin-stdlib-jdk7/android_common/javac/kotlin-stdlib-jdk7.jar",
@@ -68,9 +75,19 @@ func TestKotlin(t *testing.T) {
 		"out/soong/.intermediates/default/java/core-lambda-stubs/android_common/turbine-combined/core-lambda-stubs.jar",
 	}
 
+	bootclasspathTurbineJars := []string{
+		"out/soong/.intermediates/default/java/stable.core.platform.api.stubs/android_common/turbine/stable.core.platform.api.stubs.jar",
+		"out/soong/.intermediates/default/java/core-lambda-stubs/android_common/turbine/core-lambda-stubs.jar",
+	}
+
 	frameworkTurbineCombinedJars := []string{
 		"out/soong/.intermediates/default/java/ext/android_common/turbine-combined/ext.jar",
 		"out/soong/.intermediates/default/java/framework/android_common/turbine-combined/framework.jar",
+	}
+
+	frameworkTurbineJars := []string{
+		"out/soong/.intermediates/default/java/ext/android_common/turbine/ext.jar",
+		"out/soong/.intermediates/default/java/framework/android_common/turbine/framework.jar",
 	}
 
 	testCases := []struct {
@@ -148,6 +165,69 @@ func TestKotlin(t *testing.T) {
 					"out/soong/.intermediates/baz/android_common/turbine-combined/baz.jar",
 				},
 				kotlinStdlibTurbineCombinedJars,
+			),
+		},
+		{
+			name:             "transitive classpath",
+			preparer:         PrepareForTestWithTransitiveClasspathEnabled,
+			fooKotlincInputs: []string{"a.java", "b.kt"},
+			fooJavacInputs:   []string{"a.java"},
+			fooKotlincClasspath: slices.Concat(
+				bootclasspathTurbineJars,
+				frameworkTurbineJars,
+				[]string{"out/soong/.intermediates/quz/android_common/kotlin_headers/quz.jar"},
+				kotlinStdlibTurbineJars,
+			),
+			fooJavacClasspath: slices.Concat(
+				[]string{"out/soong/.intermediates/foo/android_common/kotlin_headers/foo.jar"},
+				frameworkTurbineJars,
+				[]string{"out/soong/.intermediates/quz/android_common/kotlin_headers/quz.jar"},
+				kotlinStdlibTurbineJars,
+			),
+			fooCombinedInputs: slices.Concat(
+				[]string{
+					"out/soong/.intermediates/foo/android_common/kotlin/foo.jar",
+					"out/soong/.intermediates/foo/android_common/javac/foo.jar",
+					"out/soong/.intermediates/quz/android_common/kotlin/quz.jar",
+				},
+				kotlinStdlibJavacJars,
+			),
+			fooHeaderCombinedInputs: slices.Concat(
+				[]string{
+					"out/soong/.intermediates/foo/android_common/turbine/foo.jar",
+					"out/soong/.intermediates/foo/android_common/kotlin_headers/foo.jar",
+					"out/soong/.intermediates/quz/android_common/kotlin_headers/quz.jar",
+				},
+				kotlinStdlibTurbineJars,
+			),
+
+			barKotlincInputs: []string{"b.kt"},
+			barKotlincClasspath: slices.Concat(
+				bootclasspathTurbineJars,
+				frameworkTurbineJars,
+				[]string{
+					"out/soong/.intermediates/foo/android_common/turbine/foo.jar",
+					"out/soong/.intermediates/foo/android_common/kotlin_headers/foo.jar",
+					"out/soong/.intermediates/quz/android_common/kotlin_headers/quz.jar",
+				},
+				kotlinStdlibTurbineJars,
+				[]string{"out/soong/.intermediates/baz/android_common/turbine/baz.jar"},
+			),
+			barCombinedInputs: slices.Concat(
+				[]string{
+					"out/soong/.intermediates/bar/android_common/kotlin/bar.jar",
+					"out/soong/.intermediates/baz/android_common/javac/baz.jar",
+					"out/soong/.intermediates/quz/android_common/kotlin/quz.jar",
+				},
+				kotlinStdlibJavacJars,
+			),
+			barHeaderCombinedInputs: slices.Concat(
+				[]string{
+					"out/soong/.intermediates/bar/android_common/kotlin_headers/bar.jar",
+					"out/soong/.intermediates/baz/android_common/turbine/baz.jar",
+					"out/soong/.intermediates/quz/android_common/kotlin_headers/quz.jar",
+				},
+				kotlinStdlibTurbineJars,
 			),
 		},
 	}

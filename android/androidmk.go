@@ -157,6 +157,7 @@ type AndroidMkEntries struct {
 }
 
 type AndroidMkEntriesContext interface {
+	OtherModuleProviderContext
 	Config() Config
 }
 
@@ -354,14 +355,15 @@ func (a *AndroidMkEntries) getDistContributions(mod blueprint.Module) *distContr
 		availableTaggedDists = availableTaggedDists.addPathsForTag(DefaultDistTag, a.OutputFile.Path())
 	}
 
+	info := OtherModuleProviderOrDefault(a.entryContext, mod, InstallFilesProvider)
 	// If the distFiles created by GenerateTaggedDistFiles contains paths for the
 	// DefaultDistTag then that takes priority so delete any existing paths.
-	if _, ok := amod.distFiles[DefaultDistTag]; ok {
+	if _, ok := info.DistFiles[DefaultDistTag]; ok {
 		delete(availableTaggedDists, DefaultDistTag)
 	}
 
 	// Finally, merge the distFiles created by GenerateTaggedDistFiles.
-	availableTaggedDists = availableTaggedDists.merge(amod.distFiles)
+	availableTaggedDists = availableTaggedDists.merge(info.DistFiles)
 
 	if len(availableTaggedDists) == 0 {
 		// Nothing dist-able for this module.
@@ -372,7 +374,7 @@ func (a *AndroidMkEntries) getDistContributions(mod blueprint.Module) *distContr
 	distContributions := &distContributions{}
 
 	if !exemptFromRequiredApplicableLicensesProperty(mod.(Module)) {
-		distContributions.licenseMetadataFile = amod.licenseMetadataFile
+		distContributions.licenseMetadataFile = info.LicenseMetadataFile
 	}
 
 	// Iterate over this module's dist structs, merged from the dist and dists properties.
@@ -552,6 +554,14 @@ func (a *AndroidMkEntries) fillInEntries(ctx fillInEntriesContext, mod blueprint
 		a.SetBoolIfTrue("LOCAL_UNINSTALLABLE_MODULE", proptools.Bool(base.commonProperties.No_full_install))
 	}
 
+	if info.UncheckedModule {
+		a.SetBool("LOCAL_DONT_CHECK_MODULE", true)
+	} else if info.CheckbuildTarget != nil {
+		a.SetPath("LOCAL_CHECKED_MODULE", info.CheckbuildTarget)
+	} else {
+		a.SetOptionalPath("LOCAL_CHECKED_MODULE", a.OutputFile)
+	}
+
 	if len(info.TestData) > 0 {
 		a.AddStrings("LOCAL_TEST_DATA", androidMkDataPaths(info.TestData)...)
 	}
@@ -590,10 +600,10 @@ func (a *AndroidMkEntries) fillInEntries(ctx fillInEntriesContext, mod blueprint
 		}
 
 		if !base.InVendorRamdisk() {
-			a.AddPaths("LOCAL_FULL_INIT_RC", base.initRcPaths)
+			a.AddPaths("LOCAL_FULL_INIT_RC", info.InitRcPaths)
 		}
-		if len(base.vintfFragmentsPaths) > 0 {
-			a.AddPaths("LOCAL_FULL_VINTF_FRAGMENTS", base.vintfFragmentsPaths)
+		if len(info.VintfFragmentsPaths) > 0 {
+			a.AddPaths("LOCAL_FULL_VINTF_FRAGMENTS", info.VintfFragmentsPaths)
 		}
 		a.SetBoolIfTrue("LOCAL_PROPRIETARY_MODULE", Bool(base.commonProperties.Proprietary))
 		if Bool(base.commonProperties.Vendor) || Bool(base.commonProperties.Soc_specific) {
@@ -910,6 +920,7 @@ func translateAndroidModule(ctx SingletonContext, w io.Writer, moduleInfoJSONs *
 		case "*phony.PhonyRule": // writes phony deps and acts like `.PHONY`
 		case "*selinux.selinuxContextsModule": // license properties written
 		case "*sysprop.syspropLibrary": // license properties written
+		case "*vintf.vintfCompatibilityMatrixRule": // use case like phony
 		default:
 			if !ctx.Config().IsEnvFalse("ANDROID_REQUIRE_LICENSES") {
 				return fmt.Errorf("custom make rules not allowed for %q (%q) module %q", ctx.ModuleType(mod), reflect.TypeOf(mod), ctx.ModuleName(mod))

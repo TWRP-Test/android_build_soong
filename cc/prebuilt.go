@@ -16,6 +16,7 @@ package cc
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/google/blueprint/proptools"
 
@@ -95,10 +96,6 @@ func (p *prebuiltLibraryLinker) linkerDeps(ctx DepsContext, deps Deps) Deps {
 	return p.libraryDecorator.linkerDeps(ctx, deps)
 }
 
-func (p *prebuiltLibraryLinker) linkerFlags(ctx ModuleContext, flags Flags) Flags {
-	return flags
-}
-
 func (p *prebuiltLibraryLinker) linkerProps() []interface{} {
 	return p.libraryDecorator.linkerProps()
 }
@@ -117,6 +114,30 @@ func (p *prebuiltLibraryLinker) link(ctx ModuleContext,
 
 	// TODO(ccross): verify shared library dependencies
 	srcs := p.prebuiltSrcs(ctx)
+	stubInfo := addStubDependencyProviders(ctx)
+
+	// Stub variants will create a stub .so file from stub .c files
+	if p.buildStubs() && objs.objFiles != nil {
+		// TODO (b/275273834): Make objs.objFiles == nil a hard error when the symbol files have been added to module sdk.
+
+		// The map.txt files of libclang_rt.* contain version information, but the checked in .so files do not.
+		// e.g. libclang_rt.* libs impl
+		// $ nm -D prebuilts/../libclang_rt.hwasan-aarch64-android.so
+		// __hwasan_init
+
+		// stubs generated from .map.txt
+		// $ nm -D out/soong/.intermediates/../<stubs>/libclang_rt.hwasan-aarch64-android.so
+		// __hwasan_init@@LIBCLANG_RT_ASAN
+
+		// Special-case libclang_rt.* libs to account for this discrepancy.
+		// TODO (spandandas): Remove this special case https://r.android.com/3236596 has been submitted, and a new set of map.txt
+		// files of libclang_rt.* libs have been generated.
+		if strings.Contains(ctx.ModuleName(), "libclang_rt.") {
+			p.versionScriptPath = android.OptionalPathForPath(nil)
+		}
+		return p.linkShared(ctx, flags, deps, objs)
+	}
+
 	if len(srcs) > 0 {
 		if len(srcs) > 1 {
 			ctx.PropertyErrorf("srcs", "multiple prebuilt source files")
@@ -203,6 +224,16 @@ func (p *prebuiltLibraryLinker) link(ctx ModuleContext,
 
 			return outputFile
 		}
+	} else if p.shared() && len(stubInfo) > 0 {
+		// This is a prebuilt which does not have any implementation (nil `srcs`), but provides APIs.
+		// Provide the latest (i.e. `current`) stubs to reverse dependencies.
+		latestStub := stubInfo[len(stubInfo)-1].SharedLibraryInfo.SharedLibrary
+		android.SetProvider(ctx, SharedLibraryInfoProvider, SharedLibraryInfo{
+			SharedLibrary: latestStub,
+			Target:        ctx.Target(),
+		})
+
+		return latestStub
 	}
 
 	if p.header() {
@@ -257,11 +288,11 @@ func (p *prebuiltLibraryLinker) implementationModuleName(name string) string {
 
 func NewPrebuiltLibrary(hod android.HostOrDeviceSupported, srcsProperty string) (*Module, *libraryDecorator) {
 	module, library := NewLibrary(hod)
-	module.compiler = nil
 
 	prebuilt := &prebuiltLibraryLinker{
 		libraryDecorator: library,
 	}
+	module.compiler = prebuilt
 	module.linker = prebuilt
 	module.library = prebuilt
 
@@ -278,6 +309,13 @@ func NewPrebuiltLibrary(hod android.HostOrDeviceSupported, srcsProperty string) 
 	}
 
 	return module, library
+}
+
+func (p *prebuiltLibraryLinker) compile(ctx ModuleContext, flags Flags, deps PathDeps) Objects {
+	if p.buildStubs() && p.stubsVersion() != "" {
+		return p.compileModuleLibApiStubs(ctx, flags, deps)
+	}
+	return Objects{}
 }
 
 // cc_prebuilt_library installs a precompiled shared library that are

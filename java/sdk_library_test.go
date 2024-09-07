@@ -907,7 +907,7 @@ func TestJavaSdkLibraryImport(t *testing.T) {
 		fooModule := result.ModuleForTests("foo"+scope, "android_common")
 		javac := fooModule.Rule("javac")
 
-		sdklibStubsJar := result.ModuleForTests("sdklib.stubs"+scope, "android_common").Rule("combineJar").Output
+		sdklibStubsJar := result.ModuleForTests("sdklib.stubs"+scope, "android_common").Output("combined/sdklib.stubs" + scope + ".jar").Output
 		android.AssertStringDoesContain(t, "foo classpath", javac.Args["classpath"], sdklibStubsJar.String())
 	}
 
@@ -1528,7 +1528,8 @@ func TestJavaSdkLibrary_StubOnlyLibs_PassedToDroidstubs(t *testing.T) {
 
 	// The foo.stubs.source should depend on bar-lib
 	fooStubsSources := result.ModuleForTests("foo.stubs.source", "android_common").Module().(*Droidstubs)
-	android.AssertStringListContains(t, "foo stubs should depend on bar-lib", fooStubsSources.Javadoc.properties.Libs, "bar-lib")
+	eval := fooStubsSources.ConfigurableEvaluator(android.PanickingConfigAndErrorContext(result.TestContext))
+	android.AssertStringListContains(t, "foo stubs should depend on bar-lib", fooStubsSources.Javadoc.properties.Libs.GetOrDefault(eval, nil), "bar-lib")
 }
 
 func TestJavaSdkLibrary_Scope_Libs_PassedToDroidstubs(t *testing.T) {
@@ -1554,7 +1555,8 @@ func TestJavaSdkLibrary_Scope_Libs_PassedToDroidstubs(t *testing.T) {
 
 	// The foo.stubs.source should depend on bar-lib
 	fooStubsSources := result.ModuleForTests("foo.stubs.source", "android_common").Module().(*Droidstubs)
-	android.AssertStringListContains(t, "foo stubs should depend on bar-lib", fooStubsSources.Javadoc.properties.Libs, "bar-lib")
+	eval := fooStubsSources.ConfigurableEvaluator(android.PanickingConfigAndErrorContext(result.TestContext))
+	android.AssertStringListContains(t, "foo stubs should depend on bar-lib", fooStubsSources.Javadoc.properties.Libs.GetOrDefault(eval, nil), "bar-lib")
 }
 
 func TestJavaSdkLibrary_ApiLibrary(t *testing.T) {
@@ -1705,18 +1707,15 @@ func TestSdkLibraryExportableStubsLibrary(t *testing.T) {
 	exportableSourceStubsLibraryModuleName := apiScopePublic.exportableSourceStubsLibraryModuleName("foo")
 
 	// Check modules generation
-	topLevelModule := result.ModuleForTests(exportableStubsLibraryModuleName, "android_common")
+	result.ModuleForTests(exportableStubsLibraryModuleName, "android_common")
 	result.ModuleForTests(exportableSourceStubsLibraryModuleName, "android_common")
 
 	// Check static lib dependency
 	android.AssertBoolEquals(t, "exportable top level stubs library module depends on the"+
 		"exportable source stubs library module", true,
-		CheckModuleHasDependency(t, result.TestContext, exportableStubsLibraryModuleName,
-			"android_common", exportableSourceStubsLibraryModuleName),
+		CheckModuleHasDependencyWithTag(t, result.TestContext, exportableStubsLibraryModuleName,
+			"android_common", staticLibTag, exportableSourceStubsLibraryModuleName),
 	)
-	android.AssertArrayString(t, "exportable source stub library is a static lib of the"+
-		"top level exportable stubs library", []string{exportableSourceStubsLibraryModuleName},
-		topLevelModule.Module().(*Library).properties.Static_libs)
 }
 
 // For java libraries depending on java_sdk_library(_import) via libs, assert that

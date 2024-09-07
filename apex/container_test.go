@@ -30,7 +30,7 @@ func TestApexDepsContainers(t *testing.T) {
 	result := android.GroupFixturePreparers(
 		prepareForApexTest,
 		java.PrepareForTestWithJavaSdkLibraryFiles,
-		java.FixtureWithLastReleaseApis("mybootclasspathlib"),
+		java.FixtureWithLastReleaseApis("mybootclasspathlib", "bar"),
 	).RunTestWithBp(t, `
 		apex {
 			name: "myapex",
@@ -68,16 +68,17 @@ func TestApexDepsContainers(t *testing.T) {
 			],
 			compile_dex: true,
 			static_libs: [
-				"foo",
+				"food",
 				"baz",
 			],
 			libs: [
-				"bar",
+				"bar.stubs",
 			],
 			min_sdk_version: "30",
+			sdk_version: "current",
 		}
 		java_library {
-			name: "foo",
+			name: "food",
 			srcs:[
 				"A.java",
 			],
@@ -85,13 +86,15 @@ func TestApexDepsContainers(t *testing.T) {
 				"myapex",
 			],
 			min_sdk_version: "30",
+			sdk_version: "core_current",
 		}
-		java_library {
+		java_sdk_library {
 			name: "bar",
 			srcs:[
 				"A.java",
 			],
 			min_sdk_version: "30",
+			sdk_version: "core_current",
 		}
 		java_library {
 			name: "baz",
@@ -103,6 +106,7 @@ func TestApexDepsContainers(t *testing.T) {
 				"myapex",
 			],
 			min_sdk_version: "30",
+			sdk_version: "core_current",
 		}
 	`)
 	testcases := []struct {
@@ -130,7 +134,7 @@ func TestApexDepsContainers(t *testing.T) {
 			isApexContainer:   false,
 		},
 		{
-			moduleName:        "foo",
+			moduleName:        "food",
 			variant:           "android_common_apex30",
 			isSystemContainer: true,
 			isApexContainer:   true,
@@ -162,7 +166,7 @@ func TestNonUpdatableApexDepsContainers(t *testing.T) {
 	result := android.GroupFixturePreparers(
 		prepareForApexTest,
 		java.PrepareForTestWithJavaSdkLibraryFiles,
-		java.FixtureWithLastReleaseApis("mybootclasspathlib"),
+		java.FixtureWithLastReleaseApis("mybootclasspathlib", "bar"),
 	).RunTestWithBp(t, `
 		apex {
 			name: "myapex",
@@ -199,26 +203,30 @@ func TestNonUpdatableApexDepsContainers(t *testing.T) {
 			],
 			compile_dex: true,
 			static_libs: [
-				"foo",
+				"food",
 			],
 			libs: [
-				"bar",
+				"bar.stubs",
 			],
+			sdk_version: "current",
 		}
 		java_library {
-			name: "foo",
+			name: "food",
 			srcs:[
 				"A.java",
 			],
 			apex_available: [
 				"myapex",
 			],
+			sdk_version: "core_current",
 		}
-		java_library {
+		java_sdk_library {
 			name: "bar",
 			srcs:[
 				"A.java",
 			],
+			sdk_version: "none",
+			system_modules: "none",
 		}
 	`)
 	testcases := []struct {
@@ -246,7 +254,7 @@ func TestNonUpdatableApexDepsContainers(t *testing.T) {
 			isApexContainer:   false,
 		},
 		{
-			moduleName:        "foo",
+			moduleName:        "food",
 			variant:           "android_common_apex10000",
 			isSystemContainer: true,
 			isApexContainer:   true,

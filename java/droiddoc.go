@@ -54,7 +54,7 @@ type JavadocProperties struct {
 	Filter_packages []string
 
 	// list of java libraries that will be in the classpath.
-	Libs []string `android:"arch_variant"`
+	Libs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// If set to false, don't allow this module(-docs.zip) to be exported. Defaults to true.
 	Installable *bool
@@ -274,7 +274,7 @@ func (j *Javadoc) addDeps(ctx android.BottomUpMutatorContext) {
 		}
 	}
 
-	ctx.AddVariationDependencies(nil, libTag, j.properties.Libs...)
+	ctx.AddVariationDependencies(nil, libTag, j.properties.Libs.GetOrDefault(ctx, nil)...)
 }
 
 func (j *Javadoc) collectAidlFlags(ctx android.ModuleContext, deps deps) droiddocBuilderFlags {

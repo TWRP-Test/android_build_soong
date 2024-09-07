@@ -36,10 +36,6 @@ type llndkLibraryProperties struct {
 	// bionic/libc.
 	Export_headers_as_system *bool
 
-	// Which headers to process with versioner. This really only handles
-	// bionic/libc/include right now.
-	Export_preprocessed_headers []string
-
 	// Whether the system library uses symbol versions.
 	Unversioned *bool
 

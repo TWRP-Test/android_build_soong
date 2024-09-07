@@ -15,8 +15,10 @@
 package android
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/google/blueprint"
 )
@@ -89,10 +91,18 @@ var globallyAllowlistedDependencies = []string{
 	"framework-annotations-lib",
 	"unsupportedappusage",
 
+	// TODO(b/363016634): Remove from the allowlist when the module is converted
+	// to java_sdk_library and the java_aconfig_library modules depend on the stub.
+	"aconfig_storage_reader_java",
+
 	// framework-res provides core resources essential for building apps and system UI.
 	// This module is implicitly added as a dependency for java modules even when the
 	// dependency specifies sdk_version.
 	"framework-res",
+
+	// jacocoagent is implicitly added as a dependency in coverage builds, and is not installed
+	// on the device.
+	"jacocoagent",
 }
 
 // Returns true when the dependency is globally allowlisted for inter-container dependency
@@ -219,7 +229,6 @@ var containerBoundaryFunctionsTable = map[*container]containerBoundaryFunc{
 // ----------------------------------------------------------------------------
 
 type InstallableModule interface {
-	ContainersInfo() ContainersInfo
 	StaticDependencyTags() []blueprint.DependencyTag
 	DynamicDependencyTags() []blueprint.DependencyTag
 }
@@ -391,6 +400,40 @@ func (c *ContainersInfo) UpdatableApex() bool {
 
 var ContainersInfoProvider = blueprint.NewProvider[ContainersInfo]()
 
+func satisfyAllowedExceptions(ctx ModuleContext, allowedExceptionLabels []exceptionHandleFuncLabel, m, dep Module) bool {
+	for _, label := range allowedExceptionLabels {
+		if exceptionHandleFunctionsTable[label](ctx, m, dep) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ContainersInfo) GetViolations(mctx ModuleContext, m, dep Module, depInfo ContainersInfo) []string {
+	var violations []string
+
+	// Any containers that the module belongs to but the dependency does not belong to must be examined.
+	_, containersUniqueToModule, _ := ListSetDifference(c.belongingContainers, depInfo.belongingContainers)
+
+	// Apex container should be examined even if both the module and the dependency belong to
+	// the apex container to check that the two modules belong to the same apex.
+	if InList(ApexContainer, c.belongingContainers) && !InList(ApexContainer, containersUniqueToModule) {
+		containersUniqueToModule = append(containersUniqueToModule, ApexContainer)
+	}
+
+	for _, containerUniqueToModule := range containersUniqueToModule {
+		for _, restriction := range containerUniqueToModule.restricted {
+			if InList(restriction.dependency, depInfo.belongingContainers) {
+				if !satisfyAllowedExceptions(mctx, restriction.allowedExceptions, m, dep) {
+					violations = append(violations, restriction.errorMessage)
+				}
+			}
+		}
+	}
+
+	return violations
+}
+
 func generateContainerInfo(ctx ModuleContext) ContainersInfo {
 	var containers []*container
 
@@ -413,7 +456,7 @@ func generateContainerInfo(ctx ModuleContext) ContainersInfo {
 
 func getContainerModuleInfo(ctx ModuleContext, module Module) (ContainersInfo, bool) {
 	if ctx.Module() == module {
-		return module.ContainersInfo(), true
+		return ctx.getContainersInfo(), true
 	}
 
 	return OtherModuleProvider(ctx, module, ContainersInfoProvider)
@@ -428,7 +471,36 @@ func setContainerInfo(ctx ModuleContext) {
 
 	if _, ok := ctx.Module().(InstallableModule); ok {
 		containersInfo := generateContainerInfo(ctx)
-		ctx.Module().base().containersInfo = containersInfo
+		ctx.setContainersInfo(containersInfo)
 		SetProvider(ctx, ContainersInfoProvider, containersInfo)
+	}
+}
+
+func checkContainerViolations(ctx ModuleContext) {
+	if _, ok := ctx.Module().(InstallableModule); ok {
+		containersInfo, _ := getContainerModuleInfo(ctx, ctx.Module())
+		ctx.VisitDirectDepsIgnoreBlueprint(func(dep Module) {
+			if !dep.Enabled(ctx) {
+				return
+			}
+
+			// Pre-existing violating dependencies are tracked in containerDependencyViolationAllowlist.
+			// If this dependency is allowlisted, do not check for violation.
+			// If not, check if this dependency matches any restricted dependency and
+			// satisfies any exception functions, which allows bypassing the
+			// restriction. If all of the exceptions are not satisfied, throw an error.
+			if depContainersInfo, ok := getContainerModuleInfo(ctx, dep); ok {
+				if allowedViolations, ok := ContainerDependencyViolationAllowlist[ctx.ModuleName()]; ok && InList(dep.Name(), allowedViolations) {
+					return
+				} else {
+					violations := containersInfo.GetViolations(ctx, ctx.Module(), dep, depContainersInfo)
+					if len(violations) > 0 {
+						errorMessage := fmt.Sprintf("%s cannot depend on %s. ", ctx.ModuleName(), dep.Name())
+						errorMessage += strings.Join(violations, " ")
+						ctx.ModuleErrorf(errorMessage)
+					}
+				}
+			}
+		})
 	}
 }

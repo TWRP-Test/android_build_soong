@@ -27,7 +27,7 @@ type systemImage struct {
 
 type systemImageProperties struct {
 	// Path to the input linker config json file.
-	Linker_config_src *string
+	Linker_config_src *string `android:"path"`
 }
 
 // android_system_image is a specialization of android_filesystem for the 'system' partition.

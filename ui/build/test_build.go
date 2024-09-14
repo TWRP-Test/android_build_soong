@@ -79,9 +79,6 @@ func testForDanglingRules(ctx Context, config Config) {
 	// out/build_date.txt is considered a "source file"
 	buildDatetimeFilePath := filepath.Join(outDir, "build_date.txt")
 
-	// bpglob is built explicitly using Microfactory
-	bpglob := filepath.Join(config.SoongOutDir(), "bpglob")
-
 	// release-config files are generated from the initial lunch or Kati phase
 	// before running soong and ninja.
 	releaseConfigDir := filepath.Join(outDir, "soong", "release-config")
@@ -105,7 +102,6 @@ func testForDanglingRules(ctx Context, config Config) {
 			line == extraVariablesFilePath ||
 			line == dexpreoptConfigFilePath ||
 			line == buildDatetimeFilePath ||
-			line == bpglob ||
 			strings.HasPrefix(line, releaseConfigDir) ||
 			buildFingerPrintFilePattern.MatchString(line) {
 			// Leaf node is in one of Soong's bootstrap directories, which do not have

@@ -356,10 +356,15 @@ type UsesLibraryDependency interface {
 // TODO(jungjw): Move this to kythe.go once it's created.
 type xref interface {
 	XrefJavaFiles() android.Paths
+	XrefKotlinFiles() android.Paths
 }
 
 func (j *Module) XrefJavaFiles() android.Paths {
 	return j.kytheFiles
+}
+
+func (j *Module) XrefKotlinFiles() android.Paths {
+	return j.kytheKotlinFiles
 }
 
 func (d dependencyTag) PropagateAconfigValidation() bool {
@@ -3304,14 +3309,19 @@ type kytheExtractJavaSingleton struct {
 
 func (ks *kytheExtractJavaSingleton) GenerateBuildActions(ctx android.SingletonContext) {
 	var xrefTargets android.Paths
+	var xrefKotlinTargets android.Paths
 	ctx.VisitAllModules(func(module android.Module) {
 		if javaModule, ok := module.(xref); ok {
 			xrefTargets = append(xrefTargets, javaModule.XrefJavaFiles()...)
+			xrefKotlinTargets = append(xrefKotlinTargets, javaModule.XrefKotlinFiles()...)
 		}
 	})
 	// TODO(asmundak): perhaps emit a rule to output a warning if there were no xrefTargets
 	if len(xrefTargets) > 0 {
 		ctx.Phony("xref_java", xrefTargets...)
+	}
+	if len(xrefKotlinTargets) > 0 {
+		ctx.Phony("xref_kotlin", xrefKotlinTargets...)
 	}
 }
 

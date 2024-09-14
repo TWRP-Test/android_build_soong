@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/google/blueprint"
-	"github.com/google/blueprint/bootstrap"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
@@ -365,11 +364,6 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 						tools = append(tools, path.Path())
 						addLocationLabel(tag.label, toolLocation{android.Paths{path.Path()}})
 					}
-				case bootstrap.GoBinaryTool:
-					// A GoBinaryTool provides the install path to a tool, which will be copied.
-					p := android.PathForGoBinary(ctx, t)
-					tools = append(tools, p)
-					addLocationLabel(tag.label, toolLocation{android.Paths{p}})
 				default:
 					ctx.ModuleErrorf("%q is not a host tool provider", tool)
 					return

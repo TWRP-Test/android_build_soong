@@ -203,7 +203,7 @@ func (object *objectLinker) link(ctx ModuleContext,
 	return outputFile
 }
 
-func (object *objectLinker) linkerSpecifiedDeps(ctx android.ConfigAndErrorContext, module *Module, specifiedDeps specifiedDeps) specifiedDeps {
+func (object *objectLinker) linkerSpecifiedDeps(ctx android.ConfigurableEvaluatorContext, module *Module, specifiedDeps specifiedDeps) specifiedDeps {
 	eval := module.ConfigurableEvaluator(ctx)
 	specifiedDeps.sharedLibs = append(specifiedDeps.sharedLibs, object.Properties.Shared_libs.GetOrDefault(eval, nil)...)
 

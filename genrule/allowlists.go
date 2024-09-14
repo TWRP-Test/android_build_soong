@@ -17,7 +17,6 @@ package genrule
 var (
 	SandboxingDenyModuleList = []string{
 		// go/keep-sorted start
-		"com.google.pixel.camera.hal.manifest",
 		// go/keep-sorted end
 	}
 )

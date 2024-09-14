@@ -36,7 +36,7 @@ def has_preprocessed_issues(args, *, fail=False):
                 if fail:
                     sys.exit(args.apk + ': Contains compressed JNI libraries')
                 return True
-            # It's ok for non-privileged apps to have compressed dex files, see go/gms-uncompressed-jni-slides
+            # It's ok for non-privileged apps to have compressed dex files
             if args.privileged and args.uncompress_priv_app_dex:
                 if info.filename.endswith('.dex') and info.compress_type != zipfile.ZIP_STORED:
                     if fail:
@@ -46,6 +46,10 @@ def has_preprocessed_issues(args, *, fail=False):
 
 
 def main():
+    # This script enforces requirements for presigned apps as documented in:
+    # go/gms-uncompressed-jni-slides
+    # https://docs.partner.android.com/gms/building/integrating/jni-libs
+    # https://docs.partner.android.com/gms/policies/domains/mba#jni-lib
     parser = argparse.ArgumentParser()
     parser.add_argument('--aapt2', help = "the path to the aapt2 executable")
     parser.add_argument('--zipalign', help = "the path to the zipalign executable")

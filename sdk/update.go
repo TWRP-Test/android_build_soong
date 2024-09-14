@@ -22,7 +22,6 @@ import (
 	"sort"
 	"strings"
 
-	"android/soong/apex"
 	"android/soong/cc"
 	"android/soong/java"
 
@@ -1118,12 +1117,14 @@ func (s *snapshotBuilder) AddPrebuiltModule(member android.SdkMember, moduleType
 		// Since module sdks are generated from release branches and dropped to development
 		// branches, there might be a visibility skew between the sources and prebuilts
 		// of a specific module.
-		// To reconcile this potential skew, change the visibility to public
+		// To reconcile this potential skew, change the visibility to public.
 		//
-		// This is safe for (1) since these are stub libraries.
-		// This is ok for (2) since these are host and test exports and are intended for
-		// ART development.
-		// TODO (b/361303067): This can be removed if ART uses full manifests.
+		// This means dependencies can bypass visibility restrictions when prebuilts are used, so we rely
+		// on source builds in CI to check them.
+		//
+		// TODO (b/361303067): This special case for category (2) can be removed if existing usages
+		// of host/test prebuilts of modules like conscrypt,tzdata,i18n are switched to source builds.
+		// It will also require ART switching to full manifests.
 		m.AddProperty("visibility", []string{"//visibility:public"})
 	}
 
@@ -1134,9 +1135,6 @@ func (s *snapshotBuilder) AddPrebuiltModule(member android.SdkMember, moduleType
 			// //apex_available:platform is the default.
 			apexAvailable = []string{android.AvailableToPlatform}
 		}
-
-		// Add in any baseline apex available settings.
-		apexAvailable = append(apexAvailable, apex.BaselineApexAvailable(member.Name())...)
 
 		// Remove duplicates and sort.
 		apexAvailable = android.FirstUniqueStrings(apexAvailable)
@@ -1989,14 +1987,6 @@ func (m *memberContext) RequiresTrait(trait android.SdkMemberTrait) bool {
 
 func (m *memberContext) IsTargetBuildBeforeTiramisu() bool {
 	return m.builder.targetBuildRelease.EarlierThan(buildReleaseT)
-}
-
-func (m *memberContext) Config() android.Config {
-	return m.sdkMemberContext.Config()
-}
-
-func (m *memberContext) OtherModulePropertyErrorf(module android.Module, property string, fmt string, args ...interface{}) {
-	m.sdkMemberContext.OtherModulePropertyErrorf(module, property, fmt, args)
 }
 
 var _ android.SdkMemberContext = (*memberContext)(nil)

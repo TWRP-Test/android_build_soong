@@ -53,9 +53,6 @@ func TestSnapshotVisibility(t *testing.T) {
 				// generated sdk_snapshot.
 				":__subpackages__",
 			],
-			prebuilt_visibility: [
-				"//prebuilts/mysdk",
-			],
 			java_header_libs: [
 				"myjavalib",
 				"mypublicjavalib",
@@ -160,18 +157,6 @@ java_import {
     jars: ["java/myprivatejavalib.jar"],
 }
 `))
-}
-
-func TestPrebuiltVisibilityProperty_IsValidated(t *testing.T) {
-	testSdkError(t, `prebuilt_visibility: cannot mix "//visibility:private" with any other visibility rules`, `
-		sdk {
-			name: "mysdk",
-			prebuilt_visibility: [
-				"//foo",
-				"//visibility:private",
-			],
-		}
-`)
 }
 
 func TestSdkInstall(t *testing.T) {

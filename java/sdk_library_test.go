@@ -422,7 +422,7 @@ func TestJavaSdkLibrary_StubOrImplOnlyLibs(t *testing.T) {
 	for _, expectation := range expectations {
 		verify("sdklib.impl", expectation.lib, expectation.on_impl_classpath, expectation.in_impl_combined)
 
-		stubName := apiScopePublic.sourceStubLibraryModuleName("sdklib")
+		stubName := apiScopePublic.sourceStubsLibraryModuleName("sdklib")
 		verify(stubName, expectation.lib, expectation.on_stub_classpath, expectation.in_stub_combined)
 	}
 }

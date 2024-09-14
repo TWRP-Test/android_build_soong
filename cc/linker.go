@@ -645,7 +645,7 @@ func (linker *baseLinker) link(ctx ModuleContext,
 	panic(fmt.Errorf("baseLinker doesn't know how to link"))
 }
 
-func (linker *baseLinker) linkerSpecifiedDeps(ctx android.ConfigAndErrorContext, module *Module, specifiedDeps specifiedDeps) specifiedDeps {
+func (linker *baseLinker) linkerSpecifiedDeps(ctx android.ConfigurableEvaluatorContext, module *Module, specifiedDeps specifiedDeps) specifiedDeps {
 	eval := module.ConfigurableEvaluator(ctx)
 	specifiedDeps.sharedLibs = append(specifiedDeps.sharedLibs, linker.Properties.Shared_libs.GetOrDefault(eval, nil)...)
 

@@ -58,7 +58,7 @@ type Module interface {
 
 	base() *ModuleBase
 	Disable()
-	Enabled(ctx ConfigAndErrorContext) bool
+	Enabled(ctx ConfigurableEvaluatorContext) bool
 	Target() Target
 	MultiTargets() []Target
 
@@ -109,12 +109,12 @@ type Module interface {
 	// Get information about the properties that can contain visibility rules.
 	visibilityProperties() []visibilityProperty
 
-	RequiredModuleNames(ctx ConfigAndErrorContext) []string
+	RequiredModuleNames(ctx ConfigurableEvaluatorContext) []string
 	HostRequiredModuleNames() []string
 	TargetRequiredModuleNames() []string
-	VintfFragmentModuleNames(ctx ConfigAndErrorContext) []string
+	VintfFragmentModuleNames(ctx ConfigurableEvaluatorContext) []string
 
-	ConfigurableEvaluator(ctx ConfigAndErrorContext) proptools.ConfigurableEvaluator
+	ConfigurableEvaluator(ctx ConfigurableEvaluatorContext) proptools.ConfigurableEvaluator
 }
 
 // Qualified id for a module
@@ -1339,11 +1339,19 @@ func (m *ModuleBase) PartitionTag(config DeviceConfig) string {
 	return partition
 }
 
-func (m *ModuleBase) Enabled(ctx ConfigAndErrorContext) bool {
+func (m *ModuleBase) Enabled(ctx ConfigurableEvaluatorContext) bool {
 	if m.commonProperties.ForcedDisabled {
 		return false
 	}
 	return m.commonProperties.Enabled.GetOrDefault(m.ConfigurableEvaluator(ctx), !m.Os().DefaultDisabled)
+}
+
+// Returns a copy of the enabled property, useful for passing it on to sub-modules
+func (m *ModuleBase) EnabledProperty() proptools.Configurable[bool] {
+	if m.commonProperties.ForcedDisabled {
+		return proptools.NewSimpleConfigurable(false)
+	}
+	return m.commonProperties.Enabled.Clone()
 }
 
 func (m *ModuleBase) Disable() {
@@ -1536,7 +1544,7 @@ func (m *ModuleBase) InRecovery() bool {
 	return m.base().commonProperties.ImageVariation == RecoveryVariation
 }
 
-func (m *ModuleBase) RequiredModuleNames(ctx ConfigAndErrorContext) []string {
+func (m *ModuleBase) RequiredModuleNames(ctx ConfigurableEvaluatorContext) []string {
 	return m.base().commonProperties.Required.GetOrDefault(m.ConfigurableEvaluator(ctx), nil)
 }
 
@@ -1548,7 +1556,7 @@ func (m *ModuleBase) TargetRequiredModuleNames() []string {
 	return m.base().commonProperties.Target_required
 }
 
-func (m *ModuleBase) VintfFragmentModuleNames(ctx ConfigAndErrorContext) []string {
+func (m *ModuleBase) VintfFragmentModuleNames(ctx ConfigurableEvaluatorContext) []string {
 	return m.base().commonProperties.Vintf_fragment_modules.GetOrDefault(m.ConfigurableEvaluator(ctx), nil)
 }
 
@@ -2204,17 +2212,18 @@ func (m *ModuleBase) IsNativeBridgeSupported() bool {
 	return proptools.Bool(m.commonProperties.Native_bridge_supported)
 }
 
-type ConfigAndErrorContext interface {
+type ConfigurableEvaluatorContext interface {
 	Config() Config
 	OtherModulePropertyErrorf(module Module, property string, fmt string, args ...interface{})
+	HasMutatorFinished(mutatorName string) bool
 }
 
 type configurationEvalutor struct {
-	ctx ConfigAndErrorContext
+	ctx ConfigurableEvaluatorContext
 	m   Module
 }
 
-func (m *ModuleBase) ConfigurableEvaluator(ctx ConfigAndErrorContext) proptools.ConfigurableEvaluator {
+func (m *ModuleBase) ConfigurableEvaluator(ctx ConfigurableEvaluatorContext) proptools.ConfigurableEvaluator {
 	return configurationEvalutor{
 		ctx: ctx,
 		m:   m.module,
@@ -2228,6 +2237,12 @@ func (e configurationEvalutor) PropertyErrorf(property string, fmt string, args 
 func (e configurationEvalutor) EvaluateConfiguration(condition proptools.ConfigurableCondition, property string) proptools.ConfigurableValue {
 	ctx := e.ctx
 	m := e.m
+
+	if !ctx.HasMutatorFinished("defaults") {
+		ctx.OtherModulePropertyErrorf(m, property, "Cannot evaluate configurable property before the defaults mutator has run")
+		return proptools.ConfigurableValueUndefined()
+	}
+
 	switch condition.FunctionName() {
 	case "release_flag":
 		if condition.NumArgs() != 1 {

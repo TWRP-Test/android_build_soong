@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"android/soong/android"
+	"android/soong/etc"
 )
 
 var prepareRavenwoodRuntime = android.GroupFixturePreparers(
@@ -59,11 +60,15 @@ var prepareRavenwoodRuntime = android.GroupFixturePreparers(
 		}
 		android_app {
 			name: "app1",
-            sdk_version: "current",
+			sdk_version: "current",
 		}
 		android_app {
 			name: "app2",
-            sdk_version: "current",
+			sdk_version: "current",
+		}
+		prebuilt_font {
+			name: "Font.ttf",
+			src: "Font.ttf",
 		}
 		android_ravenwood_libgroup {
 			name: "ravenwood-runtime",
@@ -76,7 +81,10 @@ var prepareRavenwoodRuntime = android.GroupFixturePreparers(
 				"ravenwood-runtime-jni2",
 			],
 			data: [
-				"app1",
+				":app1",
+			],
+			fonts: [
+				":Font.ttf"
 			],
 		}
 		android_ravenwood_libgroup {
@@ -97,6 +105,7 @@ func TestRavenwoodRuntime(t *testing.T) {
 
 	ctx := android.GroupFixturePreparers(
 		PrepareForIntegrationTestWithJava,
+		etc.PrepareForTestWithPrebuiltEtc,
 		prepareRavenwoodRuntime,
 	).RunTest(t)
 
@@ -114,6 +123,7 @@ func TestRavenwoodRuntime(t *testing.T) {
 	runtime.Output(installPathPrefix + "/ravenwood-runtime/lib64/libred.so")
 	runtime.Output(installPathPrefix + "/ravenwood-runtime/lib64/ravenwood-runtime-jni3.so")
 	runtime.Output(installPathPrefix + "/ravenwood-runtime/ravenwood-data/app1.apk")
+	runtime.Output(installPathPrefix + "/ravenwood-runtime/fonts/Font.ttf")
 	utils := ctx.ModuleForTests("ravenwood-utils", "android_common")
 	utils.Output(installPathPrefix + "/ravenwood-utils/framework-rules.ravenwood.jar")
 }
@@ -125,29 +135,30 @@ func TestRavenwoodTest(t *testing.T) {
 
 	ctx := android.GroupFixturePreparers(
 		PrepareForIntegrationTestWithJava,
+		etc.PrepareForTestWithPrebuiltEtc,
 		prepareRavenwoodRuntime,
 	).RunTestWithBp(t, `
-	cc_library_shared {
-		name: "jni-lib1",
-		host_supported: true,
-		srcs: ["jni.cpp"],
-	}
-	cc_library_shared {
-		name: "jni-lib2",
-		host_supported: true,
-		srcs: ["jni.cpp"],
-		stem: "libblue",
-		shared_libs: [
-			"jni-lib3",
-		],
-	}
-	cc_library_shared {
-		name: "jni-lib3",
-		host_supported: true,
-		srcs: ["jni.cpp"],
-		stem: "libpink",
-	}
-	android_ravenwood_test {
+		cc_library_shared {
+			name: "jni-lib1",
+			host_supported: true,
+			srcs: ["jni.cpp"],
+		}
+		cc_library_shared {
+			name: "jni-lib2",
+			host_supported: true,
+			srcs: ["jni.cpp"],
+			stem: "libblue",
+			shared_libs: [
+				"jni-lib3",
+			],
+		}
+		cc_library_shared {
+			name: "jni-lib3",
+			host_supported: true,
+			srcs: ["jni.cpp"],
+			stem: "libpink",
+		}
+		android_ravenwood_test {
 			name: "ravenwood-test",
 			srcs: ["Test.java"],
 			jni_libs: [

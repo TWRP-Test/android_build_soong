@@ -813,8 +813,6 @@ type SdkMemberProperties interface {
 
 // SdkMemberContext provides access to information common to a specific member.
 type SdkMemberContext interface {
-	ConfigAndErrorContext
-
 	// SdkModuleContext returns the module context of the sdk common os variant which is creating the
 	// snapshot.
 	//

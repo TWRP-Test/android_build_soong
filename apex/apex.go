@@ -32,7 +32,6 @@ import (
 	prebuilt_etc "android/soong/etc"
 	"android/soong/filesystem"
 	"android/soong/java"
-	"android/soong/multitree"
 	"android/soong/rust"
 	"android/soong/sh"
 )
@@ -431,7 +430,6 @@ type apexBundle struct {
 	android.ModuleBase
 	android.DefaultableModuleBase
 	android.OverridableModuleBase
-	multitree.ExportableModuleBase
 
 	// Properties
 	properties            apexBundleProperties
@@ -1398,8 +1396,6 @@ func (a *apexBundle) DepIsInSameApex(_ android.BaseModuleContext, _ android.Modu
 	// TODO(jiyong): shouldn't we look into the payload field of the dependencyTag?
 	return true
 }
-
-var _ multitree.Exportable = (*apexBundle)(nil)
 
 func (a *apexBundle) Exportable() bool {
 	return true
@@ -2528,7 +2524,6 @@ func newApexBundle() *apexBundle {
 	android.InitAndroidMultiTargetsArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)
 	android.InitOverridableModule(module, &module.overridableProperties.Overrides)
-	multitree.InitExportableModule(module)
 	return module
 }
 
@@ -2785,7 +2780,7 @@ func (a *apexBundle) checkApexAvailability(ctx android.ModuleContext) {
 			return false
 		}
 
-		if to.AvailableFor(apexName) || baselineApexAvailable(apexName, toName) {
+		if to.AvailableFor(apexName) {
 			return true
 		}
 
@@ -2843,74 +2838,6 @@ func (a *apexBundle) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeI
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.Java_libs...)
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.Bootclasspath_fragments...)
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.ResolvedSystemserverclasspathFragments...)
-}
-
-var (
-	apexAvailBaseline        = makeApexAvailableBaseline()
-	inverseApexAvailBaseline = invertApexBaseline(apexAvailBaseline)
-)
-
-func baselineApexAvailable(apex, moduleName string) bool {
-	key := apex
-	moduleName = normalizeModuleName(moduleName)
-
-	if val, ok := apexAvailBaseline[key]; ok && android.InList(moduleName, val) {
-		return true
-	}
-
-	key = android.AvailableToAnyApex
-	if val, ok := apexAvailBaseline[key]; ok && android.InList(moduleName, val) {
-		return true
-	}
-
-	return false
-}
-
-func normalizeModuleName(moduleName string) string {
-	// Prebuilt modules (e.g. java_import, etc.) have "prebuilt_" prefix added by the build
-	// system. Trim the prefix for the check since they are confusing
-	moduleName = android.RemoveOptionalPrebuiltPrefix(moduleName)
-	if strings.HasPrefix(moduleName, "libclang_rt.") {
-		// This module has many arch variants that depend on the product being built.
-		// We don't want to list them all
-		moduleName = "libclang_rt"
-	}
-	if strings.HasPrefix(moduleName, "androidx.") {
-		// TODO(b/156996905) Set apex_available/min_sdk_version for androidx support libraries
-		moduleName = "androidx"
-	}
-	return moduleName
-}
-
-// Transform the map of apex -> modules to module -> apexes.
-func invertApexBaseline(m map[string][]string) map[string][]string {
-	r := make(map[string][]string)
-	for apex, modules := range m {
-		for _, module := range modules {
-			r[module] = append(r[module], apex)
-		}
-	}
-	return r
-}
-
-// Retrieve the baseline of apexes to which the supplied module belongs.
-func BaselineApexAvailable(moduleName string) []string {
-	return inverseApexAvailBaseline[normalizeModuleName(moduleName)]
-}
-
-// This is a map from apex to modules, which overrides the apex_available setting for that
-// particular module to make it available for the apex regardless of its setting.
-// TODO(b/147364041): remove this
-func makeApexAvailableBaseline() map[string][]string {
-	// The "Module separator"s below are employed to minimize merge conflicts.
-	m := make(map[string][]string)
-	//
-	// Module separator
-	//
-	m["com.android.runtime"] = []string{
-		"libz",
-	}
-	return m
 }
 
 func init() {

@@ -20,7 +20,6 @@ import (
 
 	"android/soong/android"
 	"android/soong/genrule"
-	"android/soong/multitree"
 )
 
 func RegisterRequiredBuildComponentsForTest(ctx android.RegistrationContext) {
@@ -29,9 +28,6 @@ func RegisterRequiredBuildComponentsForTest(ctx android.RegistrationContext) {
 	RegisterBinaryBuildComponents(ctx)
 	RegisterLibraryBuildComponents(ctx)
 	RegisterLibraryHeadersBuildComponents(ctx)
-	RegisterLibraryStubBuildComponents(ctx)
-
-	multitree.RegisterApiImportsModule(ctx)
 
 	ctx.RegisterModuleType("prebuilt_build_tool", android.NewPrebuiltBuildTool)
 	ctx.RegisterModuleType("cc_benchmark", BenchmarkFactory)

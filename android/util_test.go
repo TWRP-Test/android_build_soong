@@ -867,3 +867,51 @@ func TestHasIntersection(t *testing.T) {
 		})
 	}
 }
+
+var prettyConcatTestCases = []struct {
+	name          string
+	list          []string
+	quote         bool
+	lastSeparator string
+	expected      string
+}{
+	{
+		name:          "empty",
+		list:          []string{},
+		quote:         false,
+		lastSeparator: "and",
+		expected:      ``,
+	},
+	{
+		name:          "single",
+		list:          []string{"a"},
+		quote:         true,
+		lastSeparator: "and",
+		expected:      `"a"`,
+	},
+	{
+		name:          "with separator",
+		list:          []string{"a", "b", "c"},
+		quote:         true,
+		lastSeparator: "or",
+		expected:      `"a", "b", or "c"`,
+	},
+	{
+		name:          "without separator",
+		list:          []string{"a", "b", "c"},
+		quote:         false,
+		lastSeparator: "",
+		expected:      `a, b, c`,
+	},
+}
+
+func TestPrettyConcat(t *testing.T) {
+	for _, testCase := range prettyConcatTestCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			concatString := PrettyConcat(testCase.list, testCase.quote, testCase.lastSeparator)
+			if !reflect.DeepEqual(concatString, testCase.expected) {
+				t.Errorf("expected %#v, got %#v", testCase.expected, concatString)
+			}
+		})
+	}
+}

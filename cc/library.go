@@ -919,7 +919,7 @@ func (library *libraryDecorator) linkerDeps(ctx DepsContext, deps Deps) Deps {
 	return deps
 }
 
-func (library *libraryDecorator) linkerSpecifiedDeps(ctx android.ConfigAndErrorContext, module *Module, specifiedDeps specifiedDeps) specifiedDeps {
+func (library *libraryDecorator) linkerSpecifiedDeps(ctx android.ConfigurableEvaluatorContext, module *Module, specifiedDeps specifiedDeps) specifiedDeps {
 	specifiedDeps = library.baseLinker.linkerSpecifiedDeps(ctx, module, specifiedDeps)
 	var properties StaticOrSharedProperties
 	if library.static() {
@@ -2350,9 +2350,8 @@ func (versionTransitionMutator) Mutate(ctx android.BottomUpMutatorContext, varia
 	if library := moduleLibraryInterface(ctx.Module()); library != nil && canBeVersionVariant(m) {
 		isLLNDK := m.IsLlndk()
 		isVendorPublicLibrary := m.IsVendorPublicLibrary()
-		isImportedApiLibrary := m.isImportedApiLibrary()
 
-		if variation != "" || isLLNDK || isVendorPublicLibrary || isImportedApiLibrary {
+		if variation != "" || isLLNDK || isVendorPublicLibrary {
 			// A stubs or LLNDK stubs variant.
 			if m.sanitize != nil {
 				m.sanitize.Properties.ForceDisable = true

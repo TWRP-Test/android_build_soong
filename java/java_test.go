@@ -2674,7 +2674,7 @@ func TestDisableFromTextStubForCoverageBuild(t *testing.T) {
 	android.AssertBoolEquals(t, "stub module expected to depend on from-source stub",
 		true, CheckModuleHasDependency(t, result.TestContext,
 			apiScopePublic.stubsLibraryModuleName("foo"), "android_common",
-			apiScopePublic.sourceStubLibraryModuleName("foo")))
+			apiScopePublic.sourceStubsLibraryModuleName("foo")))
 
 	android.AssertBoolEquals(t, "stub module expected to not depend on from-text stub",
 		false, CheckModuleHasDependency(t, result.TestContext,

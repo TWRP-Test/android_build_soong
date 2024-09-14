@@ -51,13 +51,6 @@ func (sdkTransitionMutator) Split(ctx android.BaseModuleContext) []string {
 				return []string{""}
 			}
 		}
-	case *CcApiVariant:
-		ccApiVariant, _ := ctx.Module().(*CcApiVariant)
-		if String(ccApiVariant.properties.Variant) == "ndk" {
-			return []string{"sdk"}
-		} else {
-			return []string{""}
-		}
 	}
 
 	return []string{""}
@@ -83,11 +76,6 @@ func (sdkTransitionMutator) IncomingTransition(ctx android.IncomingTransitionCon
 			if String(p.Sdk_version) != "" {
 				return incomingVariation
 			}
-		}
-	case *CcApiVariant:
-		ccApiVariant, _ := ctx.Module().(*CcApiVariant)
-		if String(ccApiVariant.properties.Variant) == "ndk" {
-			return "sdk"
 		}
 	}
 

@@ -264,10 +264,9 @@ func (versionSplitTransitionMutator) Split(ctx android.BaseModuleContext) []stri
 			variants = append(variants, pyVersion3)
 		}
 		if proptools.BoolDefault(props.Version.Py2.Enabled, false) {
-			if !ctx.DeviceConfig().BuildBrokenUsesSoongPython2Modules() &&
-				ctx.ModuleName() != "py2-cmd" &&
+			if ctx.ModuleName() != "py2-cmd" &&
 				ctx.ModuleName() != "py2-stdlib" {
-				ctx.PropertyErrorf("version.py2.enabled", "Python 2 is no longer supported, please convert to python 3. This error can be temporarily overridden by setting BUILD_BROKEN_USES_SOONG_PYTHON2_MODULES := true in the product configuration")
+				ctx.PropertyErrorf("version.py2.enabled", "Python 2 is no longer supported, please convert to python 3.")
 			}
 			variants = append(variants, pyVersion2)
 		}

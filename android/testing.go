@@ -1330,6 +1330,10 @@ func (ctx *panickingConfigAndErrorContext) HasMutatorFinished(mutatorName string
 	return ctx.ctx.HasMutatorFinished(mutatorName)
 }
 
+func (ctx *panickingConfigAndErrorContext) otherModuleProvider(m blueprint.Module, p blueprint.AnyProviderKey) (any, bool) {
+	return ctx.ctx.otherModuleProvider(m, p)
+}
+
 func PanickingConfigAndErrorContext(ctx *TestContext) ConfigurableEvaluatorContext {
 	return &panickingConfigAndErrorContext{
 		ctx: ctx,

@@ -242,6 +242,7 @@ func (m *testModuleConfigModule) AndroidMkEntries() []android.AndroidMkEntries {
 
 				entries.SetBoolIfTrue("LOCAL_IS_UNIT_TEST", m.provider.IsUnitTest)
 				entries.AddCompatibilityTestSuites(m.tradefedProperties.Test_suites...)
+				entries.AddStrings("LOCAL_HOST_REQUIRED_MODULES", m.provider.HostRequiredModuleNames...)
 
 				// The app_prebuilt_internal.mk files try create a copy of the OutputFile as an .apk.
 				// Normally, this copies the "package.apk" from the intermediate directory here.

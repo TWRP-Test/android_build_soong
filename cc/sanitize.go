@@ -79,7 +79,7 @@ var (
 
 	minimalRuntimeFlags = []string{"-fsanitize-minimal-runtime", "-fno-sanitize-trap=integer,undefined",
 		"-fno-sanitize-recover=integer,undefined"}
-	memtagStackCommonFlags = []string{"-march=armv8-a+memtag"}
+	memtagStackCommonFlags = []string{"-Xclang -target-feature -Xclang +mte"}
 	memtagStackLlvmFlags   = []string{"-dom-tree-reachability-max-bbs-to-explore=128"}
 
 	hostOnlySanitizeFlags   = []string{"-fno-sanitize-recover=all"}
@@ -176,7 +176,7 @@ func (t SanitizerType) registerMutators(ctx android.RegisterMutatorsContext) {
 	switch t {
 	case cfi, Hwasan, Asan, tsan, Fuzzer, scs, Memtag_stack:
 		sanitizer := &sanitizerSplitMutator{t}
-		ctx.TopDown(t.variationName()+"_markapexes", sanitizer.markSanitizableApexesMutator)
+		ctx.BottomUp(t.variationName()+"_markapexes", sanitizer.markSanitizableApexesMutator)
 		ctx.Transition(t.variationName(), sanitizer)
 	case Memtag_heap, Memtag_globals, intOverflow:
 		// do nothing
@@ -1153,7 +1153,7 @@ type sanitizerSplitMutator struct {
 // If an APEX is sanitized or not depends on whether it contains at least one
 // sanitized module. Transition mutators cannot propagate information up the
 // dependency graph this way, so we need an auxiliary mutator to do so.
-func (s *sanitizerSplitMutator) markSanitizableApexesMutator(ctx android.TopDownMutatorContext) {
+func (s *sanitizerSplitMutator) markSanitizableApexesMutator(ctx android.BottomUpMutatorContext) {
 	if sanitizeable, ok := ctx.Module().(Sanitizeable); ok {
 		enabled := sanitizeable.IsSanitizerEnabled(ctx.Config(), s.sanitizer.name())
 		ctx.VisitDirectDeps(func(dep android.Module) {
@@ -1355,7 +1355,7 @@ func (c *Module) IsSanitizerExplicitlyDisabled(t SanitizerType) bool {
 }
 
 // Propagate the ubsan minimal runtime dependency when there are integer overflow sanitized static dependencies.
-func sanitizerRuntimeDepsMutator(mctx android.TopDownMutatorContext) {
+func sanitizerRuntimeDepsMutator(mctx android.BottomUpMutatorContext) {
 	// Change this to PlatformSanitizable when/if non-cc modules support ubsan sanitizers.
 	if c, ok := mctx.Module().(*Module); ok && c.sanitize != nil {
 		if c.sanitize.Properties.ForceDisable {
@@ -1437,11 +1437,11 @@ func sanitizerRuntimeMutator(mctx android.BottomUpMutatorContext) {
 					//"null",
 					//"shift-base",
 					//"signed-integer-overflow",
-					// TODO(danalbert): Fix UB in libc++'s __tree so we can turn this on.
-					// https://llvm.org/PR19302
-					// http://reviews.llvm.org/D6974
-					// "object-size",
 				)
+
+				if mctx.Config().ReleaseBuildObjectSizeSanitizer() {
+					sanitizers = append(sanitizers, "object-size")
+				}
 			}
 			sanitizers = append(sanitizers, sanProps.Misc_undefined...)
 		}

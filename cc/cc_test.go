@@ -49,17 +49,30 @@ var apexVersion = "28"
 
 func registerTestMutators(ctx android.RegistrationContext) {
 	ctx.PostDepsMutators(func(ctx android.RegisterMutatorsContext) {
-		ctx.BottomUp("apex", testApexMutator).Parallel()
+		ctx.Transition("apex", &testApexTransitionMutator{})
 	})
 }
 
-func testApexMutator(mctx android.BottomUpMutatorContext) {
-	modules := mctx.CreateVariations(apexVariationName)
+type testApexTransitionMutator struct{}
+
+func (t *testApexTransitionMutator) Split(ctx android.BaseModuleContext) []string {
+	return []string{apexVariationName}
+}
+
+func (t *testApexTransitionMutator) OutgoingTransition(ctx android.OutgoingTransitionContext, sourceVariation string) string {
+	return sourceVariation
+}
+
+func (t *testApexTransitionMutator) IncomingTransition(ctx android.IncomingTransitionContext, incomingVariation string) string {
+	return incomingVariation
+}
+
+func (t *testApexTransitionMutator) Mutate(ctx android.BottomUpMutatorContext, variation string) {
 	apexInfo := android.ApexInfo{
 		ApexVariationName: apexVariationName,
 		MinSdkVersion:     android.ApiLevelForTest(apexVersion),
 	}
-	mctx.SetVariationProvider(modules[0], android.ApexInfoProvider, apexInfo)
+	android.SetProvider(ctx, android.ApexInfoProvider, apexInfo)
 }
 
 // testCcWithConfig runs tests using the prepareForCcTest

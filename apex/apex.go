@@ -55,11 +55,10 @@ func registerApexBuildComponents(ctx android.RegistrationContext) {
 }
 
 func registerPreArchMutators(ctx android.RegisterMutatorsContext) {
-	ctx.TopDown("prebuilt_apex_module_creator", prebuiltApexModuleCreatorMutator).Parallel()
+	ctx.BottomUp("prebuilt_apex_module_creator", prebuiltApexModuleCreatorMutator).Parallel()
 }
 
 func RegisterPreDepsMutators(ctx android.RegisterMutatorsContext) {
-	ctx.TopDown("apex_vndk", apexVndkMutator).Parallel()
 	ctx.BottomUp("apex_vndk_deps", apexVndkDepsMutator).Parallel()
 }
 

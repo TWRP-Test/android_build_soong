@@ -125,6 +125,7 @@ type stubDecorator struct {
 	parsedCoverageXmlPath android.ModuleOutPath
 	installPath           android.Path
 	abiDumpPath           android.OutputPath
+	hasAbiDump            bool
 	abiDiffPaths          android.Paths
 
 	apiLevel         android.ApiLevel
@@ -330,11 +331,11 @@ func (this *stubDecorator) findPrebuiltAbiDump(ctx ModuleContext,
 }
 
 // Feature flag.
-func canDumpAbi(config android.Config, moduleDir string) bool {
+func (this *stubDecorator) canDumpAbi(ctx ModuleContext) bool {
 	if runtime.GOOS == "darwin" {
 		return false
 	}
-	if strings.HasPrefix(moduleDir, "bionic/") {
+	if strings.HasPrefix(ctx.ModuleDir(), "bionic/") {
 		// Bionic has enough uncommon implementation details like ifuncs and asm
 		// code that the ABI tracking here has a ton of false positives. That's
 		// causing pretty extreme friction for development there, so disabling
@@ -343,8 +344,14 @@ func canDumpAbi(config android.Config, moduleDir string) bool {
 		// http://b/358653811
 		return false
 	}
+
+	if this.apiLevel.IsCurrent() {
+		// "current" (AKA 10000) is not tracked.
+		return false
+	}
+
 	// http://b/156513478
-	return config.ReleaseNdkAbiMonitored()
+	return ctx.Config().ReleaseNdkAbiMonitored()
 }
 
 // Feature flag to disable diffing against prebuilts.
@@ -357,6 +364,7 @@ func (this *stubDecorator) dumpAbi(ctx ModuleContext, symbolList android.Path) {
 	this.abiDumpPath = getNdkAbiDumpInstallBase(ctx).Join(ctx,
 		this.apiLevel.String(), ctx.Arch().ArchType.String(),
 		this.libraryName(ctx), "abi.stg")
+	this.hasAbiDump = true
 	headersList := getNdkABIHeadersFile(ctx)
 	ctx.Build(pctx, android.BuildParams{
 		Rule:        stg,
@@ -421,41 +429,45 @@ func (this *stubDecorator) diffAbi(ctx ModuleContext) {
 	// Also ensure that the ABI of the next API level (if there is one) matches
 	// this API level. *New* ABI is allowed, but any changes to APIs that exist
 	// in this API level are disallowed.
-	if !this.apiLevel.IsCurrent() && prebuiltAbiDump.Valid() {
+	if prebuiltAbiDump.Valid() {
 		nextApiLevel := findNextApiLevel(ctx, this.apiLevel)
 		if nextApiLevel == nil {
 			panic(fmt.Errorf("could not determine which API level follows "+
 				"non-current API level %s", this.apiLevel))
 		}
-		nextAbiDiffPath := android.PathForModuleOut(ctx,
-			"abidiff_next.timestamp")
-		nextAbiDump := this.findPrebuiltAbiDump(ctx, *nextApiLevel)
-		missingNextPrebuiltError := fmt.Sprintf(
-			missingPrebuiltErrorTemplate, this.libraryName(ctx),
-			nextAbiDump.InvalidReason())
-		if !nextAbiDump.Valid() {
-			ctx.Build(pctx, android.BuildParams{
-				Rule:   android.ErrorRule,
-				Output: nextAbiDiffPath,
-				Args: map[string]string{
-					"error": missingNextPrebuiltError,
-				},
-			})
-		} else {
-			ctx.Build(pctx, android.BuildParams{
-				Rule: stgdiff,
-				Description: fmt.Sprintf(
-					"Comparing ABI to the next API level %s %s",
-					prebuiltAbiDump, nextAbiDump),
-				Output: nextAbiDiffPath,
-				Inputs: android.Paths{
-					prebuiltAbiDump.Path(), nextAbiDump.Path()},
-				Args: map[string]string{
-					"args": "--format=small --ignore=interface_addition",
-				},
-			})
+
+		// "current" ABI is not tracked.
+		if !nextApiLevel.IsCurrent() {
+			nextAbiDiffPath := android.PathForModuleOut(ctx,
+				"abidiff_next.timestamp")
+			nextAbiDump := this.findPrebuiltAbiDump(ctx, *nextApiLevel)
+			missingNextPrebuiltError := fmt.Sprintf(
+				missingPrebuiltErrorTemplate, this.libraryName(ctx),
+				nextAbiDump.InvalidReason())
+			if !nextAbiDump.Valid() {
+				ctx.Build(pctx, android.BuildParams{
+					Rule:   android.ErrorRule,
+					Output: nextAbiDiffPath,
+					Args: map[string]string{
+						"error": missingNextPrebuiltError,
+					},
+				})
+			} else {
+				ctx.Build(pctx, android.BuildParams{
+					Rule: stgdiff,
+					Description: fmt.Sprintf(
+						"Comparing ABI to the next API level %s %s",
+						prebuiltAbiDump, nextAbiDump),
+					Output: nextAbiDiffPath,
+					Inputs: android.Paths{
+						prebuiltAbiDump.Path(), nextAbiDump.Path()},
+					Args: map[string]string{
+						"args": "--format=small --ignore=interface_addition",
+					},
+				})
+			}
+			this.abiDiffPaths = append(this.abiDiffPaths, nextAbiDiffPath)
 		}
-		this.abiDiffPaths = append(this.abiDiffPaths, nextAbiDiffPath)
 	}
 }
 
@@ -478,7 +490,7 @@ func (c *stubDecorator) compile(ctx ModuleContext, flags Flags, deps PathDeps) O
 	nativeAbiResult := parseNativeAbiDefinition(ctx, symbolFile, c.apiLevel, "")
 	objs := compileStubLibrary(ctx, flags, nativeAbiResult.stubSrc)
 	c.versionScriptPath = nativeAbiResult.versionScript
-	if canDumpAbi(ctx.Config(), ctx.ModuleDir()) {
+	if c.canDumpAbi(ctx) {
 		c.dumpAbi(ctx, nativeAbiResult.symbolList)
 		if canDiffAbi(ctx.Config()) {
 			c.diffAbi(ctx)

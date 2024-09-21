@@ -3345,6 +3345,10 @@ func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 	if lib, ok := depModule.(SdkLibraryDependency); ok && lib.sharedLibrary() {
 		// A shared SDK library. This should be added as a top-level CLC element.
 		sdkLib = &depName
+	} else if lib, ok := depModule.(SdkLibraryComponentDependency); ok && lib.OptionalSdkLibraryImplementation() != nil {
+		if depModule.Name() == proptools.String(lib.OptionalSdkLibraryImplementation())+".impl" {
+			sdkLib = lib.OptionalSdkLibraryImplementation()
+		}
 	} else if ulib, ok := depModule.(ProvidesUsesLib); ok {
 		// A non-SDK library disguised as an SDK library by the means of `provides_uses_lib`
 		// property. This should be handled in the same way as a shared SDK library.

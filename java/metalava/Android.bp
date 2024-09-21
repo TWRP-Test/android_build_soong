@@ -15,4 +15,5 @@
 filegroup {
     name: "metalava-config-files",
     srcs: ["*-config.xml"],
+    visibility: ["//visibility:public"],
 }

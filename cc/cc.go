@@ -59,10 +59,10 @@ func RegisterCCBuildComponents(ctx android.RegistrationContext) {
 			san.registerMutators(ctx)
 		}
 
-		ctx.TopDown("sanitize_runtime_deps", sanitizerRuntimeDepsMutator).Parallel()
+		ctx.BottomUp("sanitize_runtime_deps", sanitizerRuntimeDepsMutator).Parallel()
 		ctx.BottomUp("sanitize_runtime", sanitizerRuntimeMutator).Parallel()
 
-		ctx.TopDown("fuzz_deps", fuzzMutatorDeps)
+		ctx.BottomUp("fuzz_deps", fuzzMutatorDeps)
 
 		ctx.Transition("coverage", &coverageTransitionMutator{})
 
@@ -73,7 +73,7 @@ func RegisterCCBuildComponents(ctx android.RegistrationContext) {
 		ctx.Transition("lto", &ltoTransitionMutator{})
 
 		ctx.BottomUp("check_linktype", checkLinkTypeMutator).Parallel()
-		ctx.TopDown("double_loadable", checkDoubleLoadableLibraries).Parallel()
+		ctx.BottomUp("double_loadable", checkDoubleLoadableLibraries).Parallel()
 	})
 
 	ctx.FinalDepsMutators(func(ctx android.RegisterMutatorsContext) {
@@ -2783,7 +2783,7 @@ func checkLinkTypeMutator(ctx android.BottomUpMutatorContext) {
 // If a library has a vendor variant and is a (transitive) dependency of an LLNDK library,
 // it is subject to be double loaded. Such lib should be explicitly marked as double_loadable: true
 // or as vndk-sp (vndk: { enabled: true, support_system_process: true}).
-func checkDoubleLoadableLibraries(ctx android.TopDownMutatorContext) {
+func checkDoubleLoadableLibraries(ctx android.BottomUpMutatorContext) {
 	check := func(child, parent android.Module) bool {
 		to, ok := child.(*Module)
 		if !ok {

@@ -451,7 +451,7 @@ func TestArchMutator(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.goOS != runtime.GOOS {
+			if tt.goOS != "" && tt.goOS != runtime.GOOS {
 				t.Skipf("requries runtime.GOOS %s", tt.goOS)
 			}
 

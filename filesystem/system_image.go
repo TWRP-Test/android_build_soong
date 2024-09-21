@@ -38,7 +38,7 @@ func systemImageFactory() android.Module {
 	module.AddProperties(&module.properties)
 	module.filesystem.buildExtraFiles = module.buildExtraFiles
 	module.filesystem.filterPackagingSpec = module.filterPackagingSpec
-	initFilesystemModule(&module.filesystem)
+	initFilesystemModule(module, &module.filesystem)
 	return module
 }
 

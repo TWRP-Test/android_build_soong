@@ -212,7 +212,14 @@ func writeDepFile(outputFile string, eventHandler *metrics.EventHandler, ninjaDe
 }
 
 // Check if there are changes to the environment file, product variable file and
-// soong_build binary, in which case no incremental will be performed.
+// soong_build binary, in which case no incremental will be performed. For env
+// variables we check the used env file, which will be removed in soong ui if
+// there is any changes to the env variables used last time, in which case the
+// check below will fail and a full build will be attempted. If any new env
+// variables are added in the new run, soong ui won't be able to detect it, the
+// used env file check below will pass. But unless there is a soong build code
+// change, in which case the soong build binary check will fail, otherwise the
+// new env variables shouldn't have any affect.
 func incrementalValid(config android.Config, configCacheFile string) (*ConfigCache, bool) {
 	var newConfigCache ConfigCache
 	data, err := os.ReadFile(shared.JoinPath(topDir, usedEnvFile))

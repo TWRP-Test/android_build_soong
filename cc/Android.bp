@@ -116,4 +116,6 @@ bootstrap_go_package {
         "cmake_module_cc.txt",
     ],
     pluginFor: ["soong_build"],
+    // Used by plugins
+    visibility: ["//visibility:public"],
 }

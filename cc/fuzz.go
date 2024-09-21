@@ -57,7 +57,7 @@ func (fuzzer *fuzzer) props() []interface{} {
 	return []interface{}{&fuzzer.Properties}
 }
 
-func fuzzMutatorDeps(mctx android.TopDownMutatorContext) {
+func fuzzMutatorDeps(mctx android.BottomUpMutatorContext) {
 	currentModule, ok := mctx.Module().(*Module)
 	if !ok {
 		return

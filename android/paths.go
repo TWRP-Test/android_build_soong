@@ -91,6 +91,7 @@ func GlobFiles(ctx EarlyModulePathContext, globPattern string, excludes []string
 // the Path methods that rely on module dependencies having been resolved.
 type ModuleWithDepsPathContext interface {
 	EarlyModulePathContext
+	OtherModuleProviderContext
 	VisitDirectDepsBlueprint(visit func(blueprint.Module))
 	OtherModuleDependencyTag(m blueprint.Module) blueprint.DependencyTag
 	HasMutatorFinished(mutatorName string) bool

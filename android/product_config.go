@@ -14,7 +14,9 @@
 
 package android
 
-import "github.com/google/blueprint/proptools"
+import (
+	"github.com/google/blueprint/proptools"
+)
 
 func init() {
 	ctx := InitRegistrationContext

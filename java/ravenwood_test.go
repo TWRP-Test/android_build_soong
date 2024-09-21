@@ -66,6 +66,10 @@ var prepareRavenwoodRuntime = android.GroupFixturePreparers(
 			name: "app2",
 			sdk_version: "current",
 		}
+		android_app {
+			name: "app3",
+			sdk_version: "current",
+		}
 		prebuilt_font {
 			name: "Font.ttf",
 			src: "Font.ttf",
@@ -167,6 +171,7 @@ func TestRavenwoodTest(t *testing.T) {
 				"ravenwood-runtime-jni2",
 			],
 			resource_apk: "app2",
+			inst_resource_apk: "app3",
 			sdk_version: "test_current",
 		}
 	`)
@@ -194,6 +199,7 @@ func TestRavenwoodTest(t *testing.T) {
 	module.Output(installPathPrefix + "/ravenwood-test/lib64/libblue.so")
 	module.Output(installPathPrefix + "/ravenwood-test/lib64/libpink.so")
 	module.Output(installPathPrefix + "/ravenwood-test/ravenwood-res-apks/ravenwood-res.apk")
+	module.Output(installPathPrefix + "/ravenwood-test/ravenwood-res-apks/ravenwood-inst-res.apk")
 
 	// ravenwood-runtime*.so are included in the runtime, so it shouldn't be emitted.
 	for _, o := range module.AllOutputs() {

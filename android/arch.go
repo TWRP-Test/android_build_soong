@@ -396,20 +396,21 @@ func (target Target) Variations() []blueprint.Variation {
 // device_supported and host_supported properties to determine which OsTypes are enabled for this
 // module, then searches through the Targets to determine which have enabled Targets for this
 // module.
-func osMutator(mctx BottomUpMutatorContext) {
-	module := mctx.Module()
-	base := module.base()
+type osTransitionMutator struct{}
 
-	// Nothing to do for modules that are not architecture specific (e.g. a genrule).
-	if !base.ArchSpecific() {
-		return
-	}
+type allOsInfo struct {
+	Os         map[string]OsType
+	Variations []string
+}
 
-	// Collect a list of OSTypes supported by this module based on the HostOrDevice value
-	// passed to InitAndroidArchModule and the device_supported and host_supported properties.
+var allOsProvider = blueprint.NewMutatorProvider[*allOsInfo]("os_propagate")
+
+// moduleOSList collects a list of OSTypes supported by this module based on the HostOrDevice
+// value passed to InitAndroidArchModule and the device_supported and host_supported properties.
+func moduleOSList(ctx ConfigContext, base *ModuleBase) []OsType {
 	var moduleOSList []OsType
 	for _, os := range osTypeList {
-		for _, t := range mctx.Config().Targets[os] {
+		for _, t := range ctx.Config().Targets[os] {
 			if base.supportsTarget(t) {
 				moduleOSList = append(moduleOSList, os)
 				break
@@ -417,53 +418,91 @@ func osMutator(mctx BottomUpMutatorContext) {
 		}
 	}
 
-	createCommonOSVariant := base.commonProperties.CreateCommonOSVariant
+	if base.commonProperties.CreateCommonOSVariant {
+		// A CommonOS variant was requested so add it to the list of OS variants to
+		// create. It needs to be added to the end because it needs to depend on the
+		// the other variants and inter variant dependencies can only be created from a
+		// later variant in that list to an earlier one. That is because variants are
+		// always processed in the order in which they are created.
+		moduleOSList = append(moduleOSList, CommonOS)
+	}
+
+	return moduleOSList
+}
+
+func (o *osTransitionMutator) Split(ctx BaseModuleContext) []string {
+	module := ctx.Module()
+	base := module.base()
+
+	// Nothing to do for modules that are not architecture specific (e.g. a genrule).
+	if !base.ArchSpecific() {
+		return []string{""}
+	}
+
+	moduleOSList := moduleOSList(ctx, base)
 
 	// If there are no supported OSes then disable the module.
-	if len(moduleOSList) == 0 && !createCommonOSVariant {
+	if len(moduleOSList) == 0 {
 		base.Disable()
-		return
+		return []string{""}
 	}
 
 	// Convert the list of supported OsTypes to the variation names.
 	osNames := make([]string, len(moduleOSList))
+	osMapping := make(map[string]OsType, len(moduleOSList))
 	for i, os := range moduleOSList {
 		osNames[i] = os.String()
+		osMapping[osNames[i]] = os
 	}
 
-	if createCommonOSVariant {
-		// A CommonOS variant was requested so add it to the list of OS variants to
-		// create. It needs to be added to the end because it needs to depend on the
-		// the other variants in the list returned by CreateVariations(...) and inter
-		// variant dependencies can only be created from a later variant in that list to
-		// an earlier one. That is because variants are always processed in the order in
-		// which they are returned from CreateVariations(...).
-		osNames = append(osNames, CommonOS.Name)
-		moduleOSList = append(moduleOSList, CommonOS)
+	SetProvider(ctx, allOsProvider, &allOsInfo{
+		Os:         osMapping,
+		Variations: osNames,
+	})
+
+	return osNames
+}
+
+func (o *osTransitionMutator) OutgoingTransition(ctx OutgoingTransitionContext, sourceVariation string) string {
+	return sourceVariation
+}
+
+func (o *osTransitionMutator) IncomingTransition(ctx IncomingTransitionContext, incomingVariation string) string {
+	module := ctx.Module()
+	base := module.base()
+
+	if !base.ArchSpecific() {
+		return ""
 	}
 
-	// Create the variations, annotate each one with which OS it was created for, and
+	return incomingVariation
+}
+
+func (o *osTransitionMutator) Mutate(ctx BottomUpMutatorContext, variation string) {
+	module := ctx.Module()
+	base := module.base()
+
+	if variation == "" {
+		return
+	}
+
+	allOsInfo, ok := ModuleProvider(ctx, allOsProvider)
+	if !ok {
+		panic(fmt.Errorf("missing allOsProvider"))
+	}
+
+	// Annotate this variant with which OS it was created for, and
 	// squash the appropriate OS-specific properties into the top level properties.
-	modules := mctx.CreateVariations(osNames...)
-	for i, m := range modules {
-		m.base().commonProperties.CompileOS = moduleOSList[i]
-		m.base().setOSProperties(mctx)
-	}
+	base.commonProperties.CompileOS = allOsInfo.Os[variation]
+	base.setOSProperties(ctx)
 
-	if createCommonOSVariant {
+	if variation == CommonOS.String() {
 		// A CommonOS variant was requested so add dependencies from it (the last one in
 		// the list) to the OS type specific variants.
-		last := len(modules) - 1
-		commonOSVariant := modules[last]
-		commonOSVariant.base().commonProperties.CommonOSVariant = true
-		for _, module := range modules[0:last] {
-			// Ignore modules that are enabled. Note, this will only avoid adding
-			// dependencies on OsType variants that are explicitly disabled in their
-			// properties. The CommonOS variant will still depend on disabled variants
-			// if they are disabled afterwards, e.g. in archMutator if
-			if module.Enabled(mctx) {
-				mctx.AddInterVariantDependency(commonOsToOsSpecificVariantTag, commonOSVariant, module)
-			}
+		osList := allOsInfo.Variations[:len(allOsInfo.Variations)-1]
+		for _, os := range osList {
+			variation := []blueprint.Variation{{"os", os}}
+			ctx.AddVariationDependencies(variation, commonOsToOsSpecificVariantTag, ctx.ModuleName())
 		}
 	}
 }
@@ -496,7 +535,7 @@ func GetOsSpecificVariantsOfCommonOSVariant(mctx BaseModuleContext) []Module {
 
 var DarwinUniversalVariantTag = archDepTag{name: "darwin universal binary"}
 
-// archMutator splits a module into a variant for each Target requested by the module.  Target selection
+// archTransitionMutator splits a module into a variant for each Target requested by the module.  Target selection
 // for a module is in three levels, OsClass, multilib, and then Target.
 // OsClass selection is determined by:
 //   - The HostOrDeviceSupported value passed in to InitAndroidArchModule by the module type factory, which selects
@@ -527,25 +566,32 @@ var DarwinUniversalVariantTag = archDepTag{name: "darwin universal binary"}
 //
 // Modules can be initialized with InitAndroidMultiTargetsArchModule, in which case they will be split by OsClass,
 // but will have a common Target that is expected to handle all other selected Targets via ctx.MultiTargets().
-func archMutator(mctx BottomUpMutatorContext) {
-	module := mctx.Module()
+type archTransitionMutator struct{}
+
+type allArchInfo struct {
+	Targets      map[string]Target
+	MultiTargets []Target
+	Primary      string
+	Multilib     string
+}
+
+var allArchProvider = blueprint.NewMutatorProvider[*allArchInfo]("arch_propagate")
+
+func (a *archTransitionMutator) Split(ctx BaseModuleContext) []string {
+	module := ctx.Module()
 	base := module.base()
 
 	if !base.ArchSpecific() {
-		return
+		return []string{""}
 	}
 
 	os := base.commonProperties.CompileOS
 	if os == CommonOS {
-		// Make sure that the target related properties are initialized for the
-		// CommonOS variant.
-		addTargetProperties(module, commonTargetMap[os.Name], nil, true)
-
 		// Do not create arch specific variants for the CommonOS variant.
-		return
+		return []string{""}
 	}
 
-	osTargets := mctx.Config().Targets[os]
+	osTargets := ctx.Config().Targets[os]
 
 	image := base.commonProperties.ImageVariation
 	// Filter NativeBridge targets unless they are explicitly supported.
@@ -572,19 +618,18 @@ func archMutator(mctx BottomUpMutatorContext) {
 	prefer32 := os == Windows
 
 	// Determine the multilib selection for this module.
-	ignorePrefer32OnDevice := mctx.Config().IgnorePrefer32OnDevice()
-	multilib, extraMultilib := decodeMultilib(base, os, ignorePrefer32OnDevice)
+	multilib, extraMultilib := decodeMultilib(ctx, base)
 
 	// Convert the multilib selection into a list of Targets.
 	targets, err := decodeMultilibTargets(multilib, osTargets, prefer32)
 	if err != nil {
-		mctx.ModuleErrorf("%s", err.Error())
+		ctx.ModuleErrorf("%s", err.Error())
 	}
 
 	// If there are no supported targets disable the module.
 	if len(targets) == 0 {
 		base.Disable()
-		return
+		return []string{""}
 	}
 
 	// If the module is using extraMultilib, decode the extraMultilib selection into
@@ -593,7 +638,7 @@ func archMutator(mctx BottomUpMutatorContext) {
 	if extraMultilib != "" {
 		multiTargets, err = decodeMultilibTargets(extraMultilib, osTargets, prefer32)
 		if err != nil {
-			mctx.ModuleErrorf("%s", err.Error())
+			ctx.ModuleErrorf("%s", err.Error())
 		}
 		multiTargets = filterHostCross(multiTargets, targets[0].HostCross)
 	}
@@ -601,7 +646,7 @@ func archMutator(mctx BottomUpMutatorContext) {
 	// Recovery is always the primary architecture, filter out any other architectures.
 	// Common arch is also allowed
 	if image == RecoveryVariation {
-		primaryArch := mctx.Config().DevicePrimaryArchType()
+		primaryArch := ctx.Config().DevicePrimaryArchType()
 		targets = filterToArch(targets, primaryArch, Common)
 		multiTargets = filterToArch(multiTargets, primaryArch, Common)
 	}
@@ -609,37 +654,109 @@ func archMutator(mctx BottomUpMutatorContext) {
 	// If there are no supported targets disable the module.
 	if len(targets) == 0 {
 		base.Disable()
-		return
+		return []string{""}
 	}
 
 	// Convert the targets into a list of arch variation names.
 	targetNames := make([]string, len(targets))
+	targetMapping := make(map[string]Target, len(targets))
 	for i, target := range targets {
 		targetNames[i] = target.ArchVariation()
+		targetMapping[targetNames[i]] = targets[i]
 	}
 
-	// Create the variations, annotate each one with which Target it was created for, and
-	// squash the appropriate arch-specific properties into the top level properties.
-	modules := mctx.CreateVariations(targetNames...)
-	for i, m := range modules {
-		addTargetProperties(m, targets[i], multiTargets, i == 0)
-		m.base().setArchProperties(mctx)
+	SetProvider(ctx, allArchProvider, &allArchInfo{
+		Targets:      targetMapping,
+		MultiTargets: multiTargets,
+		Primary:      targetNames[0],
+		Multilib:     multilib,
+	})
+	return targetNames
+}
 
-		// Install support doesn't understand Darwin+Arm64
-		if os == Darwin && targets[i].HostCross {
-			m.base().commonProperties.SkipInstall = true
+func (a *archTransitionMutator) OutgoingTransition(ctx OutgoingTransitionContext, sourceVariation string) string {
+	return sourceVariation
+}
+
+func (a *archTransitionMutator) IncomingTransition(ctx IncomingTransitionContext, incomingVariation string) string {
+	module := ctx.Module()
+	base := module.base()
+
+	if !base.ArchSpecific() {
+		return ""
+	}
+
+	os := base.commonProperties.CompileOS
+	if os == CommonOS {
+		// Do not create arch specific variants for the CommonOS variant.
+		return ""
+	}
+
+	if incomingVariation == "" {
+		multilib, _ := decodeMultilib(ctx, base)
+		if multilib == "common" {
+			return "common"
 		}
+	}
+	return incomingVariation
+}
+
+func (a *archTransitionMutator) Mutate(ctx BottomUpMutatorContext, variation string) {
+	module := ctx.Module()
+	base := module.base()
+	os := base.commonProperties.CompileOS
+
+	if os == CommonOS {
+		// Make sure that the target related properties are initialized for the
+		// CommonOS variant.
+		addTargetProperties(module, commonTargetMap[os.Name], nil, true)
+		return
+	}
+
+	if variation == "" {
+		return
+	}
+
+	if !base.ArchSpecific() {
+		panic(fmt.Errorf("found variation %q for non arch specifc module", variation))
+	}
+
+	allArchInfo, ok := ModuleProvider(ctx, allArchProvider)
+	if !ok {
+		return
+	}
+
+	target, ok := allArchInfo.Targets[variation]
+	if !ok {
+		panic(fmt.Errorf("missing Target for %q", variation))
+	}
+	primary := variation == allArchInfo.Primary
+	multiTargets := allArchInfo.MultiTargets
+
+	// Annotate the new variant with which Target it was created for, and
+	// squash the appropriate arch-specific properties into the top level properties.
+	addTargetProperties(ctx.Module(), target, multiTargets, primary)
+	base.setArchProperties(ctx)
+
+	// Install support doesn't understand Darwin+Arm64
+	if os == Darwin && target.HostCross {
+		base.commonProperties.SkipInstall = true
 	}
 
 	// Create a dependency for Darwin Universal binaries from the primary to secondary
 	// architecture. The module itself will be responsible for calling lipo to merge the outputs.
 	if os == Darwin {
-		if multilib == "darwin_universal" && len(modules) == 2 {
-			mctx.AddInterVariantDependency(DarwinUniversalVariantTag, modules[1], modules[0])
-		} else if multilib == "darwin_universal_common_first" && len(modules) == 3 {
-			mctx.AddInterVariantDependency(DarwinUniversalVariantTag, modules[2], modules[1])
+		isUniversalBinary := (allArchInfo.Multilib == "darwin_universal" && len(allArchInfo.Targets) == 2) ||
+			allArchInfo.Multilib == "darwin_universal_common_first" && len(allArchInfo.Targets) == 3
+		isPrimary := variation == ctx.Config().BuildArch.String()
+		hasSecondaryConfigured := len(ctx.Config().Targets[Darwin]) > 1
+		if isUniversalBinary && isPrimary && hasSecondaryConfigured {
+			secondaryArch := ctx.Config().Targets[Darwin][1].Arch.String()
+			variation := []blueprint.Variation{{"arch", secondaryArch}}
+			ctx.AddVariationDependencies(variation, DarwinUniversalVariantTag, ctx.ModuleName())
 		}
 	}
+
 }
 
 // addTargetProperties annotates a variant with the Target is is being compiled for, the list
@@ -656,7 +773,9 @@ func addTargetProperties(m Module, target Target, multiTargets []Target, primary
 // multilib from the factory's call to InitAndroidArchModule if none was set.  For modules that
 // called InitAndroidMultiTargetsArchModule it always returns "common" for multilib, and returns
 // the actual multilib in extraMultilib.
-func decodeMultilib(base *ModuleBase, os OsType, ignorePrefer32OnDevice bool) (multilib, extraMultilib string) {
+func decodeMultilib(ctx ConfigContext, base *ModuleBase) (multilib, extraMultilib string) {
+	os := base.commonProperties.CompileOS
+	ignorePrefer32OnDevice := ctx.Config().IgnorePrefer32OnDevice()
 	// First check the "android.compile_multilib" or "host.compile_multilib" properties.
 	switch os.Class {
 	case Device:

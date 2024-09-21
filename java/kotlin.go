@@ -162,7 +162,7 @@ func (j *Module) kotlinCompile(ctx android.ModuleContext, outputFile, headerOutp
 			"srcJarDir":       android.PathForModuleOut(ctx, "kotlinc", "srcJars.xref").String(),
 		}
 		if commonSrcsList.Valid() {
-			args["commonSrcFilesList"] = "--srcs @" + commonSrcsList.String()
+			args["commonSrcFilesList"] = "--common_srcs @" + commonSrcsList.String()
 		}
 		ctx.Build(pctx, android.BuildParams{
 			Rule:        kotlinKytheExtract,

@@ -88,6 +88,7 @@ bootstrap_go_package {
         "prebuilt.go",
         "prebuilt_build_tool.go",
         "product_config.go",
+        "product_config_to_bp.go",
         "proto.go",
         "provider.go",
         "raw_files.go",
@@ -154,4 +155,6 @@ bootstrap_go_package {
         "vintf_fragment_test.go",
         "visibility_test.go",
     ],
+    // Used by plugins
+    visibility: ["//visibility:public"],
 }

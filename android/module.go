@@ -381,7 +381,7 @@ type commonProperties struct {
 	Native_bridge_supported *bool `android:"arch_variant"`
 
 	// init.rc files to be installed if this module is installed
-	Init_rc []string `android:"arch_variant,path"`
+	Init_rc proptools.Configurable[[]string] `android:"arch_variant,path"`
 
 	// VINTF manifest fragments to be installed if this module is installed
 	Vintf_fragments proptools.Configurable[[]string] `android:"path"`
@@ -442,12 +442,6 @@ type commonProperties struct {
 	//
 	// Set at module initialization time by calling InitCommonOSAndroidMultiTargetsArchModule
 	CreateCommonOSVariant bool `blueprint:"mutated"`
-
-	// If set to true then this variant is the CommonOS variant that has dependencies on its
-	// OsType specific variants.
-	//
-	// Set by osMutator.
-	CommonOSVariant bool `blueprint:"mutated"`
 
 	// When set to true, this module is not installed to the full install path (ex: under
 	// out/target/product/<name>/<partition>). It can be installed only to the packaging
@@ -1221,7 +1215,7 @@ func (m *ModuleBase) ArchSpecific() bool {
 
 // True if the current variant is a CommonOS variant, false otherwise.
 func (m *ModuleBase) IsCommonOSVariant() bool {
-	return m.commonProperties.CommonOSVariant
+	return m.commonProperties.CompileOS == CommonOS
 }
 
 // supportsTarget returns true if the given Target is supported by the current module.
@@ -1861,7 +1855,7 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			// so only a single rule is created for each init.rc or vintf fragment file.
 
 			if !m.InVendorRamdisk() {
-				ctx.initRcPaths = PathsForModuleSrc(ctx, m.commonProperties.Init_rc)
+				ctx.initRcPaths = PathsForModuleSrc(ctx, m.commonProperties.Init_rc.GetOrDefault(ctx, nil))
 				rcDir := PathForModuleInstall(ctx, "etc", "init")
 				for _, src := range ctx.initRcPaths {
 					installedInitRc := rcDir.Join(ctx, src.Base())
@@ -2212,7 +2206,12 @@ func (m *ModuleBase) IsNativeBridgeSupported() bool {
 	return proptools.Bool(m.commonProperties.Native_bridge_supported)
 }
 
+type ConfigContext interface {
+	Config() Config
+}
+
 type ConfigurableEvaluatorContext interface {
+	OtherModuleProviderContext
 	Config() Config
 	OtherModulePropertyErrorf(module Module, property string, fmt string, args ...interface{})
 	HasMutatorFinished(mutatorName string) bool

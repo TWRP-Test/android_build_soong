@@ -147,14 +147,14 @@ type filesystemProperties struct {
 func filesystemFactory() android.Module {
 	module := &filesystem{}
 	module.filterPackagingSpec = module.filterInstallablePackagingSpec
-	initFilesystemModule(module)
+	initFilesystemModule(module, module)
 	return module
 }
 
-func initFilesystemModule(module *filesystem) {
-	module.AddProperties(&module.properties)
-	android.InitPackageModule(module)
-	module.PackagingBase.DepsCollectFirstTargetOnly = true
+func initFilesystemModule(module android.DefaultableModule, filesystemModule *filesystem) {
+	module.AddProperties(&filesystemModule.properties)
+	android.InitPackageModule(filesystemModule)
+	filesystemModule.PackagingBase.DepsCollectFirstTargetOnly = true
 	android.InitAndroidMultiTargetsArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)
 }

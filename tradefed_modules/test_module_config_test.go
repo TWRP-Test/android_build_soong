@@ -40,6 +40,7 @@ const bp = `
 			name: "base",
 			sdk_version: "current",
                         data: [":HelperApp", "data/testfile"],
+                        host_required: ["other-module"],
                         test_suites: ["general-tests"],
 		}
 
@@ -80,6 +81,7 @@ func TestModuleConfigAndroidTest(t *testing.T) {
 	android.AssertArrayString(t, "", entries.EntryMap["LOCAL_COMPATIBILITY_SUPPORT_FILES"], []string{})
 
 	android.AssertArrayString(t, "", entries.EntryMap["LOCAL_REQUIRED_MODULES"], []string{"base"})
+	android.AssertArrayString(t, "", entries.EntryMap["LOCAL_HOST_REQUIRED_MODULES"], []string{"other-module"})
 	android.AssertArrayString(t, "", entries.EntryMap["LOCAL_CERTIFICATE"], []string{"build/make/target/product/security/testkey.x509.pem"})
 	android.AssertStringEquals(t, "", entries.Class, "APPS")
 

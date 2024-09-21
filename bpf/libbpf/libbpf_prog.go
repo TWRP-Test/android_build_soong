@@ -61,6 +61,7 @@ var (
 )
 
 func registerLibbpfProgBuildComponents(ctx android.RegistrationContext) {
+	ctx.RegisterModuleType("libbpf_defaults", defaultsFactory)
 	ctx.RegisterModuleType("libbpf_prog", LibbpfProgFactory)
 }
 
@@ -88,14 +89,17 @@ type LibbpfProgProperties struct {
 	// be added to the include path using -I
 	Local_include_dirs []string `android:"arch_variant"`
 
+	Header_libs []string `android:"arch_variant"`
+
 	// optional subdirectory under which this module is installed into.
 	Relative_install_path string
 }
 
 type libbpfProg struct {
 	android.ModuleBase
+	android.DefaultableModuleBase
 	properties LibbpfProgProperties
-	objs android.Paths
+	objs       android.Paths
 }
 
 var _ android.ImageInterface = (*libbpfProg)(nil)
@@ -139,6 +143,7 @@ func (libbpf *libbpfProg) SetImageVariation(ctx android.BaseModuleContext, varia
 
 func (libbpf *libbpfProg) DepsMutator(ctx android.BottomUpMutatorContext) {
 	ctx.AddDependency(ctx.Module(), libbpfProgDepTag, "libbpf_headers")
+	ctx.AddVariationDependencies(nil, cc.HeaderDepTag(), libbpf.properties.Header_libs...)
 }
 
 func (libbpf *libbpfProg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -179,6 +184,11 @@ func (libbpf *libbpfProg) GenerateAndroidBuildActions(ctx android.ModuleContext)
 			} else {
 				depName := ctx.OtherModuleName(dep)
 				ctx.ModuleErrorf("module %q is not a genrule", depName)
+			}
+		} else if depTag == cc.HeaderDepTag() {
+			depExporterInfo, _ := android.OtherModuleProvider(ctx, dep, cc.FlagExporterInfoProvider)
+			for _, dir := range depExporterInfo.IncludeDirs {
+				cflags = append(cflags, "-I "+dir.String())
 			}
 		}
 	})
@@ -269,10 +279,32 @@ func (libbpf *libbpfProg) AndroidMk() android.AndroidMkData {
 	}
 }
 
+type Defaults struct {
+	android.ModuleBase
+	android.DefaultsModuleBase
+}
+
+func defaultsFactory() android.Module {
+	return DefaultsFactory()
+}
+
+func DefaultsFactory(props ...interface{}) android.Module {
+	module := &Defaults{}
+
+	module.AddProperties(props...)
+	module.AddProperties(&LibbpfProgProperties{})
+
+	android.InitDefaultsModule(module)
+
+	return module
+}
+
 func LibbpfProgFactory() android.Module {
 	module := &libbpfProg{}
 
 	module.AddProperties(&module.properties)
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibFirst)
+	android.InitDefaultableModule(module)
+
 	return module
 }

@@ -12,12 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package android
+package compliance
 
-import "encoding/gob"
+import (
+	"testing"
 
-func init() {
-	gob.Register(ModuleOutPath{})
-	gob.Register(PhonyPath{})
-	gob.Register(unstableInfo{})
+	"android/soong/android"
+)
+
+var prepareForNoticeXmlTest = android.GroupFixturePreparers(
+	android.PrepareForTestWithArchMutator,
+	PrepareForTestWithNoticeXml,
+)
+
+func TestPrebuiltEtcOutputFile(t *testing.T) {
+	result := prepareForNoticeXmlTest.RunTestWithBp(t, `
+		notice_xml {
+			name: "notice_xml_system",
+			partition_name: "system",
+		}
+	`)
+
+	m := result.Module("notice_xml_system", "android_arm64_armv8-a").(*NoticeXmlModule)
+	android.AssertStringEquals(t, "output file", "NOTICE.xml.gz", m.outputFile.Base())
 }

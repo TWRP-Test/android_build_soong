@@ -287,7 +287,7 @@ func TestFinalDepsPhase(t *testing.T) {
 	AssertDeepEquals(t, "final", finalWant, finalGot)
 }
 
-func TestNoCreateVariationsInFinalDeps(t *testing.T) {
+func TestTransitionMutatorInFinalDeps(t *testing.T) {
 	GroupFixturePreparers(
 		FixtureRegisterWithContext(func(ctx RegistrationContext) {
 			ctx.FinalDepsMutators(func(ctx RegisterMutatorsContext) {

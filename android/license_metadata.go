@@ -63,11 +63,7 @@ func buildLicenseMetadata(ctx *moduleContext, licenseMetadataFile WritablePath) 
 	var allDepOutputFiles Paths
 	var allDepMetadataDepSets []*DepSet[Path]
 
-	ctx.VisitDirectDepsBlueprint(func(bpdep blueprint.Module) {
-		dep, _ := bpdep.(Module)
-		if dep == nil {
-			return
-		}
+	ctx.VisitDirectDeps(func(dep Module) {
 		if !dep.Enabled(ctx) {
 			return
 		}

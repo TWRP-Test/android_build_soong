@@ -15,12 +15,12 @@
 # limitations under the License.
 #
 
-"""Unit tests for lint_project_xml.py."""
+"""Unit tests for lint_strict_updatability_checks.py."""
 
 import unittest
 from xml.dom import minidom
 
-import lint_project_xml
+import lint_strict_updatability_checks
 
 
 class CheckBaselineForDisallowedIssuesTest(unittest.TestCase):
@@ -44,7 +44,7 @@ class CheckBaselineForDisallowedIssuesTest(unittest.TestCase):
       '</issues>\n')
 
   def test_check_baseline_for_disallowed_issues(self):
-    disallowed_issues = lint_project_xml.check_baseline_for_disallowed_issues(self.baseline_xml, ["foo", "bar", "qux"])
+    disallowed_issues = lint_strict_updatability_checks.check_baseline_for_disallowed_issues(self.baseline_xml, ["foo", "bar", "qux"])
     self.assertEqual({"foo", "bar"}, disallowed_issues)
 
 

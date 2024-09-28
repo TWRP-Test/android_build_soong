@@ -92,7 +92,7 @@ func GlobFiles(ctx EarlyModulePathContext, globPattern string, excludes []string
 type ModuleWithDepsPathContext interface {
 	EarlyModulePathContext
 	OtherModuleProviderContext
-	VisitDirectDepsBlueprint(visit func(blueprint.Module))
+	VisitDirectDeps(visit func(Module))
 	OtherModuleDependencyTag(m blueprint.Module) blueprint.DependencyTag
 	HasMutatorFinished(mutatorName string) bool
 }
@@ -598,7 +598,7 @@ func GetModuleFromPathDep(ctx ModuleWithDepsPathContext, moduleName, tag string)
 	// create the tag here as was supplied to create the tag when the dependency was added so that
 	// this finds the matching dependency module.
 	expectedTag := sourceOrOutputDepTag(moduleName, tag)
-	ctx.VisitDirectDepsBlueprint(func(module blueprint.Module) {
+	ctx.VisitDirectDeps(func(module Module) {
 		depTag := ctx.OtherModuleDependencyTag(module)
 		if depTag == expectedTag {
 			found = module

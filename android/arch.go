@@ -138,6 +138,13 @@ func (a ArchType) String() string {
 	return a.Name
 }
 
+func (a ArchType) Bitness() string {
+	if a.Multilib == "lib32" {
+		return "32"
+	}
+	return "64"
+}
+
 const COMMON_VARIANT = "common"
 
 var (

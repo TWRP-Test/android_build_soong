@@ -26,6 +26,7 @@ esac
 
 source $(cd $(dirname $BASH_SOURCE) &> /dev/null && pwd)/../make/shell_utils.sh
 require_top
+setup_cog_env_if_needed
 
 # Save the current PWD for use in soong_ui
 export ORIGINAL_PWD=${PWD}

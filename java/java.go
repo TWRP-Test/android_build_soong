@@ -2612,17 +2612,6 @@ func (a *Import) JacocoReportClassesFile() android.Path {
 	return nil
 }
 
-func (j *Import) LintDepSets() LintDepSets {
-	return LintDepSets{}
-}
-
-func (j *Import) getStrictUpdatabilityLinting() bool {
-	return false
-}
-
-func (j *Import) setStrictUpdatabilityLinting(bool) {
-}
-
 func (j *Import) DepsMutator(ctx android.BottomUpMutatorContext) {
 	ctx.AddVariationDependencies(nil, libTag, j.properties.Libs...)
 	ctx.AddVariationDependencies(nil, staticLibTag, j.properties.Static_libs.GetOrDefault(ctx, nil)...)
@@ -2700,13 +2689,13 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 					transitiveBootClasspathHeaderJars = append(transitiveBootClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
 				}
 			}
-		} else if dep, ok := module.(SdkLibraryDependency); ok {
+		} else if _, ok := android.OtherModuleProvider(ctx, module, SdkLibraryInfoProvider); ok {
 			switch tag {
 			case libTag, sdkLibTag:
-				depHeaderJars := dep.SdkHeaderJars(ctx, j.SdkVersion(ctx))
-				flags.classpath = append(flags.classpath, depHeaderJars...)
-				transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars,
-					android.NewDepSet(android.PREORDER, depHeaderJars, nil))
+				sdkInfo, _ := android.OtherModuleProvider(ctx, module, SdkLibraryInfoProvider)
+				generatingLibsString := android.PrettyConcat(
+					getGeneratingLibs(ctx, j.SdkVersion(ctx), module.Name(), sdkInfo), true, "or")
+				ctx.ModuleErrorf("cannot depend directly on java_sdk_library %q; try depending on %s instead", module.Name(), generatingLibsString)
 			}
 		}
 
@@ -2818,41 +2807,14 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 
 	if ctx.Device() {
-		// If this is a variant created for a prebuilt_apex then use the dex implementation jar
-		// obtained from the associated deapexer module.
+		// Shared libraries deapexed from prebuilt apexes are no longer supported.
+		// Set the dexJarBuildPath to a fake path.
+		// This allows soong analysis pass, but will be an error during ninja execution if there are
+		// any rdeps.
 		ai, _ := android.ModuleProvider(ctx, android.ApexInfoProvider)
 		if ai.ForPrebuiltApex {
-			// Get the path of the dex implementation jar from the `deapexer` module.
-			di, err := android.FindDeapexerProviderForModule(ctx)
-			if err != nil {
-				// An error was found, possibly due to multiple apexes in the tree that export this library
-				// Defer the error till a client tries to call DexJarBuildPath
-				j.dexJarFileErr = err
-				j.initHiddenAPIError(err)
-				return
-			}
-			dexJarFileApexRootRelative := ApexRootRelativePathToJavaLib(j.BaseModuleName())
-			if dexOutputPath := di.PrebuiltExportPath(dexJarFileApexRootRelative); dexOutputPath != nil {
-				dexJarFile := makeDexJarPathFromPath(dexOutputPath)
-				j.dexJarFile = dexJarFile
-				installPath := android.PathForModuleInPartitionInstall(ctx, "apex", ai.ApexVariationName, ApexRootRelativePathToJavaLib(j.BaseModuleName()))
-				j.dexJarInstallFile = installPath
-
-				j.dexpreopter.installPath = j.dexpreopter.getInstallPath(ctx, android.RemoveOptionalPrebuiltPrefix(ctx.ModuleName()), installPath)
-				setUncompressDex(ctx, &j.dexpreopter, &j.dexer)
-				j.dexpreopter.uncompressedDex = *j.dexProperties.Uncompress_dex
-
-				if profilePath := di.PrebuiltExportPath(dexJarFileApexRootRelative + ".prof"); profilePath != nil {
-					j.dexpreopter.inputProfilePathOnHost = profilePath
-				}
-
-				// Initialize the hiddenapi structure.
-				j.initHiddenAPI(ctx, dexJarFile, outputFile, j.dexProperties.Uncompress_dex)
-			} else {
-				// This should never happen as a variant for a prebuilt_apex is only created if the
-				// prebuilt_apex has been configured to export the java library dex file.
-				ctx.ModuleErrorf("internal error: no dex implementation jar available from prebuilt APEX %s", di.ApexModuleName())
-			}
+			j.dexJarFile = makeDexJarPathFromPath(android.PathForModuleInstall(ctx, "intentionally_no_longer_supported"))
+			j.initHiddenAPI(ctx, j.dexJarFile, outputFile, j.dexProperties.Uncompress_dex)
 		} else if Bool(j.dexProperties.Compile_dex) {
 			sdkDep := decodeSdkDep(ctx, android.SdkContext(j))
 			if sdkDep.invalidVersion {
@@ -3125,19 +3087,8 @@ func (a *DexImport) JacocoReportClassesFile() android.Path {
 	return nil
 }
 
-func (a *DexImport) LintDepSets() LintDepSets {
-	return LintDepSets{}
-}
-
 func (j *DexImport) IsInstallable() bool {
 	return true
-}
-
-func (j *DexImport) getStrictUpdatabilityLinting() bool {
-	return false
-}
-
-func (j *DexImport) setStrictUpdatabilityLinting(bool) {
 }
 
 func (j *DexImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -3342,7 +3293,7 @@ func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 	depName := android.RemoveOptionalPrebuiltPrefix(ctx.OtherModuleName(depModule))
 
 	var sdkLib *string
-	if lib, ok := depModule.(SdkLibraryDependency); ok && lib.sharedLibrary() {
+	if lib, ok := android.OtherModuleProvider(ctx, depModule, SdkLibraryInfoProvider); ok && lib.SharedLibrary {
 		// A shared SDK library. This should be added as a top-level CLC element.
 		sdkLib = &depName
 	} else if lib, ok := depModule.(SdkLibraryComponentDependency); ok && lib.OptionalSdkLibraryImplementation() != nil {

@@ -49,13 +49,8 @@ func registerApexBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("override_apex", OverrideApexFactory)
 	ctx.RegisterModuleType("apex_set", apexSetFactory)
 
-	ctx.PreArchMutators(registerPreArchMutators)
 	ctx.PreDepsMutators(RegisterPreDepsMutators)
 	ctx.PostDepsMutators(RegisterPostDepsMutators)
-}
-
-func registerPreArchMutators(ctx android.RegisterMutatorsContext) {
-	ctx.BottomUp("prebuilt_apex_module_creator", prebuiltApexModuleCreatorMutator).Parallel()
 }
 
 func RegisterPreDepsMutators(ctx android.RegisterMutatorsContext) {
@@ -73,8 +68,6 @@ func RegisterPostDepsMutators(ctx android.RegisterMutatorsContext) {
 	ctx.Transition("apex", &apexTransitionMutator{})
 	ctx.BottomUp("apex_directly_in_any", apexDirectlyInAnyMutator).Parallel()
 	ctx.BottomUp("apex_dcla_deps", apexDCLADepsMutator).Parallel()
-	// Register after apex_info mutator so that it can use ApexVariationName
-	ctx.TopDown("apex_strict_updatability_lint", apexStrictUpdatibilityLintMutator).Parallel()
 }
 
 type apexBundleProperties struct {
@@ -581,7 +574,7 @@ type apexFile struct {
 	dataPaths                 []android.DataPath // becomes LOCAL_TEST_DATA
 
 	jacocoReportClassesFile android.Path     // only for javalibs and apps
-	lintDepSets             java.LintDepSets // only for javalibs and apps
+	lintInfo                *java.LintInfo   // only for javalibs and apps
 	certificate             java.Certificate // only for apps
 	overriddenPackageName   string           // only for apps
 
@@ -1113,34 +1106,6 @@ func apexInfoMutator(mctx android.TopDownMutatorContext) {
 	enforceAppUpdatability(mctx)
 }
 
-// apexStrictUpdatibilityLintMutator propagates strict_updatability_linting to transitive deps of a mainline module
-// This check is enforced for updatable modules
-func apexStrictUpdatibilityLintMutator(mctx android.TopDownMutatorContext) {
-	if !mctx.Module().Enabled(mctx) {
-		return
-	}
-	if apex, ok := mctx.Module().(*apexBundle); ok && apex.checkStrictUpdatabilityLinting(mctx) {
-		mctx.WalkDeps(func(child, parent android.Module) bool {
-			// b/208656169 Do not propagate strict updatability linting to libcore/
-			// These libs are available on the classpath during compilation
-			// These libs are transitive deps of the sdk. See java/sdk.go:decodeSdkDep
-			// Only skip libraries defined in libcore root, not subdirectories
-			if mctx.OtherModuleDir(child) == "libcore" {
-				// Do not traverse transitive deps of libcore/ libs
-				return false
-			}
-			if android.InList(child.Name(), skipLintJavalibAllowlist) {
-				return false
-			}
-			if lintable, ok := child.(java.LintDepSetsIntf); ok {
-				lintable.SetStrictUpdatabilityLinting(true)
-			}
-			// visit transitive deps
-			return true
-		})
-	}
-}
-
 // enforceAppUpdatability propagates updatable=true to apps of updatable apexes
 func enforceAppUpdatability(mctx android.TopDownMutatorContext) {
 	if !mctx.Module().Enabled(mctx) {
@@ -1201,20 +1166,9 @@ var (
 		"test_jitzygote_com.android.art",
 		// go/keep-sorted end
 	}
-
-	// TODO: b/215736885 Remove this list
-	skipLintJavalibAllowlist = []string{
-		"conscrypt.module.platform.api.stubs",
-		"conscrypt.module.public.api.stubs",
-		"conscrypt.module.public.api.stubs.system",
-		"conscrypt.module.public.api.stubs.module_lib",
-		"framework-media.stubs",
-		"framework-media.stubs.system",
-		"framework-media.stubs.module_lib",
-	}
 )
 
-func (a *apexBundle) checkStrictUpdatabilityLinting(mctx android.TopDownMutatorContext) bool {
+func (a *apexBundle) checkStrictUpdatabilityLinting(mctx android.ModuleContext) bool {
 	// The allowlist contains the base apex name, so use that instead of the ApexVariationName
 	return a.Updatable() && !android.InList(mctx.ModuleName(), skipStrictUpdatabilityLintAllowlist)
 }
@@ -1655,7 +1609,6 @@ type javaModule interface {
 	BaseModuleName() string
 	DexJarBuildPath(ctx android.ModuleErrorfContext) java.OptionalDexJarPath
 	JacocoReportClassesFile() android.Path
-	LintDepSets() java.LintDepSets
 	Stem() string
 }
 
@@ -1675,7 +1628,9 @@ func apexFileForJavaModuleWithFile(ctx android.ModuleContext, module javaModule,
 	dirInApex := "javalib"
 	af := newApexFile(ctx, dexImplementationJar, module.BaseModuleName(), dirInApex, javaSharedLib, module)
 	af.jacocoReportClassesFile = module.JacocoReportClassesFile()
-	af.lintDepSets = module.LintDepSets()
+	if lintInfo, ok := android.OtherModuleProvider(ctx, module, java.LintProvider); ok {
+		af.lintInfo = lintInfo
+	}
 	af.customStem = module.Stem() + ".jar"
 	// TODO: b/338641779 - Remove special casing of sdkLibrary once bcpf and sscpf depends
 	// on the implementation library
@@ -1713,7 +1668,6 @@ type androidApp interface {
 	JacocoReportClassesFile() android.Path
 	Certificate() java.Certificate
 	BaseModuleName() string
-	LintDepSets() java.LintDepSets
 	PrivAppAllowlist() android.OptionalPath
 }
 
@@ -1749,7 +1703,9 @@ func apexFilesForAndroidApp(ctx android.BaseModuleContext, aapp androidApp) []ap
 
 	af := newApexFile(ctx, fileToCopy, aapp.BaseModuleName(), dirInApex, app, aapp)
 	af.jacocoReportClassesFile = aapp.JacocoReportClassesFile()
-	af.lintDepSets = aapp.LintDepSets()
+	if lintInfo, ok := android.OtherModuleProvider(ctx, aapp, java.LintProvider); ok {
+		af.lintInfo = lintInfo
+	}
 	af.certificate = aapp.Certificate()
 
 	if app, ok := aapp.(interface {
@@ -1800,7 +1756,7 @@ func apexFileForFilesystem(ctx android.BaseModuleContext, buildFile android.Path
 // visited module, the `do` callback is executed. Returning true in the callback continues the visit
 // to the child modules. Returning false makes the visit to continue in the sibling or the parent
 // modules. This is used in check* functions below.
-func (a *apexBundle) WalkPayloadDeps(ctx android.ModuleContext, do android.PayloadDepsCallback) {
+func (a *apexBundle) WalkPayloadDeps(ctx android.BaseModuleContext, do android.PayloadDepsCallback) {
 	ctx.WalkDeps(func(child, parent android.Module) bool {
 		am, ok := child.(android.ApexModule)
 		if !ok || !am.CanHaveApexVariants() {
@@ -1967,12 +1923,12 @@ func (vctx *visitorContext) normalizeFileInfo(mctx android.ModuleContext) {
 	})
 }
 
-func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext, child, parent blueprint.Module) bool {
+func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext, child, parent android.Module) bool {
 	depTag := ctx.OtherModuleDependencyTag(child)
 	if _, ok := depTag.(android.ExcludeFromApexContentsTag); ok {
 		return false
 	}
-	if mod, ok := child.(android.Module); ok && !mod.Enabled(ctx) {
+	if !child.Enabled(ctx) {
 		return false
 	}
 	depName := ctx.OtherModuleName(child)
@@ -2316,7 +2272,7 @@ func (a *apexBundle) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		checkDuplicate:         a.shouldCheckDuplicate(ctx),
 		unwantedTransitiveDeps: a.properties.Unwanted_transitive_deps,
 	}
-	ctx.WalkDepsBlueprint(func(child, parent blueprint.Module) bool { return a.depVisitor(&vctx, ctx, child, parent) })
+	ctx.WalkDeps(func(child, parent android.Module) bool { return a.depVisitor(&vctx, ctx, child, parent) })
 	vctx.normalizeFileInfo(ctx)
 	if a.privateKeyFile == nil {
 		if ctx.Config().AllowMissingDependencies() {
@@ -2646,7 +2602,7 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 
 	abInfo, _ := android.ModuleProvider(ctx, android.ApexBundleInfoProvider)
 
-	a.WalkPayloadDeps(ctx, func(ctx android.ModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
+	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
 		if ccm, ok := to.(*cc.Module); ok {
 			apexName := ctx.ModuleName()
 			fromName := ctx.OtherModuleName(from)
@@ -2717,7 +2673,7 @@ func (a *apexBundle) checkClasspathFragments(ctx android.ModuleContext) {
 func (a *apexBundle) checkJavaStableSdkVersion(ctx android.ModuleContext) {
 	// Visit direct deps only. As long as we guarantee top-level deps are using stable SDKs,
 	// java's checkLinkType guarantees correct usage for transitive deps
-	ctx.VisitDirectDepsBlueprint(func(module blueprint.Module) {
+	ctx.VisitDirectDeps(func(module android.Module) {
 		tag := ctx.OtherModuleDependencyTag(module)
 		switch tag {
 		case javaLibTag, androidAppTag:
@@ -2745,6 +2701,12 @@ func (a *apexBundle) checkApexAvailability(ctx android.ModuleContext) {
 		return
 	}
 
+	// Temporarily bypass /product APEXes with a specific prefix.
+	// TODO: b/352818241 - Remove this after APEX availability is enforced for /product APEXes.
+	if a.ProductSpecific() && strings.HasPrefix(a.ApexVariationName(), "com.sdv.") {
+		return
+	}
+
 	// Coverage build adds additional dependencies for the coverage-only runtime libraries.
 	// Requiring them and their transitive depencies with apex_available is not right
 	// because they just add noise.
@@ -2752,7 +2714,7 @@ func (a *apexBundle) checkApexAvailability(ctx android.ModuleContext) {
 		return
 	}
 
-	a.WalkPayloadDeps(ctx, func(ctx android.ModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
+	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
 		// As soon as the dependency graph crosses the APEX boundary, don't go further.
 		if externalDep {
 			return false
@@ -2804,7 +2766,7 @@ func (a *apexBundle) checkApexAvailability(ctx android.ModuleContext) {
 
 // checkStaticExecutable ensures that executables in an APEX are not static.
 func (a *apexBundle) checkStaticExecutables(ctx android.ModuleContext) {
-	ctx.VisitDirectDepsBlueprint(func(module blueprint.Module) {
+	ctx.VisitDirectDeps(func(module android.Module) {
 		if ctx.OtherModuleDependencyTag(module) != executableTag {
 			return
 		}

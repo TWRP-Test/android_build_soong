@@ -3,6 +3,7 @@ package {
     default_visibility: [
         "//build/soong:__subpackages__",
     ],
+    default_team: "trendy_team_build",
 }
 
 subdirs = [
@@ -116,6 +117,11 @@ dex_bootjars {
     visibility: ["//visibility:public"],
 }
 
+art_boot_images {
+    name: "art_boot_images",
+    visibility: ["//art:__subpackages__"],
+}
+
 // Pseudo-test that's run on checkbuilds to ensure that get_clang_version can
 // parse cc/config/global.go.
 genrule {
@@ -136,9 +142,13 @@ all_apex_contributions {
     visibility: ["//visibility:public"],
 }
 
+// TODO(b/365670526): remove the cuttlefish visibility once it is fully removed
 product_config {
     name: "product_config",
-    visibility: ["//device/google/cuttlefish/system_image"],
+    visibility: [
+        "//build/make/target/product/generic",
+        "//device/google/cuttlefish/system_image",
+    ],
 }
 
 build_prop {
@@ -147,6 +157,7 @@ build_prop {
     product_config: ":product_config",
     // Currently, only microdroid and cf system image can refer to system-build.prop
     visibility: [
+        "//build/make/target/product/generic",
         "//device/google/cuttlefish/system_image",
         "//packages/modules/Virtualization/build/microdroid",
     ],

@@ -100,9 +100,7 @@ func createPlatformArchMap() map[string]string {
 	// Copy of archFeatures from android/arch_list.go because the bazel
 	// package can't access the android package
 	archFeatures := map[string][]string{
-		"arm": {
-			"neon",
-		},
+		"arm": {},
 		"arm64": {
 			"dotprod",
 		},

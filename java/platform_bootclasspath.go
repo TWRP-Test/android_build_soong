@@ -33,6 +33,7 @@ var (
 	platformBootclasspathArtBootJarDepTag  = bootclasspathDependencyTag{name: "art-boot-jar"}
 	platformBootclasspathBootJarDepTag     = bootclasspathDependencyTag{name: "platform-boot-jar"}
 	platformBootclasspathApexBootJarDepTag = bootclasspathDependencyTag{name: "apex-boot-jar"}
+	platformBootclasspathImplLibDepTag     = dependencyTag{name: "impl-lib-tag"}
 )
 
 type platformBootclasspathModule struct {
@@ -111,12 +112,18 @@ func (b *platformBootclasspathModule) BootclasspathDepsMutator(ctx android.Botto
 	// Add dependencies on all the ART jars.
 	global := dexpreopt.GetGlobalConfig(ctx)
 	addDependenciesOntoSelectedBootImageApexes(ctx, "com.android.art")
+
+	var bootImageModuleNames []string
+
 	// TODO: b/308174306 - Remove the mechanism of depending on the java_sdk_library(_import) directly
 	addDependenciesOntoBootImageModules(ctx, global.ArtApexJars, platformBootclasspathArtBootJarDepTag)
+	bootImageModuleNames = append(bootImageModuleNames, global.ArtApexJars.CopyOfJars()...)
 
 	// Add dependencies on all the non-updatable jars, which are on the platform or in non-updatable
 	// APEXes.
-	addDependenciesOntoBootImageModules(ctx, b.platformJars(ctx), platformBootclasspathBootJarDepTag)
+	platformJars := b.platformJars(ctx)
+	addDependenciesOntoBootImageModules(ctx, platformJars, platformBootclasspathBootJarDepTag)
+	bootImageModuleNames = append(bootImageModuleNames, platformJars.CopyOfJars()...)
 
 	// Add dependencies on all the updatable jars, except the ART jars.
 	apexJars := dexpreopt.GetGlobalConfig(ctx).ApexBootJars
@@ -127,9 +134,17 @@ func (b *platformBootclasspathModule) BootclasspathDepsMutator(ctx android.Botto
 	addDependenciesOntoSelectedBootImageApexes(ctx, android.FirstUniqueStrings(apexes)...)
 	// TODO: b/308174306 - Remove the mechanism of depending on the java_sdk_library(_import) directly
 	addDependenciesOntoBootImageModules(ctx, apexJars, platformBootclasspathApexBootJarDepTag)
+	bootImageModuleNames = append(bootImageModuleNames, apexJars.CopyOfJars()...)
 
 	// Add dependencies on all the fragments.
 	b.properties.BootclasspathFragmentsDepsProperties.addDependenciesOntoFragments(ctx)
+
+	for _, bootImageModuleName := range bootImageModuleNames {
+		implLibName := implLibraryModuleName(bootImageModuleName)
+		if ctx.OtherModuleExists(implLibName) {
+			ctx.AddFarVariationDependencies(nil, platformBootclasspathImplLibDepTag, implLibName)
+		}
+	}
 }
 
 func addDependenciesOntoBootImageModules(ctx android.BottomUpMutatorContext, modules android.ConfiguredJarList, tag bootclasspathDependencyTag) {
@@ -166,8 +181,15 @@ func (b *platformBootclasspathModule) GenerateAndroidBuildActions(ctx android.Mo
 	allModules = append(allModules, apexModules...)
 	b.configuredModules = allModules
 
+	// Do not add implLibModule to allModules as the impl lib is only used to collect the
+	// transitive source files
+	var implLibModule []android.Module
+	ctx.VisitDirectDepsWithTag(implLibraryTag, func(m android.Module) {
+		implLibModule = append(implLibModule, m)
+	})
+
 	var transitiveSrcFiles android.Paths
-	for _, module := range allModules {
+	for _, module := range append(allModules, implLibModule...) {
 		if depInfo, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
 			if depInfo.TransitiveSrcFiles != nil {
 				transitiveSrcFiles = append(transitiveSrcFiles, depInfo.TransitiveSrcFiles.ToList()...)

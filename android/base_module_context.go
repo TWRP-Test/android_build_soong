@@ -113,31 +113,22 @@ type BaseModuleContext interface {
 	// the first DependencyTag.
 	GetDirectDep(name string) (blueprint.Module, blueprint.DependencyTag)
 
-	// VisitDirectDepsBlueprint calls visit for each direct dependency.  If there are multiple
+	// VisitDirectDeps calls visit for each direct dependency.  If there are multiple
+	// direct dependencies on the same module visit will be called multiple times on that module
+	// and OtherModuleDependencyTag will return a different tag for each.  It raises an error if any of the
+	// dependencies are disabled.
+	//
+	// The Module passed to the visit function should not be retained outside of the visit
+	// function, it may be invalidated by future mutators.
+	VisitDirectDeps(visit func(Module))
+
+	// VisitDirectDeps calls visit for each direct dependency.  If there are multiple
 	// direct dependencies on the same module visit will be called multiple times on that module
 	// and OtherModuleDependencyTag will return a different tag for each.
 	//
 	// The Module passed to the visit function should not be retained outside of the visit
 	// function, it may be invalidated by future mutators.
-	VisitDirectDepsBlueprint(visit func(blueprint.Module))
-
-	// VisitDirectDepsIgnoreBlueprint calls visit for each direct dependency.  If there are multiple
-	// direct dependencies on the same module visit will be called multiple times on that module
-	// and OtherModuleDependencyTag will return a different tag for each.  It silently ignores any
-	// dependencies that are not an android.Module.
-	//
-	// The Module passed to the visit function should not be retained outside of the visit
-	// function, it may be invalidated by future mutators.
-	VisitDirectDepsIgnoreBlueprint(visit func(Module))
-
-	// VisitDirectDeps calls visit for each direct dependency.  If there are multiple
-	// direct dependencies on the same module visit will be called multiple times on that module
-	// and OtherModuleDependencyTag will return a different tag for each.  It raises an error if any of the
-	// dependencies are not an android.Module.
-	//
-	// The Module passed to the visit function should not be retained outside of the visit
-	// function, it may be invalidated by future mutators.
-	VisitDirectDeps(visit func(Module))
+	VisitDirectDepsAllowDisabled(visit func(Module))
 
 	VisitDirectDepsWithTag(tag blueprint.DependencyTag, visit func(Module))
 
@@ -163,17 +154,6 @@ type BaseModuleContext interface {
 	// The Modules passed to the visit function should not be retained outside of the visit function, they may be
 	// invalidated by future mutators.
 	WalkDeps(visit func(child, parent Module) bool)
-
-	// WalkDepsBlueprint calls visit for each transitive dependency, traversing the dependency
-	// tree in top down order.  visit may be called multiple times for the same (child, parent)
-	// pair if there are multiple direct dependencies between the child and parent with different
-	// tags.  OtherModuleDependencyTag will return the tag for the currently visited
-	// (child, parent) pair.  If visit returns false WalkDeps will not continue recursing down
-	// to child.
-	//
-	// The Modules passed to the visit function should not be retained outside of the visit function, they may be
-	// invalidated by future mutators.
-	WalkDepsBlueprint(visit func(blueprint.Module, blueprint.Module) bool)
 
 	// GetWalkPath is supposed to be called in visit function passed in WalkDeps()
 	// and returns a top-down dependency path from a start module to current child module.
@@ -220,10 +200,6 @@ type BaseModuleContext interface {
 	// EvaluateConfiguration makes ModuleContext a valid proptools.ConfigurableEvaluator, so this context
 	// can be used to evaluate the final value of Configurable properties.
 	EvaluateConfiguration(condition proptools.ConfigurableCondition, property string) proptools.ConfigurableValue
-
-	// HasMutatorFinished returns true if the given mutator has finished running.
-	// It will panic if given an invalid mutator name.
-	HasMutatorFinished(mutatorName string) bool
 }
 
 type baseModuleContext struct {
@@ -274,10 +250,6 @@ func (b *baseModuleContext) setProvider(provider blueprint.AnyProviderKey, value
 	b.bp.SetProvider(provider, value)
 }
 
-func (b *baseModuleContext) HasMutatorFinished(mutatorName string) bool {
-	return b.bp.HasMutatorFinished(mutatorName)
-}
-
 func (b *baseModuleContext) GetDirectDepWithTag(name string, tag blueprint.DependencyTag) blueprint.Module {
 	return b.bp.GetDirectDepWithTag(name, tag)
 }
@@ -319,7 +291,7 @@ func (t AlwaysAllowDisabledModuleDependencyTag) AllowDisabledModuleDependency(Mo
 	return true
 }
 
-func (b *baseModuleContext) validateAndroidModule(module blueprint.Module, tag blueprint.DependencyTag, strict bool, ignoreBlueprint bool) Module {
+func (b *baseModuleContext) validateAndroidModule(module blueprint.Module, tag blueprint.DependencyTag, strict bool) Module {
 	aModule, _ := module.(Module)
 
 	if !strict {
@@ -327,10 +299,7 @@ func (b *baseModuleContext) validateAndroidModule(module blueprint.Module, tag b
 	}
 
 	if aModule == nil {
-		if !ignoreBlueprint {
-			b.ModuleErrorf("module %q (%#v) not an android module", b.OtherModuleName(module), tag)
-		}
-		return nil
+		panic(fmt.Errorf("module %q (%#v) not an android module", b.OtherModuleName(module), tag))
 	}
 
 	if !aModule.Enabled(b) {
@@ -353,15 +322,8 @@ type dep struct {
 
 func (b *baseModuleContext) getDirectDepsInternal(name string, tag blueprint.DependencyTag) []dep {
 	var deps []dep
-	b.VisitDirectDepsBlueprint(func(module blueprint.Module) {
-		if aModule, _ := module.(Module); aModule != nil {
-			if aModule.base().BaseModuleName() == name {
-				returnedTag := b.bp.OtherModuleDependencyTag(aModule)
-				if tag == nil || returnedTag == tag {
-					deps = append(deps, dep{aModule, returnedTag})
-				}
-			}
-		} else if b.bp.OtherModuleName(module) == name {
+	b.VisitDirectDeps(func(module Module) {
+		if module.base().BaseModuleName() == name {
 			returnedTag := b.bp.OtherModuleDependencyTag(module)
 			if tag == nil || returnedTag == tag {
 				deps = append(deps, dep{module, returnedTag})
@@ -404,11 +366,9 @@ func (b *baseModuleContext) getDirectDepFirstTag(name string) (blueprint.Module,
 
 func (b *baseModuleContext) GetDirectDepsWithTag(tag blueprint.DependencyTag) []Module {
 	var deps []Module
-	b.VisitDirectDepsBlueprint(func(module blueprint.Module) {
-		if aModule, _ := module.(Module); aModule != nil {
-			if b.bp.OtherModuleDependencyTag(aModule) == tag {
-				deps = append(deps, aModule)
-			}
+	b.VisitDirectDeps(func(module Module) {
+		if b.bp.OtherModuleDependencyTag(module) == tag {
+			deps = append(deps, module)
 		}
 	})
 	return deps
@@ -421,30 +381,24 @@ func (b *baseModuleContext) GetDirectDep(name string) (blueprint.Module, bluepri
 	return b.getDirectDepFirstTag(name)
 }
 
-func (b *baseModuleContext) VisitDirectDepsBlueprint(visit func(blueprint.Module)) {
-	b.bp.VisitDirectDeps(visit)
-}
-
 func (b *baseModuleContext) VisitDirectDeps(visit func(Module)) {
-	b.visitDirectDeps(visit, false)
-}
-
-func (b *baseModuleContext) VisitDirectDepsIgnoreBlueprint(visit func(Module)) {
-	b.visitDirectDeps(visit, true)
-}
-
-func (b *baseModuleContext) visitDirectDeps(visit func(Module), ignoreBlueprint bool) {
 	b.bp.VisitDirectDeps(func(module blueprint.Module) {
-		if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps, ignoreBlueprint); aModule != nil {
+		if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps); aModule != nil {
 			visit(aModule)
 		}
+	})
+}
+
+func (b *baseModuleContext) VisitDirectDepsAllowDisabled(visit func(Module)) {
+	b.bp.VisitDirectDeps(func(module blueprint.Module) {
+		visit(module.(Module))
 	})
 }
 
 func (b *baseModuleContext) VisitDirectDepsWithTag(tag blueprint.DependencyTag, visit func(Module)) {
 	b.bp.VisitDirectDeps(func(module blueprint.Module) {
 		if b.bp.OtherModuleDependencyTag(module) == tag {
-			if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps, false); aModule != nil {
+			if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps); aModule != nil {
 				visit(aModule)
 			}
 		}
@@ -455,7 +409,7 @@ func (b *baseModuleContext) VisitDirectDepsIf(pred func(Module) bool, visit func
 	b.bp.VisitDirectDepsIf(
 		// pred
 		func(module blueprint.Module) bool {
-			if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps, false); aModule != nil {
+			if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps); aModule != nil {
 				return pred(aModule)
 			} else {
 				return false
@@ -469,7 +423,7 @@ func (b *baseModuleContext) VisitDirectDepsIf(pred func(Module) bool, visit func
 
 func (b *baseModuleContext) VisitDepsDepthFirst(visit func(Module)) {
 	b.bp.VisitDepsDepthFirst(func(module blueprint.Module) {
-		if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps, false); aModule != nil {
+		if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps); aModule != nil {
 			visit(aModule)
 		}
 	})
@@ -479,7 +433,7 @@ func (b *baseModuleContext) VisitDepsDepthFirstIf(pred func(Module) bool, visit 
 	b.bp.VisitDepsDepthFirstIf(
 		// pred
 		func(module blueprint.Module) bool {
-			if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps, false); aModule != nil {
+			if aModule := b.validateAndroidModule(module, b.bp.OtherModuleDependencyTag(module), b.strictVisitDeps); aModule != nil {
 				return pred(aModule)
 			} else {
 				return false
@@ -489,10 +443,6 @@ func (b *baseModuleContext) VisitDepsDepthFirstIf(pred func(Module) bool, visit 
 		func(module blueprint.Module) {
 			visit(module.(Module))
 		})
-}
-
-func (b *baseModuleContext) WalkDepsBlueprint(visit func(blueprint.Module, blueprint.Module) bool) {
-	b.bp.WalkDeps(visit)
 }
 
 func (b *baseModuleContext) WalkDeps(visit func(Module, Module) bool) {

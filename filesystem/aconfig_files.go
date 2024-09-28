@@ -79,6 +79,7 @@ func (f *filesystem) buildAconfigFlagsFiles(ctx android.ModuleContext, builder *
 	generatePartitionAconfigStorageFile("package_map", "package.map")
 	generatePartitionAconfigStorageFile("flag_map", "flag.map")
 	generatePartitionAconfigStorageFile("flag_val", "flag.val")
+	generatePartitionAconfigStorageFile("flag_info", "flag.info")
 
 	android.WriteExecutableFileRuleVerbatim(ctx, aconfigFlagsBuilderPath, sb.String())
 }

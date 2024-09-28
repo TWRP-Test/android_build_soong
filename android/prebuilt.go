@@ -359,8 +359,8 @@ func GetEmbeddedPrebuilt(module Module) *Prebuilt {
 //
 // This function is for use on dependencies after PrebuiltPostDepsMutator has
 // run - any dependency that is registered before that will already reference
-// the right module. This function is only safe to call after all mutators that
-// may call CreateVariations, e.g. in GenerateAndroidBuildActions.
+// the right module. This function is only safe to call after all TransitionMutators
+// have run, e.g. in GenerateAndroidBuildActions.
 func PrebuiltGetPreferred(ctx BaseModuleContext, module Module) Module {
 	if !module.IsReplacedByPrebuilt() {
 		return module

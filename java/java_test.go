@@ -670,7 +670,7 @@ func TestPrebuilts(t *testing.T) {
 		java_library {
 			name: "foo",
 			srcs: ["a.java", ":stubs-source"],
-			libs: ["bar", "sdklib"],
+			libs: ["bar", "sdklib.stubs"],
 			static_libs: ["baz"],
 		}
 
@@ -3063,6 +3063,43 @@ func TestJavaLibraryOutputFilesRel(t *testing.T) {
 		"bar.jar", barOutputPaths[0].Rel())
 	android.AssertStringEquals(t, "baz relative output path",
 		"baz.jar", bazOutputPaths[0].Rel())
+}
+
+func TestCoverage(t *testing.T) {
+	result := android.GroupFixturePreparers(
+		PrepareForTestWithJavaDefaultModules,
+		prepareForTestWithFrameworkJacocoInstrumentation,
+		PrepareForTestWithTransitiveClasspathEnabled,
+	).RunTestWithBp(t, `
+		android_app {
+			name: "foo",
+			srcs: ["foo.java"],
+			static_libs: ["android.car"],
+			platform_apis: true,
+		}
+
+		// A library in InstrumentFrameworkModules
+		java_library {
+			name: "android.car",
+			srcs: ["android.car.java"],
+		}
+	`)
+
+	foo := result.ModuleForTests("foo", "android_common")
+	androidCar := result.ModuleForTests("android.car", "android_common")
+
+	fooJacoco := foo.Rule("jacoco")
+	fooCombine := foo.Description("for javac")
+
+	androidCarJacoco := androidCar.Rule("jacoco")
+	androidCarJavac := androidCar.Rule("javac")
+
+	android.AssertStringEquals(t, "foo instrumentation rule inputs", fooJacoco.Input.String(), fooCombine.Output.String())
+	android.AssertStringEquals(t, "android.car instrumentation rule inputs", androidCarJacoco.Input.String(), androidCarJavac.Output.String())
+
+	// The input to instrumentation for the `foo` app contains the non-instrumented android.car classes.
+	android.AssertStringListContains(t, "foo combined inputs", fooCombine.Inputs.Strings(), androidCarJavac.Output.String())
+	android.AssertStringListDoesNotContain(t, "foo combined inputs", fooCombine.Inputs.Strings(), androidCarJacoco.Output.String())
 }
 
 func assertTestOnlyAndTopLevel(t *testing.T, ctx *android.TestResult, expectedTestOnly []string, expectedTopLevel []string) {

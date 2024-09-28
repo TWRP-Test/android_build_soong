@@ -21,6 +21,7 @@ package genrule
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -210,6 +211,9 @@ type generateTask struct {
 	// For gensrsc sharding.
 	shard  int
 	shards int
+
+	// For nsjail tasks
+	useNsjail bool
 }
 
 func (g *Module) GeneratedSourceFiles() android.Paths {
@@ -313,16 +317,14 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 	if len(g.properties.Tools) > 0 {
 		seenTools := make(map[string]bool)
 
-		ctx.VisitDirectDepsBlueprint(func(module blueprint.Module) {
+		ctx.VisitDirectDepsAllowDisabled(func(module android.Module) {
 			switch tag := ctx.OtherModuleDependencyTag(module).(type) {
 			case hostToolDependencyTag:
 				tool := ctx.OtherModuleName(module)
-				if m, ok := module.(android.Module); ok {
-					// Necessary to retrieve any prebuilt replacement for the tool, since
-					// toolDepsMutator runs too late for the prebuilt mutators to have
-					// replaced the dependency.
-					module = android.PrebuiltGetPreferred(ctx, m)
-				}
+				// Necessary to retrieve any prebuilt replacement for the tool, since
+				// toolDepsMutator runs too late for the prebuilt mutators to have
+				// replaced the dependency.
+				module = android.PrebuiltGetPreferred(ctx, module)
 
 				switch t := module.(type) {
 				case android.HostToolProvider:
@@ -454,21 +456,26 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 
 		// Pick a unique path outside the task.genDir for the sbox manifest textproto,
 		// a unique rule name, and the user-visible description.
-		manifestName := "genrule.sbox.textproto"
+		var rule *android.RuleBuilder
 		desc := "generate"
 		name := "generator"
-		if task.shards > 0 {
-			manifestName = "genrule_" + strconv.Itoa(task.shard) + ".sbox.textproto"
-			desc += " " + strconv.Itoa(task.shard)
-			name += strconv.Itoa(task.shard)
-		} else if len(task.out) == 1 {
-			desc += " " + task.out[0].Base()
+		if task.useNsjail {
+			rule = android.NewRuleBuilder(pctx, ctx).Nsjail(task.genDir, android.PathForModuleOut(ctx, "nsjail_build_sandbox"))
+		} else {
+			manifestName := "genrule.sbox.textproto"
+			if task.shards > 0 {
+				manifestName = "genrule_" + strconv.Itoa(task.shard) + ".sbox.textproto"
+				desc += " " + strconv.Itoa(task.shard)
+				name += strconv.Itoa(task.shard)
+			} else if len(task.out) == 1 {
+				desc += " " + task.out[0].Base()
+			}
+
+			manifestPath := android.PathForModuleOut(ctx, manifestName)
+
+			// Use a RuleBuilder to create a rule that runs the command inside an sbox sandbox.
+			rule = getSandboxedRuleBuilder(ctx, android.NewRuleBuilder(pctx, ctx).Sbox(task.genDir, manifestPath))
 		}
-
-		manifestPath := android.PathForModuleOut(ctx, manifestName)
-
-		// Use a RuleBuilder to create a rule that runs the command inside an sbox sandbox.
-		rule := getSandboxedRuleBuilder(ctx, android.NewRuleBuilder(pctx, ctx).Sbox(task.genDir, manifestPath))
 		if Bool(g.properties.Write_if_changed) {
 			rule.Restat()
 		}
@@ -567,6 +574,15 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 				ctx.ModuleErrorf("Only allowlisted modules may use uses_order_only_build_number_file: true")
 			}
 			cmd.OrderOnly(ctx.Config().BuildNumberFile(ctx))
+		}
+
+		if task.useNsjail {
+			for _, input := range task.in {
+				// can fail if input is a file.
+				if paths, err := ctx.GlobWithDeps(filepath.Join(input.String(), "**/*"), nil); err == nil {
+					rule.NsjailImplicits(android.PathsForSource(ctx, paths))
+				}
+			}
 		}
 
 		// Create the rule to run the genrule command inside sbox.
@@ -832,15 +848,18 @@ func NewGenRule() *Module {
 	properties := &genRuleProperties{}
 
 	taskGenerator := func(ctx android.ModuleContext, rawCommand string, srcFiles android.Paths) []generateTask {
+		useNsjail := Bool(properties.Use_nsjail)
+
 		outs := make(android.WritablePaths, len(properties.Out))
 		for i, out := range properties.Out {
 			outs[i] = android.PathForModuleGen(ctx, out)
 		}
 		return []generateTask{{
-			in:     srcFiles,
-			out:    outs,
-			genDir: android.PathForModuleGen(ctx),
-			cmd:    rawCommand,
+			in:        srcFiles,
+			out:       outs,
+			genDir:    android.PathForModuleGen(ctx),
+			cmd:       rawCommand,
+			useNsjail: useNsjail,
 		}}
 	}
 
@@ -855,6 +874,8 @@ func GenRuleFactory() android.Module {
 }
 
 type genRuleProperties struct {
+	Use_nsjail *bool
+
 	// names of the output files that will be generated
 	Out []string `android:"arch_variant"`
 }

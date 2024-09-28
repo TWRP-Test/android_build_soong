@@ -414,6 +414,12 @@ func (b *BootclasspathFragmentModule) DepIsInSameApex(ctx android.BaseModuleCont
 		// Cross-cutting metadata dependencies are metadata.
 		return false
 	}
+	// Dependency to the bootclasspath fragment of another apex
+	// e.g. concsrypt-bootclasspath-fragment --> art-bootclasspath-fragment
+	if tag == bootclasspathFragmentDepTag {
+		return false
+
+	}
 	panic(fmt.Errorf("boot_image module %q should not have a dependency on %q via tag %s", b, dep, android.PrettyPrintTag(tag)))
 }
 
@@ -1099,22 +1105,10 @@ func (module *PrebuiltBootclasspathFragmentModule) produceHiddenAPIOutput(ctx an
 	return &output
 }
 
+// DEPRECATED: this information is now generated in the context of the top level prebuilt apex.
 // produceBootImageProfile extracts the boot image profile from the APEX if available.
 func (module *PrebuiltBootclasspathFragmentModule) produceBootImageProfile(ctx android.ModuleContext) android.WritablePath {
-	// This module does not provide a boot image profile.
-	if module.getProfileProviderApex(ctx) == "" {
-		return nil
-	}
-
-	di, err := android.FindDeapexerProviderForModule(ctx)
-	if err != nil {
-		// An error was found, possibly due to multiple apexes in the tree that export this library
-		// Defer the error till a client tries to call getProfilePath
-		module.profilePathErr = err
-		return nil // An error has been reported by FindDeapexerProviderForModule.
-	}
-
-	return di.PrebuiltExportPath(ProfileInstallPathInApex)
+	return android.PathForModuleInstall(ctx, "intentionally_no_longer_supported")
 }
 
 func (b *PrebuiltBootclasspathFragmentModule) getProfilePath() android.Path {

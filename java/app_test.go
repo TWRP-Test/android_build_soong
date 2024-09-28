@@ -1419,26 +1419,31 @@ func TestAndroidResourceProcessor(t *testing.T) {
 }
 
 func TestAndroidResourceOverlays(t *testing.T) {
+	type moduleAndVariant struct {
+		module  string
+		variant string
+	}
+
 	testCases := []struct {
 		name                       string
 		enforceRROTargets          []string
 		enforceRROExcludedOverlays []string
-		resourceFiles              map[string][]string
-		overlayFiles               map[string][]string
-		rroDirs                    map[string][]string
+		resourceFiles              map[moduleAndVariant][]string
+		overlayFiles               map[moduleAndVariant][]string
+		rroDirs                    map[moduleAndVariant][]string
 	}{
 		{
 			name:                       "no RRO",
 			enforceRROTargets:          nil,
 			enforceRROExcludedOverlays: nil,
-			resourceFiles: map[string][]string{
-				"foo":  nil,
-				"bar":  {"bar/res/res/values/strings.xml"},
-				"lib":  nil,
-				"lib2": {"lib2/res/res/values/strings.xml"},
+			resourceFiles: map[moduleAndVariant][]string{
+				{"foo", "android_common"}:  nil,
+				{"bar", "android_common"}:  {"bar/res/res/values/strings.xml"},
+				{"lib", "android_common"}:  nil,
+				{"lib2", "android_common"}: {"lib2/res/res/values/strings.xml"},
 			},
-			overlayFiles: map[string][]string{
-				"foo": {
+			overlayFiles: map[moduleAndVariant][]string{
+				{"foo", "android_common"}: {
 					"out/soong/.intermediates/lib2/android_common/package-res.apk",
 					"out/soong/.intermediates/lib/android_common/package-res.apk",
 					"out/soong/.intermediates/lib3/android_common/package-res.apk",
@@ -1447,57 +1452,65 @@ func TestAndroidResourceOverlays(t *testing.T) {
 					"device/vendor/blah/overlay/foo/res/values/strings.xml",
 					"product/vendor/blah/overlay/foo/res/values/strings.xml",
 				},
-				"bar": {
+				{"bar", "android_common"}: {
 					"device/vendor/blah/static_overlay/bar/res/values/strings.xml",
 					"device/vendor/blah/overlay/bar/res/values/strings.xml",
 				},
-				"lib": {
+				{"lib", "android_common"}: {
 					"out/soong/.intermediates/lib2/android_common/package-res.apk",
 					"lib/res/res/values/strings.xml",
 					"device/vendor/blah/overlay/lib/res/values/strings.xml",
 				},
 			},
-			rroDirs: map[string][]string{
-				"foo": nil,
-				"bar": nil,
+			rroDirs: map[moduleAndVariant][]string{
+				{"foo", "android_common"}: nil,
+				{"bar", "android_common"}: nil,
 			},
 		},
 		{
 			name:                       "enforce RRO on foo",
 			enforceRROTargets:          []string{"foo"},
 			enforceRROExcludedOverlays: []string{"device/vendor/blah/static_overlay"},
-			resourceFiles: map[string][]string{
-				"foo":  nil,
-				"bar":  {"bar/res/res/values/strings.xml"},
-				"lib":  nil,
-				"lib2": {"lib2/res/res/values/strings.xml"},
+			resourceFiles: map[moduleAndVariant][]string{
+				{"foo", "android_common"}:      nil,
+				{"bar", "android_common"}:      {"bar/res/res/values/strings.xml"},
+				{"lib", "android_common"}:      nil,
+				{"lib", "android_common_rro"}:  nil,
+				{"lib2", "android_common"}:     {"lib2/res/res/values/strings.xml"},
+				{"lib2", "android_common_rro"}: {"lib2/res/res/values/strings.xml"},
 			},
-			overlayFiles: map[string][]string{
-				"foo": {
-					"out/soong/.intermediates/lib2/android_common/package-res.apk",
-					"out/soong/.intermediates/lib/android_common/package-res.apk",
-					"out/soong/.intermediates/lib3/android_common/package-res.apk",
+			overlayFiles: map[moduleAndVariant][]string{
+				{"foo", "android_common"}: {
+					"out/soong/.intermediates/lib2/android_common_rro/package-res.apk",
+					"out/soong/.intermediates/lib/android_common_rro/package-res.apk",
+					"out/soong/.intermediates/lib3/android_common_rro/package-res.apk",
 					"foo/res/res/values/strings.xml",
 					"device/vendor/blah/static_overlay/foo/res/values/strings.xml",
 				},
-				"bar": {
+				{"bar", "android_common"}: {
 					"device/vendor/blah/static_overlay/bar/res/values/strings.xml",
 					"device/vendor/blah/overlay/bar/res/values/strings.xml",
 				},
-				"lib": {
+				{"lib", "android_common"}: {
 					"out/soong/.intermediates/lib2/android_common/package-res.apk",
+					"lib/res/res/values/strings.xml",
+					"device/vendor/blah/overlay/lib/res/values/strings.xml",
+				},
+				{"lib", "android_common_rro"}: {
+					"out/soong/.intermediates/lib2/android_common_rro/package-res.apk",
 					"lib/res/res/values/strings.xml",
 				},
 			},
 
-			rroDirs: map[string][]string{
-				"foo": {
+			rroDirs: map[moduleAndVariant][]string{
+				{"foo", "android_common"}: {
 					"device:device/vendor/blah/overlay/foo/res",
 					"product:product/vendor/blah/overlay/foo/res",
 					"device:device/vendor/blah/overlay/lib/res",
 				},
-				"bar": nil,
-				"lib": {"device:device/vendor/blah/overlay/lib/res"},
+				{"bar", "android_common"}:     nil,
+				{"lib", "android_common"}:     nil,
+				{"lib", "android_common_rro"}: {"device:device/vendor/blah/overlay/lib/res"},
 			},
 		},
 		{
@@ -1508,35 +1521,35 @@ func TestAndroidResourceOverlays(t *testing.T) {
 				"device/vendor/blah/static_overlay/foo",
 				"device/vendor/blah/static_overlay/bar/res",
 			},
-			resourceFiles: map[string][]string{
-				"foo":  nil,
-				"bar":  {"bar/res/res/values/strings.xml"},
-				"lib":  nil,
-				"lib2": {"lib2/res/res/values/strings.xml"},
+			resourceFiles: map[moduleAndVariant][]string{
+				{"foo", "android_common"}:  nil,
+				{"bar", "android_common"}:  {"bar/res/res/values/strings.xml"},
+				{"lib", "android_common"}:  nil,
+				{"lib2", "android_common"}: {"lib2/res/res/values/strings.xml"},
 			},
-			overlayFiles: map[string][]string{
-				"foo": {
+			overlayFiles: map[moduleAndVariant][]string{
+				{"foo", "android_common"}: {
 					"out/soong/.intermediates/lib2/android_common/package-res.apk",
 					"out/soong/.intermediates/lib/android_common/package-res.apk",
 					"out/soong/.intermediates/lib3/android_common/package-res.apk",
 					"foo/res/res/values/strings.xml",
 					"device/vendor/blah/static_overlay/foo/res/values/strings.xml",
 				},
-				"bar": {"device/vendor/blah/static_overlay/bar/res/values/strings.xml"},
-				"lib": {
+				{"bar", "android_common"}: {"device/vendor/blah/static_overlay/bar/res/values/strings.xml"},
+				{"lib", "android_common"}: {
 					"out/soong/.intermediates/lib2/android_common/package-res.apk",
 					"lib/res/res/values/strings.xml",
 				},
 			},
-			rroDirs: map[string][]string{
-				"foo": {
+			rroDirs: map[moduleAndVariant][]string{
+				{"foo", "android_common"}: {
 					"device:device/vendor/blah/overlay/foo/res",
 					"product:product/vendor/blah/overlay/foo/res",
 					// Lib dep comes after the direct deps
 					"device:device/vendor/blah/overlay/lib/res",
 				},
-				"bar": {"device:device/vendor/blah/overlay/bar/res"},
-				"lib": {"device:device/vendor/blah/overlay/lib/res"},
+				{"bar", "android_common"}: {"device:device/vendor/blah/overlay/bar/res"},
+				{"lib", "android_common"}: {"device:device/vendor/blah/overlay/lib/res"},
 			},
 		},
 	}
@@ -1621,19 +1634,19 @@ func TestAndroidResourceOverlays(t *testing.T) {
 				for _, o := range list {
 					res := module.MaybeOutput(o)
 					if res.Rule != nil {
-						// If the overlay is compiled as part of this module (i.e. a .arsc.flat file),
+						// If the overlay is compiled as part of this moduleAndVariant (i.e. a .arsc.flat file),
 						// verify the inputs to the .arsc.flat rule.
 						files = append(files, res.Inputs.Strings()...)
 					} else {
-						// Otherwise, verify the full path to the output of the other module
+						// Otherwise, verify the full path to the output of the other moduleAndVariant
 						files = append(files, o)
 					}
 				}
 				return files
 			}
 
-			getResources := func(moduleName string) (resourceFiles, overlayFiles, rroDirs []string) {
-				module := result.ModuleForTests(moduleName, "android_common")
+			getResources := func(moduleName, variantName string) (resourceFiles, overlayFiles, rroDirs []string) {
+				module := result.ModuleForTests(moduleName, variantName)
 				resourceList := module.MaybeOutput("aapt2/res.list")
 				if resourceList.Rule != nil {
 					resourceFiles = resourceListToFiles(module, android.PathsRelativeToTop(resourceList.Inputs))
@@ -1658,21 +1671,33 @@ func TestAndroidResourceOverlays(t *testing.T) {
 				return resourceFiles, overlayFiles, rroDirs
 			}
 
-			modules := []string{"foo", "bar", "lib", "lib2"}
-			for _, module := range modules {
-				resourceFiles, overlayFiles, rroDirs := getResources(module)
+			modules := []moduleAndVariant{
+				{"foo", "android_common"},
+				{"foo", "android_common_rro"},
+				{"bar", "android_common"},
+				{"bar", "android_common_rro"},
+				{"lib", "android_common"},
+				{"lib", "android_common_rro"},
+				{"lib2", "android_common"},
+				{"lib2", "android_common_rro"},
+			}
+			for _, moduleAndVariant := range modules {
+				if _, exists := testCase.resourceFiles[moduleAndVariant]; !exists {
+					continue
+				}
+				resourceFiles, overlayFiles, rroDirs := getResources(moduleAndVariant.module, moduleAndVariant.variant)
 
-				if !reflect.DeepEqual(resourceFiles, testCase.resourceFiles[module]) {
+				if !reflect.DeepEqual(resourceFiles, testCase.resourceFiles[moduleAndVariant]) {
 					t.Errorf("expected %s resource files:\n  %#v\n got:\n  %#v",
-						module, testCase.resourceFiles[module], resourceFiles)
+						moduleAndVariant, testCase.resourceFiles[moduleAndVariant], resourceFiles)
 				}
-				if !reflect.DeepEqual(overlayFiles, testCase.overlayFiles[module]) {
+				if !reflect.DeepEqual(overlayFiles, testCase.overlayFiles[moduleAndVariant]) {
 					t.Errorf("expected %s overlay files:\n  %#v\n got:\n  %#v",
-						module, testCase.overlayFiles[module], overlayFiles)
+						moduleAndVariant, testCase.overlayFiles[moduleAndVariant], overlayFiles)
 				}
-				if !reflect.DeepEqual(rroDirs, testCase.rroDirs[module]) {
+				if !reflect.DeepEqual(rroDirs, testCase.rroDirs[moduleAndVariant]) {
 					t.Errorf("expected %s rroDirs:  %#v\n got:\n  %#v",
-						module, testCase.rroDirs[module], rroDirs)
+						moduleAndVariant, testCase.rroDirs[moduleAndVariant], rroDirs)
 				}
 			}
 		})
@@ -3241,7 +3266,7 @@ func TestUsesLibraries(t *testing.T) {
 		java_library {
 			name: "static-runtime-helper",
 			srcs: ["a.java"],
-			libs: ["runtime-library"],
+			libs: ["runtime-library.impl"],
 			sdk_version: "current",
 		}
 
@@ -3305,7 +3330,7 @@ func TestUsesLibraries(t *testing.T) {
 			name: "app",
 			srcs: ["a.java"],
 			libs: [
-				"qux",
+				"qux.impl",
 				"quuz.stubs"
 			],
 			static_libs: [

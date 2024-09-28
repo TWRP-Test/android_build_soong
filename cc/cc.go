@@ -137,7 +137,7 @@ type Deps struct {
 
 	// LLNDK headers for the ABI checker to check LLNDK implementation library.
 	// An LLNDK implementation is the core variant. LLNDK header libs are reexported by the vendor variant.
-	// The core variant cannot depend on the vendor variant because of the order of CreateVariations.
+	// The core variant cannot depend on the vendor variant because of the order of imageTransitionMutator.Split().
 	// Instead, the LLNDK implementation depends on the LLNDK header libs.
 	LlndkHeaderLibs []string
 }

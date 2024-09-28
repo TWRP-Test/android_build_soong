@@ -96,6 +96,7 @@ var createStorageInfo = []createStorageStruct{
 	{"package.map", "create_aconfig_package_map_file", "package_map"},
 	{"flag.map", "create_aconfig_flag_map_file", "flag_map"},
 	{"flag.val", "create_aconfig_flag_val_file", "flag_val"},
+	{"flag.info", "create_aconfig_flag_info_file", "flag_info"},
 }
 
 var (
@@ -1079,7 +1080,7 @@ func (a *apexBundle) buildApexDependencyInfo(ctx android.ModuleContext) {
 	}
 
 	depInfos := android.DepNameToDepInfoMap{}
-	a.WalkPayloadDeps(ctx, func(ctx android.ModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
+	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
 		if from.Name() == to.Name() {
 			// This can happen for cc.reuseObjTag. We are not interested in tracking this.
 			// As soon as the dependency graph crosses the APEX boundary, don't go further.
@@ -1146,10 +1147,23 @@ func (a *apexBundle) buildApexDependencyInfo(ctx android.ModuleContext) {
 func (a *apexBundle) buildLintReports(ctx android.ModuleContext) {
 	depSetsBuilder := java.NewLintDepSetBuilder()
 	for _, fi := range a.filesInfo {
-		depSetsBuilder.Transitive(fi.lintDepSets)
+		if fi.lintInfo != nil {
+			depSetsBuilder.Transitive(fi.lintInfo)
+		}
 	}
 
-	a.lintReports = java.BuildModuleLintReportZips(ctx, depSetsBuilder.Build())
+	depSets := depSetsBuilder.Build()
+	var validations android.Paths
+
+	if a.checkStrictUpdatabilityLinting(ctx) {
+		baselines := depSets.Baseline.ToList()
+		if len(baselines) > 0 {
+			outputFile := java.VerifyStrictUpdatabilityChecks(ctx, baselines)
+			validations = append(validations, outputFile)
+		}
+	}
+
+	a.lintReports = java.BuildModuleLintReportZips(ctx, depSets, validations)
 }
 
 func (a *apexBundle) buildCannedFsConfig(ctx android.ModuleContext) android.OutputPath {

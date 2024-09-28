@@ -6,6 +6,7 @@ set -o pipefail
 # incremental modules are restored from cache.
 
 OUTPUT_DIR="$(mktemp -d tmp.XXXXXX)"
+
 echo ${OUTPUT_DIR}
 
 function cleanup {
@@ -14,7 +15,7 @@ function cleanup {
 trap cleanup EXIT
 
 function run_soong_build {
-  USE_RBE=false TARGET_PRODUCT=aosp_arm TARGET_RELEASE=trunk_staging TARGET_BUILD_VARIANT=userdebug build/soong/soong_ui.bash --make-mode --incremental-build-actions nothing
+  USE_RBE=false TARGET_PRODUCT=aosp_arm TARGET_RELEASE=trunk_staging TARGET_BUILD_VARIANT=userdebug build/soong/soong_ui.bash --make-mode "$@" nothing
 }
 
 function run_soong_clean {
@@ -50,34 +51,102 @@ function compare_mtimes() {
 }
 
 function test_build_action_restoring() {
+  local test_dir="${OUTPUT_DIR}/test_build_action_restoring"
+  mkdir -p ${test_dir}
   run_soong_clean
-  cat > ${OUTPUT_DIR}/Android.bp <<'EOF'
+  cat > ${test_dir}/Android.bp <<'EOF'
 python_binary_host {
   name: "my_little_binary_host",
   srcs: ["my_little_binary_host.py"],
 }
 EOF
-  touch ${OUTPUT_DIR}/my_little_binary_host.py
-  run_soong_build
-  mkdir -p "${OUTPUT_DIR}/before"
-  cp -pr out/soong/build_aosp_arm_ninja_incremental out/soong/*.mk out/soong/build.aosp_arm.*.ninja ${OUTPUT_DIR}/before
+  touch ${test_dir}/my_little_binary_host.py
+  run_soong_build --incremental-build-actions
+  local dir_before="${test_dir}/before"
+  mkdir -p ${dir_before}
+  cp -pr out/soong/build_aosp_arm_ninja_incremental out/soong/*.mk out/soong/build.aosp_arm*.ninja ${test_dir}/before
   # add a comment to the bp file, this should force a new analysis but no module
   # should be really impacted, so all the incremental modules should be skipped.
-  cat >> ${OUTPUT_DIR}/Android.bp <<'EOF'
+  cat >> ${test_dir}/Android.bp <<'EOF'
 // new comments
 EOF
-  run_soong_build
-  mkdir -p "${OUTPUT_DIR}/after"
-  cp -pr out/soong/build_aosp_arm_ninja_incremental out/soong/*.mk out/soong/build.aosp_arm.*.ninja ${OUTPUT_DIR}/after
+  run_soong_build --incremental-build-actions
+  local dir_after="${test_dir}/after"
+  mkdir -p ${dir_after}
+  cp -pr out/soong/build_aosp_arm_ninja_incremental out/soong/*.mk out/soong/build.aosp_arm*.ninja ${test_dir}/after
 
-  compare_files
-  echo "Tests passed"
+  compare_incremental_files $dir_before $dir_after
+  rm -rf "$test_dir"
+  echo "test_build_action_restoring test passed"
 }
 
-function compare_files() {
+function test_incremental_build_parity() {
+  local test_dir="${OUTPUT_DIR}/test_incremental_build_parity"
+  run_soong_clean
+  run_soong_build
+  local dir_before="${test_dir}/before"
+  mkdir -p ${dir_before}
+  cp -pr out/soong/*.mk out/soong/build.aosp_arm*.ninja ${test_dir}/before
+
+  # Now run clean build with incremental enabled
+  run_soong_clean
+  run_soong_build --incremental-build-actions
+  local dir_after="${test_dir}/after"
+  mkdir -p ${dir_after}
+  cp -pr out/soong/build_aosp_arm_ninja_incremental out/soong/*.mk out/soong/build.aosp_arm*.ninja ${test_dir}/after
+
+  compare_files_parity $dir_before $dir_after
+  rm -rf "$test_dir"
+  echo "test_incremental_build_parity test passed"
+}
+
+function compare_files_parity() {
+  local dir_before=$1; shift
+  local dir_after=$1; shift
   count=0
-  for file_before in ${OUTPUT_DIR}/before/*.ninja; do
-    file_after="${OUTPUT_DIR}/after/$(basename "$file_before")"
+  for file_before in ${dir_before}/*.mk; do
+    file_after="${dir_after}/$(basename "$file_before")"
+    assert_files_equal $file_before $file_after
+    ((count++))
+  done
+  echo "Compared $count mk files"
+
+  combined_before_file="${dir_before}/combined_files.ninja"
+  count=0
+  for file in ${dir_before}/build.aosp_arm.*.ninja; do
+    cat $file >> $combined_before_file
+    ((count++))
+  done
+  echo "Combined $count ninja files from normal build"
+
+  combined_after_file="${dir_after}/combined_files.ninja"
+  count=0
+  for file in ${dir_after}/build.aosp_arm.*.ninja; do
+    cat $file >> $combined_after_file
+    ((count++))
+  done
+  echo "Combined $count ninja files from incremental build"
+
+  combined_incremental_ninjas="${dir_after}/combined_incremental_files.ninja"
+  count=0
+  for file in ${dir_after}/build_aosp_arm_ninja_incremental/*.ninja; do
+    cat $file >> $combined_incremental_ninjas
+    ((count++))
+  done
+  echo "Combined $count incremental ninja files"
+
+  cat $combined_incremental_ninjas >> $combined_after_file
+  sort $combined_after_file -o $combined_after_file
+  sort $combined_before_file -o $combined_before_file
+  assert_files_equal $combined_before_file $combined_after_file
+}
+
+function compare_incremental_files() {
+  local dir_before=$1; shift
+  local dir_after=$1; shift
+  count=0
+  for file_before in ${dir_before}/*.ninja; do
+    file_after="${dir_after}/$(basename "$file_before")"
     assert_files_equal $file_before $file_after
     compare_mtimes $file_before $file_after
     if [ $? -ne 0 ]; then
@@ -89,8 +158,8 @@ function compare_files() {
   echo "Compared $count ninja files"
 
   count=0
-  for file_before in ${OUTPUT_DIR}/before/*.mk; do
-    file_after="${OUTPUT_DIR}/after/$(basename "$file_before")"
+  for file_before in ${dir_before}/*.mk; do
+    file_after="${dir_after}/$(basename "$file_before")"
     assert_files_equal $file_before $file_after
     compare_mtimes $file_before $file_after
     # mk files shouldn't be regenerated
@@ -103,8 +172,8 @@ function compare_files() {
   echo "Compared $count mk files"
 
   count=0
-  for file_before in ${OUTPUT_DIR}/before/build_aosp_arm_ninja_incremental/*.ninja; do
-    file_after="${OUTPUT_DIR}/after/build_aosp_arm_ninja_incremental/$(basename "$file_before")"
+  for file_before in ${dir_before}/build_aosp_arm_ninja_incremental/*.ninja; do
+    file_after="${dir_after}/build_aosp_arm_ninja_incremental/$(basename "$file_before")"
     assert_files_equal $file_before $file_after
     compare_mtimes $file_before $file_after
     # ninja files of skipped modules shouldn't be regenerated
@@ -117,4 +186,5 @@ function compare_files() {
   echo "Compared $count incremental ninja files"
 }
 
+test_incremental_build_parity
 test_build_action_restoring

@@ -1080,3 +1080,29 @@ func TestOutputFileForModule(t *testing.T) {
 		})
 	}
 }
+
+func TestVintfFragmentModulesChecksPartition(t *testing.T) {
+	bp := `
+	vintf_fragment {
+		name: "vintfModA",
+		src: "test_vintf_file",
+		vendor: true,
+	}
+	deps {
+		name: "modA",
+		vintf_fragment_modules: [
+			"vintfModA",
+		]
+	}
+	`
+
+	testPreparer := GroupFixturePreparers(
+		PrepareForTestWithAndroidBuildComponents,
+		prepareForModuleTests,
+	)
+
+	testPreparer.
+		ExtendWithErrorHandler(FixtureExpectsOneErrorPattern(
+			"Module .+ and Vintf_fragment .+ are installed to different partitions.")).
+		RunTestWithBp(t, bp)
+}

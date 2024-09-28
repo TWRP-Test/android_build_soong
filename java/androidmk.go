@@ -415,7 +415,7 @@ func (app *AndroidApp) AndroidMkEntries() []android.AndroidMkEntries {
 				} else {
 					var names []string
 					for _, jniLib := range app.jniLibs {
-						names = append(names, jniLib.name)
+						names = append(names, jniLib.name+":"+jniLib.target.Arch.ArchType.Bitness())
 					}
 					entries.AddStrings("LOCAL_REQUIRED_MODULES", names...)
 				}

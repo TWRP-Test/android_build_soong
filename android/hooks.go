@@ -95,10 +95,17 @@ func (l *loadHookContext) createModule(factory blueprint.ModuleFactory, name str
 
 type createModuleContext interface {
 	Module() Module
+	HasMutatorFinished(mutatorName string) bool
 	createModule(blueprint.ModuleFactory, string, ...interface{}) blueprint.Module
 }
 
 func createModule(ctx createModuleContext, factory ModuleFactory, ext string, props ...interface{}) Module {
+	if ctx.HasMutatorFinished("defaults") {
+		// Creating modules late is oftentimes problematic, because they don't have earlier
+		// mutators run on them. Prevent making modules after the defaults mutator has run.
+		panic("Cannot create a module after the defaults mutator has finished")
+	}
+
 	inherited := []interface{}{&ctx.Module().base().commonProperties}
 
 	var typeName string

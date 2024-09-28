@@ -479,7 +479,7 @@ func setContainerInfo(ctx ModuleContext) {
 func checkContainerViolations(ctx ModuleContext) {
 	if _, ok := ctx.Module().(InstallableModule); ok {
 		containersInfo, _ := getContainerModuleInfo(ctx, ctx.Module())
-		ctx.VisitDirectDepsIgnoreBlueprint(func(dep Module) {
+		ctx.VisitDirectDeps(func(dep Module) {
 			if !dep.Enabled(ctx) {
 				return
 			}

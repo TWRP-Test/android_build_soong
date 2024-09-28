@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"android/soong/ui/tracer"
@@ -780,7 +781,7 @@ func checkGlobs(ctx Context, finalOutFile string) error {
 				hasNewDep := false
 				for _, dep := range cachedGlob.Deps {
 					info, err := os.Stat(dep)
-					if errors.Is(err, fs.ErrNotExist) {
+					if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 						hasNewDep = true
 						break
 					} else if err != nil {

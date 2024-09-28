@@ -398,11 +398,20 @@ func TestBootclasspathFragmentInArtApex(t *testing.T) {
 
 			// Make sure that a preferred prebuilt with consistent contents doesn't affect the apex.
 			addPrebuilt(true, "foo", "bar"),
+			android.FixtureMergeMockFs(android.MockFS{
+				"apex_contributions/Android.bp": []byte(`
+				apex_contributions {
+					name: "prebuilt_art_contributions",
+					contents: ["prebuilt_com.android.art"],
+					api_domain: "com.android.art",
+				}
+			`)}),
+			android.PrepareForTestWithBuildFlag("RELEASE_APEX_CONTRIBUTIONS_ART", "prebuilt_art_contributions"),
 
 			java.FixtureSetBootImageInstallDirOnDevice("art", "apex/com.android.art/javalib"),
 		).RunTest(t)
 
-		ensureExactDeapexedContents(t, result.TestContext, "prebuilt_com.android.art", "android_common", []string{
+		ensureExactDeapexedContents(t, result.TestContext, "prebuilt_com.android.art", "android_common_com.android.art", []string{
 			"etc/boot-image.prof",
 			"javalib/bar.jar",
 			"javalib/foo.jar",
@@ -495,6 +504,7 @@ func TestBootclasspathFragmentInPrebuiltArtApex(t *testing.T) {
 		java.FixtureConfigureBootJars("com.android.art:foo", "com.android.art:bar"),
 		dexpreopt.FixtureSetTestOnlyArtBootImageJars("com.android.art:foo", "com.android.art:bar"),
 		java.FixtureSetBootImageInstallDirOnDevice("art", "apex/com.android.art/javalib"),
+		android.PrepareForTestWithBuildFlag("RELEASE_APEX_CONTRIBUTIONS_ART", "prebuilt_art_contributions"),
 	)
 
 	bp := `
@@ -552,6 +562,12 @@ func TestBootclasspathFragmentInPrebuiltArtApex(t *testing.T) {
 			src: "com.mycompany.android.art.apex",
 			exported_bootclasspath_fragments: ["art-bootclasspath-fragment"],
 		}
+	
+		apex_contributions {
+			name: "prebuilt_art_contributions",
+			contents: ["prebuilt_com.android.art"],
+			api_domain: "com.android.art",
+		}
 	`
 
 	t.Run("disabled alternative APEX", func(t *testing.T) {
@@ -561,26 +577,17 @@ func TestBootclasspathFragmentInPrebuiltArtApex(t *testing.T) {
 			`all_apex_contributions`,
 			`dex2oatd`,
 			`prebuilt_art-bootclasspath-fragment`,
-			`prebuilt_com.android.art.apex.selector`,
-			`prebuilt_com.android.art.deapexer`,
 		})
 
 		java.CheckModuleDependencies(t, result.TestContext, "art-bootclasspath-fragment", "android_common_com.android.art", []string{
 			`all_apex_contributions`,
 			`dex2oatd`,
 			`prebuilt_bar`,
-			`prebuilt_com.android.art.deapexer`,
 			`prebuilt_foo`,
 		})
 
 		module := result.ModuleForTests("dex_bootjars", "android_common")
 		checkCopiesToPredefinedLocationForArt(t, result.Config, module, "bar", "foo")
-	})
-
-	t.Run("enabled alternative APEX", func(t *testing.T) {
-		preparers.ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(
-			"Multiple installable prebuilt APEXes provide ambiguous deapexers: prebuilt_com.android.art and prebuilt_com.mycompany.android.art")).
-			RunTestWithBp(t, fmt.Sprintf(bp, ""))
 	})
 }
 

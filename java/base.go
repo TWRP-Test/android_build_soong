@@ -708,9 +708,6 @@ func setOutputFiles(ctx android.ModuleContext, m Module) {
 		ctx.SetOutputFiles(android.Paths{m.dexer.proguardDictionary.Path()}, ".proguard_map")
 	}
 	ctx.SetOutputFiles(m.properties.Generated_srcjars, ".generated_srcjars")
-	if m.linter.outputs.xml != nil {
-		ctx.SetOutputFiles(android.Paths{m.linter.outputs.xml}, ".lint")
-	}
 }
 
 func InitJavaModule(module android.DefaultableModule, hod android.HostOrDeviceSupported) {
@@ -853,33 +850,6 @@ func (j *Module) deps(ctx android.BottomUpMutatorContext) {
 
 	// Add dependency on libraries that provide additional hidden api annotations.
 	ctx.AddVariationDependencies(nil, hiddenApiAnnotationsTag, j.properties.Hiddenapi_additional_annotations...)
-
-	if ctx.Config().EnforceInterPartitionJavaSdkLibrary() {
-		// Require java_sdk_library at inter-partition java dependency to ensure stable
-		// interface between partitions. If inter-partition java_library dependency is detected,
-		// raise build error because java_library doesn't have a stable interface.
-		//
-		// Inputs:
-		//    PRODUCT_ENFORCE_INTER_PARTITION_JAVA_SDK_LIBRARY
-		//      if true, enable enforcement
-		//    PRODUCT_INTER_PARTITION_JAVA_LIBRARY_ALLOWLIST
-		//      exception list of java_library names to allow inter-partition dependency
-		for idx := range j.properties.Libs {
-			if libDeps[idx] == nil {
-				continue
-			}
-
-			if javaDep, ok := libDeps[idx].(javaSdkLibraryEnforceContext); ok {
-				// java_sdk_library is always allowed at inter-partition dependency.
-				// So, skip check.
-				if _, ok := javaDep.(*SdkLibrary); ok {
-					continue
-				}
-
-				j.checkPartitionsForJavaDependency(ctx, "libs", javaDep)
-			}
-		}
-	}
 
 	// For library dependencies that are component libraries (like stubs), add the implementation
 	// as a dependency (dexpreopt needs to be against the implementation library, not stubs).
@@ -1736,8 +1706,12 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		return
 	}
 
+	completeStaticLibsImplementationJarsToCombine := completeStaticLibsImplementationJars
+
 	if j.shouldInstrument(ctx) {
-		outputFile = j.instrument(ctx, flags, outputFile, jarName, specs)
+		instrumentedOutputFile := j.instrument(ctx, flags, outputFile, jarName, specs)
+		completeStaticLibsImplementationJarsToCombine = android.NewDepSet(android.PREORDER, android.Paths{instrumentedOutputFile}, nil)
+		outputFile = instrumentedOutputFile
 	}
 
 	// merge implementation jar with resources if necessary
@@ -1745,7 +1719,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 	if ctx.Config().UseTransitiveJarsInClasspath() {
 		resourceJars := completeStaticLibsResourceJars.ToList()
 		if len(resourceJars) > 0 {
-			implementationAndResourcesJarsToCombine = append(resourceJars, completeStaticLibsImplementationJars.ToList()...)
+			implementationAndResourcesJarsToCombine = append(resourceJars, completeStaticLibsImplementationJarsToCombine.ToList()...)
 			implementationAndResourcesJarsToCombine = append(implementationAndResourcesJarsToCombine, extraDepCombinedJars...)
 		}
 	} else {
@@ -2414,18 +2388,12 @@ func (j *Module) collectDeps(ctx android.ModuleContext) deps {
 			return
 		}
 
-		if dep, ok := module.(SdkLibraryDependency); ok {
+		if sdkInfo, ok := android.OtherModuleProvider(ctx, module, SdkLibraryInfoProvider); ok {
 			switch tag {
-			case sdkLibTag, libTag:
-				depHeaderJars := dep.SdkHeaderJars(ctx, j.SdkVersion(ctx))
-				deps.classpath = append(deps.classpath, depHeaderJars...)
-				deps.dexClasspath = append(deps.dexClasspath, depHeaderJars...)
-
-				// TODO: SDK libraries should export a provider with TransitiveClasspathHeaderJars
-				depHeaderJarsSet := android.NewDepSet(android.PREORDER, depHeaderJars, nil)
-				transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars, depHeaderJarsSet)
-			case staticLibTag:
-				ctx.ModuleErrorf("dependency on java_sdk_library %q can only be in libs", otherName)
+			case sdkLibTag, libTag, staticLibTag:
+				generatingLibsString := android.PrettyConcat(
+					getGeneratingLibs(ctx, j.SdkVersion(ctx), module.Name(), sdkInfo), true, "or")
+				ctx.ModuleErrorf("cannot depend directly on java_sdk_library %q; try depending on %s instead", module.Name(), generatingLibsString)
 			}
 		} else if dep, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
 			if sdkLinkType != javaPlatform {
@@ -2731,7 +2699,7 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 	module := ctx.Module()
 	moduleName := module.Name()
 
-	ctx.VisitDirectDepsIgnoreBlueprint(func(m android.Module) {
+	ctx.VisitDirectDeps(func(m android.Module) {
 		tag := ctx.OtherModuleDependencyTag(m)
 		// This logic mirrors that in (*Module).collectDeps above.  There are several places
 		// where we explicitly return RenameUseExclude, even though it is the default, to
@@ -2754,7 +2722,7 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 			if IsJniDepTag(tag) || tag == certificateTag || tag == proguardRaiseTag {
 				return RenameUseExclude, "tags"
 			}
-			if _, ok := m.(SdkLibraryDependency); ok {
+			if _, ok := android.OtherModuleProvider(ctx, m, SdkLibraryInfoProvider); ok {
 				switch tag {
 				case sdkLibTag, libTag:
 					return RenameUseExclude, "sdklibdep" // matches collectDeps()

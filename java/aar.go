@@ -45,7 +45,7 @@ func RegisterAARBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("android_library_import", AARImportFactory)
 	ctx.RegisterModuleType("android_library", AndroidLibraryFactory)
 	ctx.PostDepsMutators(func(ctx android.RegisterMutatorsContext) {
-		ctx.TopDown("propagate_rro_enforcement", propagateRROEnforcementMutator)
+		ctx.Transition("propagate_rro_enforcement", &propagateRROEnforcementTransitionMutator{})
 	})
 }
 
@@ -151,15 +151,67 @@ type split struct {
 	path   android.Path
 }
 
-// Propagate RRO enforcement flag to static lib dependencies transitively.
-func propagateRROEnforcementMutator(ctx android.TopDownMutatorContext) {
+// Propagate RRO enforcement flag to static lib dependencies transitively.  If EnforceRROGlobally is set then
+// all modules will use the "" variant.  If specific modules have RRO enforced, then modules (usually apps) with
+// RRO enabled will use the "" variation for themselves, but use the "rro" variant of direct and transitive static
+// android_library dependencies.
+type propagateRROEnforcementTransitionMutator struct{}
+
+func (p propagateRROEnforcementTransitionMutator) Split(ctx android.BaseModuleContext) []string {
+	// Never split modules, apps with or without RRO enabled use the "" variant, static android_library dependencies
+	// will use create the "rro" variant from incoming tranisitons.
+	return []string{""}
+}
+
+func (p propagateRROEnforcementTransitionMutator) OutgoingTransition(ctx android.OutgoingTransitionContext, sourceVariation string) string {
+	// Non-static dependencies are not involved in RRO and always use the empty variant.
+	if ctx.DepTag() != staticLibTag {
+		return ""
+	}
+
 	m := ctx.Module()
-	if d, ok := m.(AndroidLibraryDependency); ok && d.IsRROEnforced(ctx) {
-		ctx.VisitDirectDepsWithTag(staticLibTag, func(d android.Module) {
-			if a, ok := d.(AndroidLibraryDependency); ok {
-				a.SetRROEnforcedForDependent(true)
-			}
-		})
+	if _, ok := m.(AndroidLibraryDependency); ok {
+		// If RRO is enforced globally don't bother using "rro" variants, the empty variant will have RRO enabled.
+		if ctx.Config().EnforceRROGlobally() {
+			return ""
+		}
+
+		// If RRO is enabled for this module use the "rro" variants of static dependencies.  IncomingTransition will
+		// rewrite this back to "" if the dependency is not an android_library.
+		if ctx.Config().EnforceRROForModule(ctx.Module().Name()) {
+			return "rro"
+		}
+	}
+
+	return sourceVariation
+}
+
+func (p propagateRROEnforcementTransitionMutator) IncomingTransition(ctx android.IncomingTransitionContext, incomingVariation string) string {
+	// Propagate the "rro" variant to android_library modules, but use the empty variant for everything else.
+	if incomingVariation == "rro" {
+		m := ctx.Module()
+		if _, ok := m.(AndroidLibraryDependency); ok {
+			return "rro"
+		}
+		return ""
+	}
+
+	return ""
+}
+
+func (p propagateRROEnforcementTransitionMutator) Mutate(ctx android.BottomUpMutatorContext, variation string) {
+	m := ctx.Module()
+	if d, ok := m.(AndroidLibraryDependency); ok {
+		if variation == "rro" {
+			// This is the "rro" variant of a module that has both variants, mark this one as RRO enabled and
+			// hide it from make to avoid collisions with the non-RRO empty variant.
+			d.SetRROEnforcedForDependent(true)
+			m.HideFromMake()
+		} else if ctx.Config().EnforceRROGlobally() {
+			// RRO is enabled globally, mark it enabled for this module, but there is only one variant so no
+			// need to hide it from make.
+			d.SetRROEnforcedForDependent(true)
+		}
 	}
 }
 

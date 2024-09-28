@@ -282,7 +282,7 @@ func TestEnforceRRO_propagatesToDependencies(t *testing.T) {
 			enforceRROTargets: []string{"foo"},
 			rroDirs: map[string][]string{
 				"foo": {"product/vendor/blah/overlay/lib2/res"},
-				"bar": {"product/vendor/blah/overlay/lib2/res"},
+				"bar": nil,
 			},
 		},
 	}

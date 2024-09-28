@@ -1252,7 +1252,7 @@ func (c *config) TidyChecks() string {
 }
 
 func (c *config) LibartImgHostBaseAddress() string {
-	return "0x60000000"
+	return "0x70000000"
 }
 
 func (c *config) LibartImgDeviceBaseAddress() string {
@@ -1278,12 +1278,18 @@ func (c *config) EnforceRROForModule(name string) bool {
 	}
 	return false
 }
+
 func (c *config) EnforceRROExcludedOverlay(path string) bool {
 	excluded := c.productVariables.EnforceRROExcludedOverlays
 	if len(excluded) > 0 {
 		return HasAnyPrefix(path, excluded)
 	}
 	return false
+}
+
+func (c *config) EnforceRROGlobally() bool {
+	enforceList := c.productVariables.EnforceRROTargets
+	return InList("*", enforceList)
 }
 
 func (c *config) ExportedNamespaces() []string {
@@ -1689,14 +1695,6 @@ func (c *config) EnforceSystemCertificateAllowList() []string {
 
 func (c *config) EnforceProductPartitionInterface() bool {
 	return Bool(c.productVariables.EnforceProductPartitionInterface)
-}
-
-func (c *config) EnforceInterPartitionJavaSdkLibrary() bool {
-	return Bool(c.productVariables.EnforceInterPartitionJavaSdkLibrary)
-}
-
-func (c *config) InterPartitionJavaLibraryAllowList() []string {
-	return c.productVariables.InterPartitionJavaLibraryAllowList
 }
 
 func (c *config) ProductHiddenAPIStubs() []string {

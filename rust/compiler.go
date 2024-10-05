@@ -39,13 +39,13 @@ type compiler interface {
 	initialize(ctx ModuleContext)
 	compilerFlags(ctx ModuleContext, flags Flags) Flags
 	cfgFlags(ctx ModuleContext, flags Flags) Flags
-	featureFlags(ctx ModuleContext, flags Flags) Flags
+	featureFlags(ctx ModuleContext, module *Module, flags Flags) Flags
 	compilerProps() []interface{}
 	compile(ctx ModuleContext, flags Flags, deps PathDeps) buildOutput
 	compilerDeps(ctx DepsContext, deps Deps) Deps
 	crateName() string
 	edition() string
-	features() []string
+	features(ctx android.ConfigurableEvaluatorContext, module *Module) []string
 	rustdoc(ctx ModuleContext, flags Flags, deps PathDeps) android.OptionalPath
 	Thinlto() bool
 
@@ -194,7 +194,7 @@ type BaseCompilerProperties struct {
 	Crate_name string `android:"arch_variant"`
 
 	// list of features to enable for this crate
-	Features []string `android:"arch_variant"`
+	Features proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of configuration options to enable for this crate. To enable features, use the "features" property.
 	Cfgs proptools.Configurable[[]string] `android:"arch_variant"`
@@ -346,22 +346,23 @@ func cfgsToFlags(cfgs []string) []string {
 	return flags
 }
 
-func (compiler *baseCompiler) features() []string {
-	return compiler.Properties.Features
+func (compiler *baseCompiler) features(ctx android.ConfigurableEvaluatorContext, module *Module) []string {
+	eval := module.ConfigurableEvaluator(ctx)
+	return compiler.Properties.Features.GetOrDefault(eval, nil)
 }
 
-func (compiler *baseCompiler) featuresToFlags() []string {
+func (compiler *baseCompiler) featuresToFlags(ctx android.ConfigurableEvaluatorContext, module *Module) []string {
 	flags := []string{}
-	for _, feature := range compiler.features() {
+	for _, feature := range compiler.features(ctx, module) {
 		flags = append(flags, "--cfg 'feature=\""+feature+"\"'")
 	}
 
 	return flags
 }
 
-func (compiler *baseCompiler) featureFlags(ctx ModuleContext, flags Flags) Flags {
-	flags.RustFlags = append(flags.RustFlags, compiler.featuresToFlags()...)
-	flags.RustdocFlags = append(flags.RustdocFlags, compiler.featuresToFlags()...)
+func (compiler *baseCompiler) featureFlags(ctx ModuleContext, module *Module, flags Flags) Flags {
+	flags.RustFlags = append(flags.RustFlags, compiler.featuresToFlags(ctx, module)...)
+	flags.RustdocFlags = append(flags.RustdocFlags, compiler.featuresToFlags(ctx, module)...)
 
 	return flags
 }

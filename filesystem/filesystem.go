@@ -35,9 +35,9 @@ func init() {
 }
 
 func registerBuildComponents(ctx android.RegistrationContext) {
-	ctx.RegisterModuleType("android_filesystem", filesystemFactory)
+	ctx.RegisterModuleType("android_filesystem", FilesystemFactory)
 	ctx.RegisterModuleType("android_filesystem_defaults", filesystemDefaultsFactory)
-	ctx.RegisterModuleType("android_system_image", systemImageFactory)
+	ctx.RegisterModuleType("android_system_image", SystemImageFactory)
 	ctx.RegisterModuleType("avb_add_hash_footer", avbAddHashFooterFactory)
 	ctx.RegisterModuleType("avb_add_hash_footer_defaults", avbAddHashFooterDefaultsFactory)
 	ctx.RegisterModuleType("avb_gen_vbmeta_image", avbGenVbmetaImageFactory)
@@ -49,7 +49,7 @@ type filesystem struct {
 	android.PackagingBase
 	android.DefaultableModuleBase
 
-	properties filesystemProperties
+	properties FilesystemProperties
 
 	// Function that builds extra files under the root directory and returns the files
 	buildExtraFiles func(ctx android.ModuleContext, root android.OutputPath) android.OutputPaths
@@ -71,7 +71,7 @@ type symlinkDefinition struct {
 	Name   *string
 }
 
-type filesystemProperties struct {
+type FilesystemProperties struct {
 	// When set to true, sign the image with avbtool. Default is false.
 	Use_avb *bool
 
@@ -137,6 +137,12 @@ type filesystemProperties struct {
 	Gen_aconfig_flags_pb *bool
 
 	Fsverity fsverityProperties
+
+	// If this property is set to true, the filesystem will call ctx.UncheckedModule(), causing
+	// it to not be built on checkbuilds. Used for the automatic migration from make to soong
+	// build modules, where we want to emit some not-yet-working filesystems and we don't want them
+	// to be built.
+	Unchecked_module *bool `blueprint:"mutated"`
 }
 
 // android_filesystem packages a set of modules and their transitive dependencies into a filesystem
@@ -144,7 +150,7 @@ type filesystemProperties struct {
 // modules in the filesystem image are built for the target device (i.e. Android, not Linux host).
 // The modules are placed in the filesystem image just like they are installed to the ordinary
 // partitions like system.img. For example, cc_library modules are placed under ./lib[64] directory.
-func filesystemFactory() android.Module {
+func FilesystemFactory() android.Module {
 	module := &filesystem{}
 	module.filterPackagingSpec = module.filterInstallablePackagingSpec
 	initFilesystemModule(module, module)
@@ -176,6 +182,13 @@ const (
 	cpioType // uncompressed
 	unknown
 )
+
+type FilesystemInfo struct {
+	// A text file containing the list of paths installed on the partition.
+	FileListFile android.Path
+}
+
+var FilesystemProvider = blueprint.NewProvider[FilesystemInfo]()
 
 func (f *filesystem) fsType(ctx android.ModuleContext) fsType {
 	typeStr := proptools.StringDefault(f.properties.Type, "ext4")
@@ -227,6 +240,14 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	f.fileListFile = android.PathForModuleOut(ctx, "fileList").OutputPath
 	android.WriteFileRule(ctx, f.fileListFile, f.installedFilesList())
+
+	android.SetProvider(ctx, FilesystemProvider, FilesystemInfo{
+		FileListFile: f.fileListFile,
+	})
+
+	if proptools.Bool(f.properties.Unchecked_module) {
+		ctx.UncheckedModule()
+	}
 }
 
 func (f *filesystem) appendToEntry(ctx android.ModuleContext, installedFile android.OutputPath) {

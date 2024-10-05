@@ -33,13 +33,17 @@ type systemImageProperties struct {
 // android_system_image is a specialization of android_filesystem for the 'system' partition.
 // Currently, the only difference is the inclusion of linker.config.pb file which specifies
 // the provided and the required libraries to and from APEXes.
-func systemImageFactory() android.Module {
+func SystemImageFactory() android.Module {
 	module := &systemImage{}
 	module.AddProperties(&module.properties)
 	module.filesystem.buildExtraFiles = module.buildExtraFiles
 	module.filesystem.filterPackagingSpec = module.filterPackagingSpec
 	initFilesystemModule(module, &module.filesystem)
 	return module
+}
+
+func (s systemImage) FsProps() FilesystemProperties {
+	return s.filesystem.properties
 }
 
 func (s *systemImage) buildExtraFiles(ctx android.ModuleContext, root android.OutputPath) android.OutputPaths {

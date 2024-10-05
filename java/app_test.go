@@ -530,9 +530,9 @@ func TestUpdatableApps_ApplyDefaultUpdatableModuleVersion(t *testing.T) {
 	`)
 	foo := result.ModuleForTests("com.android.foo", "android_common").Rule("manifestFixer")
 	android.AssertStringDoesContain(t,
-		"com.android.foo: expected manifest fixer to set override-placeholder-version to android.DefaultUpdatableModuleVersion",
+		"com.android.foo: expected manifest fixer to set override-placeholder-version to RELEASE_DEFAULT_UPDATABLE_MODULE_VERSION",
 		foo.BuildParams.Args["args"],
-		fmt.Sprintf("--override-placeholder-version %s", android.DefaultUpdatableModuleVersion),
+		fmt.Sprintf("--override-placeholder-version %s", testDefaultUpdatableModuleVersion),
 	)
 }
 

@@ -151,7 +151,7 @@ func (singleton *projectGeneratorSingleton) addCrate(ctx android.SingletonContex
 		crate.Env["OUT_DIR"] = rModule.compiler.cargoOutDir().String()
 	}
 
-	for _, feature := range rModule.compiler.features() {
+	for _, feature := range rModule.compiler.features(ctx, rModule) {
 		crate.Cfg = append(crate.Cfg, "feature=\""+feature+"\"")
 	}
 

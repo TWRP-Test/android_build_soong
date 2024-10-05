@@ -58,7 +58,6 @@ func init() {
 	AddNeverAllowRules(createInitFirstStageRules()...)
 	AddNeverAllowRules(createProhibitFrameworkAccessRules()...)
 	AddNeverAllowRules(createCcStubsRule())
-	AddNeverAllowRules(createJavaExcludeStaticLibsRule())
 	AddNeverAllowRules(createProhibitHeaderOnlyRule())
 	AddNeverAllowRules(createLimitNdkExportRule()...)
 }
@@ -251,14 +250,6 @@ func createProhibitFrameworkAccessRules() []Rule {
 			WithoutMatcher("sdk_version", Regexp("(core_.*|^$)")).
 			Because("framework can't be used when building against SDK"),
 	}
-}
-
-func createJavaExcludeStaticLibsRule() Rule {
-	return NeverAllow().
-		NotIn("build/soong", "libcore", "frameworks/base/api").
-		ModuleType("java_library").
-		WithMatcher("exclude_static_libs", isSetMatcherInstance).
-		Because("exclude_static_libs property is only allowed for java modules defined in build/soong, libcore, and frameworks/base/api")
 }
 
 func createProhibitHeaderOnlyRule() Rule {

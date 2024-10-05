@@ -81,6 +81,7 @@ type Module interface {
 	InstallInOdm() bool
 	InstallInProduct() bool
 	InstallInVendor() bool
+	InstallInSystemExt() bool
 	InstallForceOS() (*OsType, *ArchType)
 	PartitionTag(DeviceConfig) string
 	HideFromMake()
@@ -1005,6 +1006,14 @@ func addRequiredDeps(ctx BottomUpMutatorContext) {
 			return
 		}
 
+		// Do not create a dependency from common variant to arch variant for `common_first` modules
+		if multilib, _ := decodeMultilib(ctx, ctx.Module().base()); multilib == string(MultilibCommonFirst) {
+			commonVariant := ctx.Arch().ArchType.Multilib == ""
+			if bothInAndroid && commonVariant && InList(target.Arch.ArchType.Multilib, []string{"lib32", "lib64"}) {
+				return
+			}
+		}
+
 		variation := target.Variations()
 		if ctx.OtherModuleFarDependencyVariantExists(variation, depName) {
 			ctx.AddFarVariationDependencies(variation, RequiredDepTag, depName)
@@ -1504,6 +1513,10 @@ func (m *ModuleBase) InstallInProduct() bool {
 
 func (m *ModuleBase) InstallInVendor() bool {
 	return Bool(m.commonProperties.Vendor) || Bool(m.commonProperties.Soc_specific) || Bool(m.commonProperties.Proprietary)
+}
+
+func (m *ModuleBase) InstallInSystemExt() bool {
+	return Bool(m.commonProperties.System_ext_specific)
 }
 
 func (m *ModuleBase) InstallInRoot() bool {
@@ -2288,6 +2301,8 @@ func (e configurationEvalutor) EvaluateConfiguration(condition proptools.Configu
 		}
 		variable := condition.Arg(0)
 		switch variable {
+		case "build_from_text_stub":
+			return proptools.ConfigurableValueBool(ctx.Config().BuildFromTextStub())
 		case "debuggable":
 			return proptools.ConfigurableValueBool(ctx.Config().Debuggable())
 		case "use_debug_art":

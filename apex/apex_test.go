@@ -2185,6 +2185,151 @@ func TestTrackAllowedDeps(t *testing.T) {
 		flatlist, "yourlib(minSdkVersion:29)")
 }
 
+func TestTrackCustomAllowedDepsInvalidDefaultTxt(t *testing.T) {
+	ctx := testApex(t, `
+		apex {
+			name: "myapex",
+			key: "myapex.key",
+			updatable: true,
+			native_shared_libs: [
+				"mylib",
+				"yourlib",
+			],
+			min_sdk_version: "29",
+		}
+
+		apex {
+			name: "myapex2",
+			key: "myapex.key",
+			updatable: false,
+			native_shared_libs: ["yourlib"],
+		}
+
+		apex_key {
+			name: "myapex.key",
+			public_key: "testkey.avbpubkey",
+			private_key: "testkey.pem",
+		}
+
+		cc_library {
+			name: "mylib",
+			srcs: ["mylib.cpp"],
+			shared_libs: ["libbar"],
+			min_sdk_version: "29",
+			apex_available: ["myapex"],
+		}
+
+		cc_library {
+			name: "libbar",
+			stubs: { versions: ["29", "30"] },
+		}
+
+		cc_library {
+			name: "yourlib",
+			srcs: ["mylib.cpp"],
+			min_sdk_version: "29",
+			apex_available: ["myapex", "myapex2", "//apex_available:platform"],
+		}
+	`, withFiles(android.MockFS{
+		"packages/modules/common/build/custom_allowed_deps.txt": nil,
+	}),
+		android.FixtureModifyProductVariables(
+			func(variables android.FixtureProductVariables) {
+				variables.ExtraAllowedDepsTxt = proptools.StringPtr("packages/modules/common/build/custom_allowed_deps.txt")
+			},
+		))
+
+	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
+	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
+	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
+		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
+	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
+		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
+
+	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
+	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
+		myapex.Output("depsinfo/flatlist.txt")), "\n")
+	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
+		flatlist, "libbar(minSdkVersion:(no version)) (external)")
+	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
+		flatlist, "mylib:(minSdkVersion:29)")
+	android.AssertStringListContains(t, "track platform-available lib",
+		flatlist, "yourlib(minSdkVersion:29)")
+}
+
+func TestTrackCustomAllowedDepsWithDefaultTxt(t *testing.T) {
+	ctx := testApex(t, `
+		apex {
+			name: "myapex",
+			key: "myapex.key",
+			updatable: true,
+			native_shared_libs: [
+				"mylib",
+				"yourlib",
+			],
+			min_sdk_version: "29",
+		}
+
+		apex {
+			name: "myapex2",
+			key: "myapex.key",
+			updatable: false,
+			native_shared_libs: ["yourlib"],
+		}
+
+		apex_key {
+			name: "myapex.key",
+			public_key: "testkey.avbpubkey",
+			private_key: "testkey.pem",
+		}
+
+		cc_library {
+			name: "mylib",
+			srcs: ["mylib.cpp"],
+			shared_libs: ["libbar"],
+			min_sdk_version: "29",
+			apex_available: ["myapex"],
+		}
+
+		cc_library {
+			name: "libbar",
+			stubs: { versions: ["29", "30"] },
+		}
+
+		cc_library {
+			name: "yourlib",
+			srcs: ["mylib.cpp"],
+			min_sdk_version: "29",
+			apex_available: ["myapex", "myapex2", "//apex_available:platform"],
+		}
+	`, withFiles(android.MockFS{
+		"packages/modules/common/build/custom_allowed_deps.txt": nil,
+		"packages/modules/common/build/allowed_deps.txt":        nil,
+	}),
+		android.FixtureModifyProductVariables(
+			func(variables android.FixtureProductVariables) {
+				variables.ExtraAllowedDepsTxt = proptools.StringPtr("packages/modules/common/build/custom_allowed_deps.txt")
+			},
+		))
+
+	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
+	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
+	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
+		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
+	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
+		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
+
+	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
+	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
+		myapex.Output("depsinfo/flatlist.txt")), "\n")
+	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
+		flatlist, "libbar(minSdkVersion:(no version)) (external)")
+	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
+		flatlist, "mylib:(minSdkVersion:29)")
+	android.AssertStringListContains(t, "track platform-available lib",
+		flatlist, "yourlib(minSdkVersion:29)")
+}
+
 func TestTrackAllowedDeps_SkipWithoutAllowedDepsTxt(t *testing.T) {
 	ctx := testApex(t, `
 		apex {
@@ -5450,7 +5595,7 @@ func TestBootDexJarsFromSourcesAndPrebuilts(t *testing.T) {
 			android.PrepareForTestWithAllowMissingDependencies,
 			android.FixtureMergeMockFs(map[string][]byte{
 				"build/soong/scripts/check_boot_jars/package_allowed_list.txt": nil,
-				"frameworks/base/config/boot-profile.txt":                      nil,
+				"frameworks/base/boot/boot-profile.txt":                        nil,
 			}),
 		)
 
@@ -6425,14 +6570,14 @@ func TestApexAvailable_ApexAvailableNameWithVersionCode(t *testing.T) {
 	`)
 
 	fooManifestRule := result.ModuleForTests("foo", "android_common_foo").Rule("apexManifestRule")
-	fooExpectedDefaultVersion := android.DefaultUpdatableModuleVersion
+	fooExpectedDefaultVersion := testDefaultUpdatableModuleVersion
 	fooActualDefaultVersion := fooManifestRule.Args["default_version"]
 	if fooActualDefaultVersion != fooExpectedDefaultVersion {
 		t.Errorf("expected to find defaultVersion %q; got %q", fooExpectedDefaultVersion, fooActualDefaultVersion)
 	}
 
 	barManifestRule := result.ModuleForTests("bar", "android_common_bar").Rule("apexManifestRule")
-	defaultVersionInt, _ := strconv.Atoi(android.DefaultUpdatableModuleVersion)
+	defaultVersionInt, _ := strconv.Atoi(testDefaultUpdatableModuleVersion)
 	barExpectedDefaultVersion := fmt.Sprint(defaultVersionInt + 3)
 	barActualDefaultVersion := barManifestRule.Args["default_version"]
 	if barActualDefaultVersion != barExpectedDefaultVersion {
@@ -9875,7 +10020,7 @@ func TestUpdatableApexEnforcesAppUpdatability(t *testing.T) {
 		apex {
 			name: "myapex",
 			key: "myapex.key",
-			updatable: %v,
+			updatable: true,
 			apps: [
 				"myapp",
 			],
@@ -9886,7 +10031,6 @@ func TestUpdatableApexEnforcesAppUpdatability(t *testing.T) {
 		}
 		android_app {
 			name: "myapp",
-			updatable: %v,
 			apex_available: [
 				"myapex",
 			],
@@ -9894,42 +10038,10 @@ func TestUpdatableApexEnforcesAppUpdatability(t *testing.T) {
 			min_sdk_version: "30",
 		}
 		`
-	testCases := []struct {
-		name                      string
-		apex_is_updatable_bp      bool
-		app_is_updatable_bp       bool
-		app_is_updatable_expected bool
-	}{
-		{
-			name:                      "Non-updatable apex respects updatable property of non-updatable app",
-			apex_is_updatable_bp:      false,
-			app_is_updatable_bp:       false,
-			app_is_updatable_expected: false,
-		},
-		{
-			name:                      "Non-updatable apex respects updatable property of updatable app",
-			apex_is_updatable_bp:      false,
-			app_is_updatable_bp:       true,
-			app_is_updatable_expected: true,
-		},
-		{
-			name:                      "Updatable apex respects updatable property of updatable app",
-			apex_is_updatable_bp:      true,
-			app_is_updatable_bp:       true,
-			app_is_updatable_expected: true,
-		},
-		{
-			name:                      "Updatable apex sets updatable=true on non-updatable app",
-			apex_is_updatable_bp:      true,
-			app_is_updatable_bp:       false,
-			app_is_updatable_expected: true,
-		},
-	}
-	for _, testCase := range testCases {
-		result := testApex(t, fmt.Sprintf(bp, testCase.apex_is_updatable_bp, testCase.app_is_updatable_bp))
-		myapp := result.ModuleForTests("myapp", "android_common").Module().(*java.AndroidApp)
-		android.AssertBoolEquals(t, testCase.name, testCase.app_is_updatable_expected, myapp.Updatable())
-	}
+	_ = android.GroupFixturePreparers(
+		prepareForApexTest,
+	).ExtendWithErrorHandler(android.FixtureExpectsOneErrorPattern("app dependency myapp must have updatable: true")).
+		RunTestWithBp(t, bp)
 }
 
 func TestTrimmedApex(t *testing.T) {
@@ -11698,6 +11810,7 @@ func TestSdkLibraryTransitiveClassLoaderContext(t *testing.T) {
 			sdk_version: "core_current",
 			min_sdk_version: "30",
 			manifest: "AndroidManifest.xml",
+			updatable: true,
 		}
        `)
 }

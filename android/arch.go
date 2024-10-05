@@ -142,7 +142,10 @@ func (a ArchType) Bitness() string {
 	if a.Multilib == "lib32" {
 		return "32"
 	}
-	return "64"
+	if a.Multilib == "lib64" {
+		return "64"
+	}
+	panic("Bitness is not defined for the common variant")
 }
 
 const COMMON_VARIANT = "common"

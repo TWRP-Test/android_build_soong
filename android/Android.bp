@@ -106,7 +106,6 @@ bootstrap_go_package {
         "test_asserts.go",
         "test_suites.go",
         "testing.go",
-        "updatable_modules.go",
         "util.go",
         "variable.go",
         "vintf_fragment.go",

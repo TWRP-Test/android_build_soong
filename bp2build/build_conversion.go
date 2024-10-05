@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"android/soong/android"
-	"android/soong/bazel"
 	"android/soong/starlark_fmt"
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
@@ -182,12 +181,11 @@ type bpToBuildContext interface {
 }
 
 type CodegenContext struct {
-	config             android.Config
-	context            *android.Context
-	mode               CodegenMode
-	additionalDeps     []string
-	unconvertedDepMode unconvertedDepsMode
-	topDir             string
+	config         android.Config
+	context        *android.Context
+	mode           CodegenMode
+	additionalDeps []string
+	topDir         string
 }
 
 func (ctx *CodegenContext) Mode() CodegenMode {
@@ -205,16 +203,6 @@ const (
 	// This mode is used for discovering and introspecting the existing Soong
 	// module graph.
 	QueryView CodegenMode = iota
-)
-
-type unconvertedDepsMode int
-
-const (
-	// Include a warning in conversion metrics about converted modules with unconverted direct deps
-	warnUnconvertedDeps unconvertedDepsMode = iota
-	// Error and fail conversion if encountering a module with unconverted direct deps
-	// Enabled by setting environment variable `BP2BUILD_ERROR_UNCONVERTED`
-	errorModulesUnconvertedDeps
 )
 
 func (mode CodegenMode) String() string {
@@ -245,13 +233,11 @@ func (ctx *CodegenContext) Context() *android.Context { return ctx.context }
 // NewCodegenContext creates a wrapper context that conforms to PathContext for
 // writing BUILD files in the output directory.
 func NewCodegenContext(config android.Config, context *android.Context, mode CodegenMode, topDir string) *CodegenContext {
-	var unconvertedDeps unconvertedDepsMode
 	return &CodegenContext{
-		context:            context,
-		config:             config,
-		mode:               mode,
-		unconvertedDepMode: unconvertedDeps,
-		topDir:             topDir,
+		context: context,
+		config:  config,
+		mode:    mode,
+		topDir:  topDir,
 	}
 }
 
@@ -482,14 +468,6 @@ func prettyPrint(propertyValue reflect.Value, indent int, emitZeroValues bool) (
 		}), nil
 
 	case reflect.Struct:
-		// Special cases where the bp2build sends additional information to the codegenerator
-		// by wrapping the attributes in a custom struct type.
-		if attr, ok := propertyValue.Interface().(bazel.Attribute); ok {
-			return prettyPrintAttribute(attr, indent)
-		} else if label, ok := propertyValue.Interface().(bazel.Label); ok {
-			return fmt.Sprintf("%q", label.Label), nil
-		}
-
 		// Sort and print the struct props by the key.
 		structProps, err := extractStructProperties(propertyValue, indent)
 
@@ -506,7 +484,7 @@ func prettyPrint(propertyValue reflect.Value, indent int, emitZeroValues bool) (
 		// Interfaces are used for for arch, multilib and target properties.
 		return "", nil
 	case reflect.Map:
-		if v, ok := propertyValue.Interface().(bazel.StringMapAttribute); ok {
+		if v, ok := propertyValue.Interface().(map[string]string); ok {
 			return starlark_fmt.PrintStringStringDict(v, indent), nil
 		}
 		return "", fmt.Errorf("bp2build expects map of type map[string]string for field: %s", propertyValue)

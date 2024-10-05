@@ -32,11 +32,11 @@ import (
 // collateGloballyRegisteredMutators constructs the list of mutators that have been registered
 // with the InitRegistrationContext and will be used at runtime.
 func collateGloballyRegisteredMutators() sortableComponents {
-	return collateRegisteredMutators(preArch, preDeps, postDeps, finalDeps)
+	return collateRegisteredMutators(preArch, preDeps, postDeps, postApex, finalDeps)
 }
 
 // collateRegisteredMutators constructs a single list of mutators from the separate lists.
-func collateRegisteredMutators(preArch, preDeps, postDeps, finalDeps []RegisterMutatorFunc) sortableComponents {
+func collateRegisteredMutators(preArch, preDeps, postDeps, postApex, finalDeps []RegisterMutatorFunc) sortableComponents {
 	mctx := &registerMutatorsContext{}
 
 	register := func(funcs []RegisterMutatorFunc) {
@@ -52,6 +52,8 @@ func collateRegisteredMutators(preArch, preDeps, postDeps, finalDeps []RegisterM
 	register([]RegisterMutatorFunc{registerDepsMutator})
 
 	register(postDeps)
+
+	register(postApex)
 
 	mctx.finalPhase = true
 	register(finalDeps)
@@ -166,6 +168,8 @@ var postDeps = []RegisterMutatorFunc{
 	RegisterOverridePostDepsMutators,
 }
 
+var postApex = []RegisterMutatorFunc{}
+
 var finalDeps = []RegisterMutatorFunc{}
 
 func PreArchMutators(f RegisterMutatorFunc) {
@@ -178,6 +182,10 @@ func PreDepsMutators(f RegisterMutatorFunc) {
 
 func PostDepsMutators(f RegisterMutatorFunc) {
 	postDeps = append(postDeps, f)
+}
+
+func PostApexMutators(f RegisterMutatorFunc) {
+	postApex = append(postApex, f)
 }
 
 func FinalDepsMutators(f RegisterMutatorFunc) {
@@ -241,6 +249,16 @@ type BottomUpMutatorContext interface {
 	// parallel this method does not affect the ordering of the current mutator pass, but will
 	// be ordered correctly for all future mutator passes.
 	AddVariationDependencies(variations []blueprint.Variation, tag blueprint.DependencyTag, names ...string) []blueprint.Module
+
+	// AddReverseVariationDependencies adds a dependency from the named module to the current
+	// module. The given variations will be added to the current module's varations, and then the
+	// result will be used to find the correct variation of the depending module, which must exist.
+	//
+	// Does not affect the ordering of the current mutator pass, but will be ordered
+	// correctly for all future mutator passes.  All reverse dependencies for a destination module are
+	// collected until the end of the mutator pass, sorted by name, and then appended to the destination
+	// module's dependency list.
+	AddReverseVariationDependency([]blueprint.Variation, blueprint.DependencyTag, string)
 
 	// AddFarVariationDependencies adds deps as dependencies of the current module, but uses the
 	// variations argument to select which variant of the dependency to use.  It returns a slice of
@@ -703,6 +721,14 @@ func (b *bottomUpMutatorContext) AddReverseDependency(module blueprint.Module, t
 	}
 	b.bp.AddReverseDependency(module, tag, name)
 }
+
+func (b *bottomUpMutatorContext) AddReverseVariationDependency(variations []blueprint.Variation, tag blueprint.DependencyTag, name string) {
+	if b.baseModuleContext.checkedMissingDeps() {
+		panic("Adding deps not allowed after checking for missing deps")
+	}
+	b.bp.AddReverseVariationDependency(variations, tag, name)
+}
+
 func (b *bottomUpMutatorContext) AddVariationDependencies(variations []blueprint.Variation, tag blueprint.DependencyTag,
 	names ...string) []blueprint.Module {
 	if b.baseModuleContext.checkedMissingDeps() {

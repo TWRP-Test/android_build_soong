@@ -35,6 +35,5 @@ notice_xml {
     partition_name: "system",
     visibility: [
         "//build/make/target/product/generic",
-        "//device/google/cuttlefish/system_image",
     ],
 }

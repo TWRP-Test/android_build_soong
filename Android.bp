@@ -142,12 +142,10 @@ all_apex_contributions {
     visibility: ["//visibility:public"],
 }
 
-// TODO(b/365670526): remove the cuttlefish visibility once it is fully removed
 product_config {
     name: "product_config",
     visibility: [
         "//build/make/target/product/generic",
-        "//device/google/cuttlefish/system_image",
     ],
 }
 
@@ -158,7 +156,6 @@ build_prop {
     // Currently, only microdroid and cf system image can refer to system-build.prop
     visibility: [
         "//build/make/target/product/generic",
-        "//device/google/cuttlefish/system_image",
         "//packages/modules/Virtualization/build/microdroid",
     ],
 }

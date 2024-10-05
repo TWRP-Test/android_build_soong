@@ -102,6 +102,7 @@ bootstrap_go_package {
         "orderfile_test.go",
         "prebuilt_test.go",
         "proto_test.go",
+        "sabi_test.go",
         "sanitize_test.go",
         "sdk_test.go",
         "test_data_test.go",

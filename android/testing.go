@@ -197,8 +197,8 @@ func NewTestArchContext(config Config) *TestContext {
 
 type TestContext struct {
 	*Context
-	preArch, preDeps, postDeps, finalDeps []RegisterMutatorFunc
-	NameResolver                          *NameResolver
+	preArch, preDeps, postDeps, postApex, finalDeps []RegisterMutatorFunc
+	NameResolver                                    *NameResolver
 
 	// The list of singletons registered for the test.
 	singletons sortableComponents
@@ -227,6 +227,10 @@ func (ctx *TestContext) PreDepsMutators(f RegisterMutatorFunc) {
 
 func (ctx *TestContext) PostDepsMutators(f RegisterMutatorFunc) {
 	ctx.postDeps = append(ctx.postDeps, f)
+}
+
+func (ctx *TestContext) PostApexMutators(f RegisterMutatorFunc) {
+	ctx.postApex = append(ctx.postApex, f)
 }
 
 func (ctx *TestContext) FinalDepsMutators(f RegisterMutatorFunc) {
@@ -449,7 +453,7 @@ func globallyRegisteredComponentsOrder() *registrationSorter {
 func (ctx *TestContext) Register() {
 	globalOrder := globallyRegisteredComponentsOrder()
 
-	mutators := collateRegisteredMutators(ctx.preArch, ctx.preDeps, ctx.postDeps, ctx.finalDeps)
+	mutators := collateRegisteredMutators(ctx.preArch, ctx.preDeps, ctx.postDeps, ctx.postApex, ctx.finalDeps)
 	// Ensure that the mutators used in the test are in the same order as they are used at runtime.
 	globalOrder.mutatorOrder.enforceOrdering(mutators)
 	mutators.registerAll(ctx.Context)

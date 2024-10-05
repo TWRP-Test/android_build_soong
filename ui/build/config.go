@@ -98,6 +98,7 @@ type configImpl struct {
 	buildFromSourceStub      bool
 	incrementalBuildActions  bool
 	ensureAllowlistIntegrity bool // For CI builds - make sure modules are mixed-built
+	partialCompileFlags      partialCompileFlags
 
 	// From the product config
 	katiArgs        []string
@@ -135,6 +136,16 @@ type configImpl struct {
 
 	// Which builder are we using
 	ninjaCommand ninjaCommandType
+}
+
+type partialCompileFlags struct {
+	// Is partial compilation enabled at all?
+	enabled bool
+
+	// Whether to use d8 instead of r8
+	use_d8 bool
+
+	// Add others as needed.
 }
 
 type NinjaWeightListSource uint
@@ -293,6 +304,8 @@ func NewConfig(ctx Context, args ...string) Config {
 		ret.sandboxConfig.SetSrcDirIsRO(srcDirIsWritable == "false")
 	}
 
+	ret.partialCompileFlags = parsePartialCompileFlags(ctx)
+
 	if os.Getenv("GENERATE_SOONG_DEBUG") == "true" {
 		ret.moduleDebugFile, _ = filepath.Abs(shared.JoinPath(ret.SoongOutDir(), "soong-debug-info.json"))
 	}
@@ -369,6 +382,7 @@ func NewConfig(ctx Context, args ...string) Config {
 		// Use config.ninjaCommand instead.
 		"SOONG_NINJA",
 		"SOONG_USE_N2",
+		"SOONG_PARTIAL_COMPILE",
 	)
 
 	if ret.UseGoma() || ret.ForceUseGoma() {
@@ -485,6 +499,78 @@ func NewConfig(ctx Context, args ...string) Config {
 	c := Config{ret}
 	storeConfigMetrics(ctx, c)
 	return c
+}
+
+// Parse SOONG_PARTIAL_COMPILE.
+//
+// The user-facing documentation shows:
+//
+// - empty or not set: "The current default state"
+// - "true" or "on": enable all stable partial compile features.
+// - "false" or "off": disable partial compile completely.
+//
+// What we actually allow is a comma separated list of tokens, whose first
+// character may be "+" (enable) or "-" (disable).  If neither is present, "+"
+// is assumed.  For example, "on,+use_d8" will enable partial compilation, and
+// additionally set the use_d8 flag (regardless of whether it is opt-in or
+// opt-out).
+//
+// To add a new feature to the list, add the field in the struct
+// `partialCompileFlags` above, and then add the name of the field in the
+// switch statement below.
+func parsePartialCompileFlags(ctx Context) partialCompileFlags {
+	defaultFlags := partialCompileFlags{
+		// Set any opt-out flags here.  Opt-in flags are off by default.
+		enabled: false,
+	}
+	value, ok := os.LookupEnv("SOONG_PARTIAL_COMPILE")
+
+	if !ok {
+		return defaultFlags
+	}
+
+	ret := defaultFlags
+	tokens := strings.Split(strings.ToLower(value), ",")
+	makeVal := func(state string, defaultValue bool) bool {
+		switch state {
+		case "":
+			return defaultValue
+		case "-":
+			return false
+		case "+":
+			return true
+		}
+		return false
+	}
+	for _, tok := range tokens {
+		var state string
+		switch tok[0:1] {
+		case "":
+			// Ignore empty tokens.
+			continue
+		case "-", "+":
+			state = tok[0:1]
+			tok = tok[1:]
+		default:
+			// Treat `feature` as `+feature`.
+			state = "+"
+		}
+		switch tok {
+		case "true", "on", "yes":
+			ret = defaultFlags
+			ret.enabled = true
+		case "false", "off", "no":
+			// Set everything to false.
+			ret = partialCompileFlags{}
+		case "enabled":
+			ret.enabled = makeVal(state, defaultFlags.enabled)
+		case "use_d8":
+			ret.use_d8 = makeVal(state, defaultFlags.use_d8)
+		default:
+			ctx.Fatalln("Unknown SOONG_PARTIAL_COMPILE value:", value)
+		}
+	}
+	return ret
 }
 
 // NewBuildActionConfig returns a build configuration based on the build action. The arguments are
@@ -1668,12 +1754,10 @@ func (c *configImpl) SisoBin() string {
 }
 
 func (c *configImpl) PrebuiltBuildTool(name string) string {
-	if v, ok := c.environ.Get("SANITIZE_HOST"); ok {
-		if sanitize := strings.Fields(v); inList("address", sanitize) {
-			asan := filepath.Join("prebuilts/build-tools", c.HostPrebuiltTag(), "asan/bin", name)
-			if _, err := os.Stat(asan); err == nil {
-				return asan
-			}
+	if c.environ.IsEnvTrue("SANITIZE_BUILD_TOOL_PREBUILTS") {
+		asan := filepath.Join("prebuilts/build-tools", c.HostPrebuiltTag(), "asan/bin", name)
+		if _, err := os.Stat(asan); err == nil {
+			return asan
 		}
 	}
 	return filepath.Join("prebuilts/build-tools", c.HostPrebuiltTag(), "bin", name)
@@ -1769,6 +1853,10 @@ func (c *configImpl) SkipMetricsUpload() bool {
 
 func (c *configImpl) EnsureAllowlistIntegrity() bool {
 	return c.ensureAllowlistIntegrity
+}
+
+func (c *configImpl) PartialCompileFlags() partialCompileFlags {
+	return c.partialCompileFlags
 }
 
 // Returns a Time object if one was passed via a command-line flag.

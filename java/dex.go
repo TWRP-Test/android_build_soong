@@ -133,7 +133,7 @@ var d8, d8RE = pctx.MultiCommandRemoteStaticRules("d8",
 			`$d8Template${config.D8Cmd} ${config.D8Flags} $d8Flags --output $outDir --no-dex-input-jar $in && ` +
 			`$zipTemplate${config.SoongZipCmd} $zipFlags -o $outDir/classes.dex.jar -C $outDir -f "$outDir/classes*.dex" && ` +
 			`${config.MergeZipsCmd} -D -stripFile "**/*.class" $mergeZipsFlags $out $outDir/classes.dex.jar $in && ` +
-			`rm -f "$outDir/classes*.dex" "$outDir/classes.dex.jar"`,
+			`rm -f "$outDir"/classes*.dex "$outDir/classes.dex.jar"`,
 		CommandDeps: []string{
 			"${config.D8Cmd}",
 			"${config.SoongZipCmd}",
@@ -172,7 +172,7 @@ var r8, r8RE = pctx.MultiCommandRemoteStaticRules("r8",
 			`rm -rf ${outUsageDir} && ` +
 			`$zipTemplate${config.SoongZipCmd} $zipFlags -o $outDir/classes.dex.jar -C $outDir -f "$outDir/classes*.dex" && ` +
 			`${config.MergeZipsCmd} -D -stripFile "**/*.class" $mergeZipsFlags $out $outDir/classes.dex.jar $in && ` +
-			`rm -f "$outDir/classes*.dex" "$outDir/classes.dex.jar"`,
+			`rm -f "$outDir"/classes*.dex "$outDir/classes.dex.jar"`,
 		Depfile: "${out}.d",
 		Deps:    blueprint.DepsGCC,
 		CommandDeps: []string{
@@ -223,15 +223,8 @@ func (d *dexer) dexCommonFlags(ctx android.ModuleContext,
 	var requestReleaseMode bool
 	requestReleaseMode, flags = android.RemoveFromList("--release", flags)
 
-	if ctx.Config().Getenv("NO_OPTIMIZE_DX") != "" {
+	if ctx.Config().Getenv("NO_OPTIMIZE_DX") != "" || ctx.Config().Getenv("GENERATE_DEX_DEBUG") != "" {
 		flags = append(flags, "--debug")
-		requestReleaseMode = false
-	}
-
-	if ctx.Config().Getenv("GENERATE_DEX_DEBUG") != "" {
-		flags = append(flags,
-			"--debug",
-			"--verbose")
 		requestReleaseMode = false
 	}
 

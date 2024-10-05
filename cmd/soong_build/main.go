@@ -375,6 +375,7 @@ func main() {
 	ctx.Register()
 	finalOutputFile, ninjaDeps := runSoongOnlyBuild(ctx)
 
+	ninjaDeps = append(ninjaDeps, configuration.ProductVariablesFileName)
 	ninjaDeps = append(ninjaDeps, usedEnvFile)
 	if shared.IsDebugging() {
 		// Add a non-existent file to the dependencies so that soong_build will rerun when the debugger is

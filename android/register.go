@@ -235,6 +235,7 @@ type RegistrationContext interface {
 
 	PreDepsMutators(f RegisterMutatorFunc)
 	PostDepsMutators(f RegisterMutatorFunc)
+	PostApexMutators(f RegisterMutatorFunc)
 	FinalDepsMutators(f RegisterMutatorFunc)
 }
 
@@ -324,6 +325,10 @@ func (ctx *initRegistrationContext) PreDepsMutators(f RegisterMutatorFunc) {
 
 func (ctx *initRegistrationContext) PostDepsMutators(f RegisterMutatorFunc) {
 	PostDepsMutators(f)
+}
+
+func (ctx *initRegistrationContext) PostApexMutators(f RegisterMutatorFunc) {
+	PostApexMutators(f)
 }
 
 func (ctx *initRegistrationContext) FinalDepsMutators(f RegisterMutatorFunc) {

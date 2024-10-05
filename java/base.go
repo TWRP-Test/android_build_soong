@@ -83,9 +83,6 @@ type CommonProperties struct {
 	// list of java libraries that will be compiled into the resulting jar
 	Static_libs proptools.Configurable[[]string] `android:"arch_variant"`
 
-	// list of java libraries that should not be used to build this module
-	Exclude_static_libs []string `android:"arch_variant"`
-
 	// manifest file to be included in resulting jar
 	Manifest *string `android:"path"`
 
@@ -221,11 +218,15 @@ type CommonProperties struct {
 	// the stubs via static libs.
 	Is_stubs_module *bool
 
-	// If true, enable the "Ravenizer" tool on the output jar.
-	// "Ravenizer" is a tool for Ravenwood tests, but it can also be enabled on other kinds
-	// of java targets.
 	Ravenizer struct {
+		// If true, enable the "Ravenizer" tool on the output jar.
+		// "Ravenizer" is a tool for Ravenwood tests, but it can also be enabled on other kinds
+		// of java targets.
 		Enabled *bool
+
+		// If true, the "Ravenizer" tool will remove all Mockito and DexMaker
+		// classes from the output jar.
+		Strip_mockito *bool
 	}
 
 	// Contributing api surface of the stub module. Is not visible to bp modules, and should
@@ -827,7 +828,7 @@ func (j *Module) AvailableFor(what string) bool {
 }
 
 func (j *Module) staticLibs(ctx android.BaseModuleContext) []string {
-	return android.RemoveListFromList(j.properties.Static_libs.GetOrDefault(ctx, nil), j.properties.Exclude_static_libs)
+	return j.properties.Static_libs.GetOrDefault(ctx, nil)
 }
 
 func (j *Module) deps(ctx android.BottomUpMutatorContext) {
@@ -1137,8 +1138,9 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 
 	j.exportAidlIncludeDirs = android.PathsForModuleSrc(ctx, j.deviceProperties.Aidl.Export_include_dirs)
 
-	if re := proptools.Bool(j.properties.Ravenizer.Enabled); re {
-		j.ravenizer.enabled = re
+	// Only override the original value if explicitly set
+	if j.properties.Ravenizer.Enabled != nil {
+		j.ravenizer.enabled = *j.properties.Ravenizer.Enabled
 	}
 
 	deps := j.collectDeps(ctx)
@@ -1627,12 +1629,11 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 	if j.ravenizer.enabled {
 		ravenizerInput := outputFile
 		ravenizerOutput := android.PathForModuleOut(ctx, "ravenizer", jarName)
-		ctx.Build(pctx, android.BuildParams{
-			Rule:        ravenizer,
-			Description: "ravenizer",
-			Input:       ravenizerInput,
-			Output:      ravenizerOutput,
-		})
+		ravenizerArgs := ""
+		if proptools.Bool(j.properties.Ravenizer.Strip_mockito) {
+			ravenizerArgs = "--strip-mockito"
+		}
+		TransformRavenizer(ctx, ravenizerOutput, ravenizerInput, ravenizerArgs)
 		outputFile = ravenizerOutput
 		localImplementationJars = android.Paths{ravenizerOutput}
 		completeStaticLibsImplementationJars = android.NewDepSet(android.PREORDER, localImplementationJars, nil)

@@ -920,7 +920,7 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 	if mod.compiler != nil {
 		flags = mod.compiler.compilerFlags(ctx, flags)
 		flags = mod.compiler.cfgFlags(ctx, flags)
-		flags = mod.compiler.featureFlags(ctx, flags)
+		flags = mod.compiler.featureFlags(ctx, mod, flags)
 	}
 	if mod.coverage != nil {
 		flags, deps = mod.coverage.flags(ctx, flags, deps)

@@ -494,6 +494,12 @@ func (d *dexpreopter) dexpreopt(ctx android.ModuleContext, libName string, dexJa
 		PresignedPrebuilt: d.isPresignedPrebuilt,
 	}
 
+	if ctx.Config().InstallApexSystemServerDexpreoptSamePartition() {
+		dexpreoptConfig.ApexPartition = android.PathForModuleInstall(ctx).Partition()
+	} else {
+		dexpreoptConfig.ApexPartition = "system"
+	}
+
 	d.configPath = android.PathForModuleOut(ctx, "dexpreopt", dexJarStem, "dexpreopt.config")
 	dexpreopt.WriteModuleConfig(ctx, dexpreoptConfig, d.configPath)
 	ctx.CheckbuildFile(d.configPath)

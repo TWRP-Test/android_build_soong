@@ -191,6 +191,10 @@ type ModuleConfig struct {
 	ForceCreateAppImage bool
 
 	PresignedPrebuilt bool
+
+	// ApexPartition is the partition in which the dexpreopt files of apex system server jars (if any) are installed.
+	// This is a noop unless the module is apex system server jar.
+	ApexPartition string
 }
 
 type globalSoongConfigSingleton struct{}

@@ -2071,12 +2071,7 @@ func reuseStaticLibrary(ctx android.BottomUpMutatorContext, shared *Module) {
 			sharedCompiler.StaticProperties.Static.System_shared_libs == nil &&
 			sharedCompiler.SharedProperties.Shared.System_shared_libs == nil {
 
-			// TODO: namespaces?
 			ctx.AddVariationDependencies([]blueprint.Variation{{"link", "static"}}, reuseObjTag, ctx.ModuleName())
-			sharedCompiler.baseCompiler.Properties.OriginalSrcs =
-				sharedCompiler.baseCompiler.Properties.Srcs
-			sharedCompiler.baseCompiler.Properties.Srcs = proptools.NewConfigurable[[]string](nil, nil)
-			sharedCompiler.baseCompiler.Properties.Generated_sources = nil
 		}
 
 		// This dep is just to reference static variant from shared variant

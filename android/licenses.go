@@ -106,19 +106,19 @@ func moduleToPackageDefaultLicensesMap(config Config) *sync.Map {
 //
 // This goes before defaults expansion so the defaults can pick up the package default.
 func RegisterLicensesPackageMapper(ctx RegisterMutatorsContext) {
-	ctx.BottomUp("licensesPackageMapper", licensesPackageMapper).Parallel()
+	ctx.BottomUp("licensesPackageMapper", licensesPackageMapper)
 }
 
 // Registers the function that gathers the license dependencies for each module.
 //
 // This goes after defaults expansion so that it can pick up default licenses and before visibility enforcement.
 func RegisterLicensesPropertyGatherer(ctx RegisterMutatorsContext) {
-	ctx.BottomUp("licensesPropertyGatherer", licensesPropertyGatherer).Parallel()
+	ctx.BottomUp("licensesPropertyGatherer", licensesPropertyGatherer)
 }
 
 // Registers the function that verifies the licenses and license_kinds dependency types for each module.
 func RegisterLicensesDependencyChecker(ctx RegisterMutatorsContext) {
-	ctx.BottomUp("licensesPropertyChecker", licensesDependencyChecker).Parallel()
+	ctx.BottomUp("licensesPropertyChecker", licensesDependencyChecker)
 }
 
 // Maps each package to its default applicable licenses.

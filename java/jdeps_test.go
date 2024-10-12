@@ -109,7 +109,7 @@ func TestCollectJavaLibraryWithJarJarRules(t *testing.T) {
 	module := ctx.ModuleForTests("javalib", "android_common").Module().(*Library)
 	dpInfo, _ := android.OtherModuleProvider(ctx, module, android.IdeInfoProviderKey)
 
-	android.AssertBoolEquals(t, "IdeInfo.Srcs of repackaged library should be empty", true, len(dpInfo.Srcs) == 0)
+	android.AssertStringEquals(t, "IdeInfo.Srcs of repackaged library should not be empty", "foo.java", dpInfo.Srcs[0])
 	android.AssertStringEquals(t, "IdeInfo.Jar_rules of repackaged library should not be empty", "jarjar_rules.txt", dpInfo.Jarjar_rules[0])
 	if !android.SubstringInList(dpInfo.Jars, "soong/.intermediates/javalib/android_common/jarjar/turbine/javalib.jar") {
 		t.Errorf("IdeInfo.Jars of repackaged library should contain the output of jarjar-ing. All outputs: %v\n", dpInfo.Jars)

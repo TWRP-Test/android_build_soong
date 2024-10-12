@@ -281,49 +281,24 @@ func (binary *Binary) AndroidMkEntries() []android.AndroidMkEntries {
 		return nil
 	}
 
-	if !binary.isWrapperVariant {
-		return []android.AndroidMkEntries{android.AndroidMkEntries{
-			Class:      "JAVA_LIBRARIES",
-			OutputFile: android.OptionalPathForPath(binary.outputFile),
-			Include:    "$(BUILD_SYSTEM)/soong_java_prebuilt.mk",
-			ExtraEntries: []android.AndroidMkExtraEntriesFunc{
-				func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
-					entries.SetPath("LOCAL_SOONG_HEADER_JAR", binary.headerJarFile)
-					entries.SetPath("LOCAL_SOONG_CLASSES_JAR", binary.implementationAndResourcesJar)
-					if binary.dexJarFile.IsSet() {
-						entries.SetPath("LOCAL_SOONG_DEX_JAR", binary.dexJarFile.Path())
-					}
-					if len(binary.dexpreopter.builtInstalled) > 0 {
-						entries.SetString("LOCAL_SOONG_BUILT_INSTALLED", binary.dexpreopter.builtInstalled)
-					}
-				},
+	return []android.AndroidMkEntries{{
+		Class:      "JAVA_LIBRARIES",
+		OutputFile: android.OptionalPathForPath(binary.outputFile),
+		Include:    "$(BUILD_SYSTEM)/soong_java_prebuilt.mk",
+		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
+			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
+				entries.SetPath("LOCAL_SOONG_HEADER_JAR", binary.headerJarFile)
+				entries.SetPath("LOCAL_SOONG_CLASSES_JAR", binary.implementationAndResourcesJar)
+				if binary.dexJarFile.IsSet() {
+					entries.SetPath("LOCAL_SOONG_DEX_JAR", binary.dexJarFile.Path())
+				}
+				if len(binary.dexpreopter.builtInstalled) > 0 {
+					entries.SetString("LOCAL_SOONG_BUILT_INSTALLED", binary.dexpreopter.builtInstalled)
+				}
+				entries.AddStrings("LOCAL_REQUIRED_MODULES", binary.androidMkNamesOfJniLibs...)
 			},
-			ExtraFooters: []android.AndroidMkExtraFootersFunc{
-				func(w io.Writer, name, prefix, moduleDir string) {
-					fmt.Fprintln(w, "jar_installed_module := $(LOCAL_INSTALLED_MODULE)")
-				},
-			},
-		}}
-	} else {
-		outputFile := binary.wrapperFile
-
-		return []android.AndroidMkEntries{android.AndroidMkEntries{
-			Class:      "EXECUTABLES",
-			OutputFile: android.OptionalPathForPath(outputFile),
-			ExtraEntries: []android.AndroidMkExtraEntriesFunc{
-				func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
-					entries.SetBool("LOCAL_STRIP_MODULE", false)
-				},
-			},
-			ExtraFooters: []android.AndroidMkExtraFootersFunc{
-				func(w io.Writer, name, prefix, moduleDir string) {
-					// Ensure that the wrapper script timestamp is always updated when the jar is updated
-					fmt.Fprintln(w, "$(LOCAL_INSTALLED_MODULE): $(jar_installed_module)")
-					fmt.Fprintln(w, "jar_installed_module :=")
-				},
-			},
-		}}
-	}
+		},
+	}}
 }
 
 func (app *AndroidApp) AndroidMkEntries() []android.AndroidMkEntries {

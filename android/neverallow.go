@@ -44,7 +44,7 @@ import (
 // - it has none of the "Without" properties matched (same rules as above)
 
 func registerNeverallowMutator(ctx RegisterMutatorsContext) {
-	ctx.BottomUp("neverallow", neverallowMutator).Parallel()
+	ctx.BottomUp("neverallow", neverallowMutator)
 }
 
 var neverallows = []Rule{}

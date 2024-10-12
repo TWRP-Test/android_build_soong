@@ -48,13 +48,13 @@ func TestSabi(t *testing.T) {
 		PrepareForTestWithCcDefaultModules,
 	).RunTestWithBp(t, bp)
 
-	libsabiStatic := result.ModuleForTests("libsabi", "android_arm64_armv8-a_static")
+	libsabiStatic := result.ModuleForTests("libsabi", "android_arm64_armv8-a_static_sabi")
 	sabiObjSDump := libsabiStatic.Output("obj/sabi.sdump")
 
-	libDirect := result.ModuleForTests("libdirect", "android_arm64_armv8-a_static")
+	libDirect := result.ModuleForTests("libdirect", "android_arm64_armv8-a_static_sabi")
 	directObjSDump := libDirect.Output("obj/direct.sdump")
 
-	libTransitive := result.ModuleForTests("libtransitive", "android_arm64_armv8-a_static")
+	libTransitive := result.ModuleForTests("libtransitive", "android_arm64_armv8-a_static_sabi")
 	transitiveObjSDump := libTransitive.Output("obj/transitive.sdump")
 
 	libsabiShared := result.ModuleForTests("libsabi", "android_arm64_armv8-a_shared")

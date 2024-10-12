@@ -127,6 +127,26 @@ func (s *SystemServerClasspathModule) GenerateAndroidBuildActions(ctx android.Mo
 	configuredJars = configuredJars.AppendList(&standaloneConfiguredJars)
 	classpathJars = append(classpathJars, standaloneClasspathJars...)
 	s.classpathFragmentBase().generateClasspathProtoBuildActions(ctx, configuredJars, classpathJars)
+	s.setPartitionInfoOfLibraries(ctx)
+}
+
+// Map of java library name to their install partition.
+type LibraryNameToPartitionInfo struct {
+	LibraryNameToPartition map[string]string
+}
+
+// LibraryNameToPartitionInfoProvider will be used by the top-level apex to enforce that dexpreopt files
+// of apex system server jars are installed in the same partition as the top-level apex.
+var LibraryNameToPartitionInfoProvider = blueprint.NewProvider[LibraryNameToPartitionInfo]()
+
+func (s *SystemServerClasspathModule) setPartitionInfoOfLibraries(ctx android.ModuleContext) {
+	libraryNameToPartition := map[string]string{}
+	ctx.VisitDirectDepsWithTag(systemServerClasspathFragmentContentDepTag, func(m android.Module) {
+		libraryNameToPartition[m.Name()] = m.PartitionTag(ctx.DeviceConfig())
+	})
+	android.SetProvider(ctx, LibraryNameToPartitionInfoProvider, LibraryNameToPartitionInfo{
+		LibraryNameToPartition: libraryNameToPartition,
+	})
 }
 
 func (s *SystemServerClasspathModule) configuredJars(ctx android.ModuleContext) android.ConfiguredJarList {

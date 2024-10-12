@@ -15,9 +15,6 @@
 package android
 
 import (
-	"bytes"
-	"encoding/gob"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -342,6 +339,11 @@ type OptionalPath struct {
 	invalidReason string // Not applicable if path != nil. "" if the reason is unknown.
 }
 
+type optionalPathGob struct {
+	Path          Path
+	InvalidReason string
+}
+
 // OptionalPathForPath returns an OptionalPath containing the path.
 func OptionalPathForPath(path Path) OptionalPath {
 	return OptionalPath{path: path}
@@ -351,6 +353,26 @@ func OptionalPathForPath(path Path) OptionalPath {
 func InvalidOptionalPath(reason string) OptionalPath {
 
 	return OptionalPath{invalidReason: reason}
+}
+
+func (p *OptionalPath) ToGob() *optionalPathGob {
+	return &optionalPathGob{
+		Path:          p.path,
+		InvalidReason: p.invalidReason,
+	}
+}
+
+func (p *OptionalPath) FromGob(data *optionalPathGob) {
+	p.path = data.Path
+	p.invalidReason = data.InvalidReason
+}
+
+func (p OptionalPath) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[optionalPathGob](&p)
+}
+
+func (p *OptionalPath) GobDecode(data []byte) error {
+	return blueprint.CustomGobDecode[optionalPathGob](data, p)
 }
 
 // Valid returns whether there is a valid path
@@ -1065,26 +1087,29 @@ type basePath struct {
 	rel  string
 }
 
-func (p basePath) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := errors.Join(encoder.Encode(p.path), encoder.Encode(p.rel))
-	if err != nil {
-		return nil, err
-	}
+type basePathGob struct {
+	Path string
+	Rel  string
+}
 
-	return w.Bytes(), nil
+func (p *basePath) ToGob() *basePathGob {
+	return &basePathGob{
+		Path: p.path,
+		Rel:  p.rel,
+	}
+}
+
+func (p *basePath) FromGob(data *basePathGob) {
+	p.path = data.Path
+	p.rel = data.Rel
+}
+
+func (p basePath) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[basePathGob](&p)
 }
 
 func (p *basePath) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := errors.Join(decoder.Decode(&p.path), decoder.Decode(&p.rel))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return blueprint.CustomGobDecode[basePathGob](data, p)
 }
 
 func (p basePath) Ext() string {
@@ -1337,26 +1362,32 @@ type OutputPath struct {
 	fullPath string
 }
 
-func (p OutputPath) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := errors.Join(encoder.Encode(p.basePath), encoder.Encode(p.outDir), encoder.Encode(p.fullPath))
-	if err != nil {
-		return nil, err
-	}
+type outputPathGob struct {
+	BasePath basePath
+	OutDir   string
+	FullPath string
+}
 
-	return w.Bytes(), nil
+func (p *OutputPath) ToGob() *outputPathGob {
+	return &outputPathGob{
+		BasePath: p.basePath,
+		OutDir:   p.outDir,
+		FullPath: p.fullPath,
+	}
+}
+
+func (p *OutputPath) FromGob(data *outputPathGob) {
+	p.basePath = data.BasePath
+	p.outDir = data.OutDir
+	p.fullPath = data.FullPath
+}
+
+func (p OutputPath) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[outputPathGob](&p)
 }
 
 func (p *OutputPath) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := errors.Join(decoder.Decode(&p.basePath), decoder.Decode(&p.outDir), decoder.Decode(&p.fullPath))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return blueprint.CustomGobDecode[outputPathGob](data, p)
 }
 
 func (p OutputPath) withRel(rel string) OutputPath {
@@ -1756,30 +1787,41 @@ type InstallPath struct {
 	fullPath string
 }
 
-func (p *InstallPath) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := errors.Join(encoder.Encode(p.basePath), encoder.Encode(p.soongOutDir),
-		encoder.Encode(p.partitionDir), encoder.Encode(p.partition),
-		encoder.Encode(p.makePath), encoder.Encode(p.fullPath))
-	if err != nil {
-		return nil, err
-	}
+type installPathGob struct {
+	BasePath     basePath
+	SoongOutDir  string
+	PartitionDir string
+	Partition    string
+	MakePath     bool
+	FullPath     string
+}
 
-	return w.Bytes(), nil
+func (p *InstallPath) ToGob() *installPathGob {
+	return &installPathGob{
+		BasePath:     p.basePath,
+		SoongOutDir:  p.soongOutDir,
+		PartitionDir: p.partitionDir,
+		Partition:    p.partition,
+		MakePath:     p.makePath,
+		FullPath:     p.fullPath,
+	}
+}
+
+func (p *InstallPath) FromGob(data *installPathGob) {
+	p.basePath = data.BasePath
+	p.soongOutDir = data.SoongOutDir
+	p.partitionDir = data.PartitionDir
+	p.partition = data.Partition
+	p.makePath = data.MakePath
+	p.fullPath = data.FullPath
+}
+
+func (p InstallPath) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[installPathGob](&p)
 }
 
 func (p *InstallPath) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := errors.Join(decoder.Decode(&p.basePath), decoder.Decode(&p.soongOutDir),
-		decoder.Decode(&p.partitionDir), decoder.Decode(&p.partition),
-		decoder.Decode(&p.makePath), decoder.Decode(&p.fullPath))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return blueprint.CustomGobDecode[installPathGob](data, p)
 }
 
 // Will panic if called from outside a test environment.

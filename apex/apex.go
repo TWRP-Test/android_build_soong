@@ -29,6 +29,7 @@ import (
 	"android/soong/android"
 	"android/soong/bpf"
 	"android/soong/cc"
+	"android/soong/dexpreopt"
 	prebuilt_etc "android/soong/etc"
 	"android/soong/filesystem"
 	"android/soong/java"
@@ -54,20 +55,20 @@ func registerApexBuildComponents(ctx android.RegistrationContext) {
 }
 
 func RegisterPreDepsMutators(ctx android.RegisterMutatorsContext) {
-	ctx.BottomUp("apex_vndk_deps", apexVndkDepsMutator).Parallel()
+	ctx.BottomUp("apex_vndk_deps", apexVndkDepsMutator).UsesReverseDependencies()
 }
 
 func RegisterPostDepsMutators(ctx android.RegisterMutatorsContext) {
-	ctx.TopDown("apex_info", apexInfoMutator).Parallel()
-	ctx.BottomUp("apex_unique", apexUniqueVariationsMutator).Parallel()
-	ctx.BottomUp("apex_test_for_deps", apexTestForDepsMutator).Parallel()
-	ctx.BottomUp("apex_test_for", apexTestForMutator).Parallel()
+	ctx.TopDown("apex_info", apexInfoMutator)
+	ctx.BottomUp("apex_unique", apexUniqueVariationsMutator)
+	ctx.BottomUp("apex_test_for_deps", apexTestForDepsMutator)
+	ctx.BottomUp("apex_test_for", apexTestForMutator)
 	// Run mark_platform_availability before the apexMutator as the apexMutator needs to know whether
 	// it should create a platform variant.
-	ctx.BottomUp("mark_platform_availability", markPlatformAvailability).Parallel()
+	ctx.BottomUp("mark_platform_availability", markPlatformAvailability)
 	ctx.Transition("apex", &apexTransitionMutator{})
-	ctx.BottomUp("apex_directly_in_any", apexDirectlyInAnyMutator).Parallel()
-	ctx.BottomUp("apex_dcla_deps", apexDCLADepsMutator).Parallel()
+	ctx.BottomUp("apex_directly_in_any", apexDirectlyInAnyMutator).MutatesDependencies()
+	ctx.BottomUp("apex_dcla_deps", apexDCLADepsMutator)
 }
 
 type apexBundleProperties struct {
@@ -284,7 +285,7 @@ type ResolvedApexNativeDependencies struct {
 }
 
 // Merge combines another ApexNativeDependencies into this one
-func (a *ResolvedApexNativeDependencies) Merge(ctx android.BaseMutatorContext, b ApexNativeDependencies) {
+func (a *ResolvedApexNativeDependencies) Merge(ctx android.BaseModuleContext, b ApexNativeDependencies) {
 	a.Native_shared_libs = append(a.Native_shared_libs, b.Native_shared_libs.GetOrDefault(ctx, nil)...)
 	a.Jni_libs = append(a.Jni_libs, b.Jni_libs.GetOrDefault(ctx, nil)...)
 	a.Rust_dyn_libs = append(a.Rust_dyn_libs, b.Rust_dyn_libs...)
@@ -1907,6 +1908,32 @@ func (vctx *visitorContext) normalizeFileInfo(mctx android.ModuleContext) {
 	})
 }
 
+// enforcePartitionTagOnApexSystemServerJar checks that the partition tags of an apex system server jar  matches
+// the partition tags of the top-level apex.
+// e.g. if the top-level apex sets system_ext_specific to true, the javalib must set this property to true as well.
+// This check ensures that the dexpreopt artifacts of the apex system server jar is installed in the same partition
+// as the apex.
+func (a *apexBundle) enforcePartitionTagOnApexSystemServerJar(ctx android.ModuleContext) {
+	global := dexpreopt.GetGlobalConfig(ctx)
+	ctx.VisitDirectDepsWithTag(sscpfTag, func(child android.Module) {
+		info, ok := android.OtherModuleProvider(ctx, child, java.LibraryNameToPartitionInfoProvider)
+		if !ok {
+			ctx.ModuleErrorf("Could not find partition info of apex system server jars.")
+		}
+		apexPartition := ctx.Module().PartitionTag(ctx.DeviceConfig())
+		for javalib, javalibPartition := range info.LibraryNameToPartition {
+			if !global.AllApexSystemServerJars(ctx).ContainsJar(javalib) {
+				continue // not an apex system server jar
+			}
+			if apexPartition != javalibPartition {
+				ctx.ModuleErrorf(`
+%s is an apex systemserver jar, but its partition does not match the partition of its containing apex. Expected %s, Got %s`,
+					javalib, apexPartition, javalibPartition)
+			}
+		}
+	})
+}
+
 func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext, child, parent android.Module) bool {
 	depTag := ctx.OtherModuleDependencyTag(child)
 	if _, ok := depTag.(android.ExcludeFromApexContentsTag); ok {
@@ -2329,6 +2356,7 @@ func (a *apexBundle) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	a.required = append(a.required, a.VintfFragmentModuleNames(ctx)...)
 
 	a.setOutputFiles(ctx)
+	a.enforcePartitionTagOnApexSystemServerJar(ctx)
 }
 
 // Set prebuiltInfoProvider. This will be used by `apex_prebuiltinfo_singleton` to print out a metadata file

@@ -1903,11 +1903,11 @@ func VerifyAFLFuzzTargetVariant(t *testing.T, variant string) {
 
 	moduleName = "afl_fuzz_static_lib"
 	checkPcGuardFlag(moduleName, variant+"_static", false)
-	checkPcGuardFlag(moduleName, variant+"_static_fuzzer", true)
+	checkPcGuardFlag(moduleName, variant+"_static_fuzzer_afl", true)
 
 	moduleName = "second_static_lib"
 	checkPcGuardFlag(moduleName, variant+"_static", false)
-	checkPcGuardFlag(moduleName, variant+"_static_fuzzer", true)
+	checkPcGuardFlag(moduleName, variant+"_static_fuzzer_afl", true)
 
 	ctx.ModuleForTests("afl_fuzz_shared_lib",
 		"android_arm64_armv8-a_shared").Rule("cc")

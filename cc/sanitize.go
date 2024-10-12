@@ -1830,10 +1830,7 @@ func sanitizerLibrariesTxtFactory() android.Module {
 
 type sanitizerLibraryDependencyTag struct {
 	blueprint.BaseDependencyTag
-}
-
-func (t sanitizerLibraryDependencyTag) AllowDisabledModuleDependency(target android.Module) bool {
-	return true
+	android.AlwaysAllowDisabledModuleDependencyTag
 }
 
 var _ android.AllowDisabledModuleDependency = (*sanitizerLibraryDependencyTag)(nil)

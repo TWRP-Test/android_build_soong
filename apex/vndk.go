@@ -95,7 +95,11 @@ func apexVndkDepsMutator(mctx android.BottomUpMutatorContext) {
 				// level for the primary architecture.
 				a.Disable()
 			} else {
-				mctx.AddDependency(mctx.Module(), prebuiltTag, cc.VndkLibrariesTxtModules(vndkVersion, mctx)...)
+				mctx.AddVariationDependencies(
+					mctx.Config().AndroidFirstDeviceTarget.Variations(),
+					prebuiltTag,
+					cc.VndkLibrariesTxtModules(vndkVersion, mctx)...,
+				)
 			}
 		}
 	}

@@ -15,9 +15,6 @@
 package android
 
 import (
-	"bytes"
-	"encoding/gob"
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -608,10 +605,9 @@ type hostCrossProperties struct {
 type Multilib string
 
 const (
-	MultilibBoth        Multilib = "both"
-	MultilibFirst       Multilib = "first"
-	MultilibCommon      Multilib = "common"
-	MultilibCommonFirst Multilib = "common_first"
+	MultilibBoth   Multilib = "both"
+	MultilibFirst  Multilib = "first"
+	MultilibCommon Multilib = "common"
 )
 
 type HostOrDeviceSupported int
@@ -1006,14 +1002,6 @@ func addRequiredDeps(ctx BottomUpMutatorContext) {
 			return
 		}
 
-		// Do not create a dependency from common variant to arch variant for `common_first` modules
-		if multilib, _ := decodeMultilib(ctx, ctx.Module().base()); multilib == string(MultilibCommonFirst) {
-			commonVariant := ctx.Arch().ArchType.Multilib == ""
-			if bothInAndroid && commonVariant && InList(target.Arch.ArchType.Multilib, []string{"lib32", "lib64"}) {
-				return
-			}
-		}
-
 		variation := target.Variations()
 		if ctx.OtherModuleFarDependencyVariantExists(variation, depName) {
 			ctx.AddFarVariationDependencies(variation, RequiredDepTag, depName)
@@ -1078,6 +1066,11 @@ func addVintfFragmentDeps(ctx BottomUpMutatorContext) {
 
 	modPartition := mod.PartitionTag(deviceConfig)
 	for _, vintf := range vintfModules {
+		if vintf == nil {
+			// TODO(b/372091092): Remove this. Having it gives us missing dependency errors instead
+			// of nil pointer dereference errors, but we should resolve the missing dependencies.
+			continue
+		}
 		if vintfModule, ok := vintf.(*vintfFragmentModule); ok {
 			vintfPartition := vintfModule.PartitionTag(deviceConfig)
 			if modPartition != vintfPartition {
@@ -1806,6 +1799,26 @@ type FinalModuleBuildTargetsInfo struct {
 
 var FinalModuleBuildTargetsProvider = blueprint.NewProvider[FinalModuleBuildTargetsInfo]()
 
+type CommonPropertiesProviderData struct {
+	Enabled bool
+	// Whether the module has been replaced by a prebuilt
+	ReplacedByPrebuilt bool
+}
+
+var CommonPropertiesProviderKey = blueprint.NewProvider[CommonPropertiesProviderData]()
+
+type PrebuiltModuleProviderData struct {
+	// Empty for now
+}
+
+var PrebuiltModuleProviderKey = blueprint.NewProvider[PrebuiltModuleProviderData]()
+
+type HostToolProviderData struct {
+	HostToolPath OptionalPath
+}
+
+var HostToolProviderKey = blueprint.NewProvider[HostToolProviderData]()
+
 func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) {
 	ctx := &moduleContext{
 		module:            m.module,
@@ -2051,6 +2064,23 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 		})
 	}
 	buildComplianceMetadataProvider(ctx, m)
+
+	commonData := CommonPropertiesProviderData{
+		ReplacedByPrebuilt: m.commonProperties.ReplacedByPrebuilt,
+	}
+	if m.commonProperties.ForcedDisabled {
+		commonData.Enabled = false
+	} else {
+		commonData.Enabled = m.commonProperties.Enabled.GetOrDefault(m.ConfigurableEvaluator(ctx), !m.Os().DefaultDisabled)
+	}
+	SetProvider(ctx, CommonPropertiesProviderKey, commonData)
+	if p, ok := m.module.(PrebuiltInterface); ok && p.Prebuilt() != nil {
+		SetProvider(ctx, PrebuiltModuleProviderKey, PrebuiltModuleProviderData{})
+	}
+	if h, ok := m.module.(HostToolProvider); ok {
+		SetProvider(ctx, HostToolProviderKey, HostToolProviderData{
+			HostToolPath: h.HostToolPath()})
+	}
 }
 
 func SetJarJarPrefixHandler(handler func(ModuleContext)) {
@@ -2130,36 +2160,47 @@ type katiInstall struct {
 	orderOnlyDeps Paths
 	executable    bool
 	extraFiles    *extraFilesZip
-
-	absFrom string
+	absFrom       string
 }
 
-func (p *katiInstall) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := errors.Join(encoder.Encode(p.from), encoder.Encode(p.to),
-		encoder.Encode(p.implicitDeps), encoder.Encode(p.orderOnlyDeps),
-		encoder.Encode(p.executable), encoder.Encode(p.extraFiles),
-		encoder.Encode(p.absFrom))
-	if err != nil {
-		return nil, err
-	}
-
-	return w.Bytes(), nil
+type katiInstallGob struct {
+	From          Path
+	To            InstallPath
+	ImplicitDeps  Paths
+	OrderOnlyDeps Paths
+	Executable    bool
+	ExtraFiles    *extraFilesZip
+	AbsFrom       string
 }
 
-func (p *katiInstall) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := errors.Join(decoder.Decode(&p.from), decoder.Decode(&p.to),
-		decoder.Decode(&p.implicitDeps), decoder.Decode(&p.orderOnlyDeps),
-		decoder.Decode(&p.executable), decoder.Decode(&p.extraFiles),
-		decoder.Decode(&p.absFrom))
-	if err != nil {
-		return err
+func (k *katiInstall) ToGob() *katiInstallGob {
+	return &katiInstallGob{
+		From:          k.from,
+		To:            k.to,
+		ImplicitDeps:  k.implicitDeps,
+		OrderOnlyDeps: k.orderOnlyDeps,
+		Executable:    k.executable,
+		ExtraFiles:    k.extraFiles,
+		AbsFrom:       k.absFrom,
 	}
+}
 
-	return nil
+func (k *katiInstall) FromGob(data *katiInstallGob) {
+	k.from = data.From
+	k.to = data.To
+	k.implicitDeps = data.ImplicitDeps
+	k.orderOnlyDeps = data.OrderOnlyDeps
+	k.executable = data.Executable
+	k.extraFiles = data.ExtraFiles
+	k.absFrom = data.AbsFrom
+}
+
+func (k *katiInstall) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[katiInstallGob](k)
+}
+
+func (k *katiInstall) GobDecode(data []byte) error {
+	return blueprint.CustomGobDecode[katiInstallGob](data, k)
 }
 
 type extraFilesZip struct {
@@ -2167,26 +2208,29 @@ type extraFilesZip struct {
 	dir InstallPath
 }
 
-func (p *extraFilesZip) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := errors.Join(encoder.Encode(p.zip), encoder.Encode(p.dir))
-	if err != nil {
-		return nil, err
-	}
-
-	return w.Bytes(), nil
+type extraFilesZipGob struct {
+	Zip Path
+	Dir InstallPath
 }
 
-func (p *extraFilesZip) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := errors.Join(decoder.Decode(&p.zip), decoder.Decode(&p.dir))
-	if err != nil {
-		return err
+func (e *extraFilesZip) ToGob() *extraFilesZipGob {
+	return &extraFilesZipGob{
+		Zip: e.zip,
+		Dir: e.dir,
 	}
+}
 
-	return nil
+func (e *extraFilesZip) FromGob(data *extraFilesZipGob) {
+	e.zip = data.Zip
+	e.dir = data.Dir
+}
+
+func (e *extraFilesZip) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[extraFilesZipGob](e)
+}
+
+func (e *extraFilesZip) GobDecode(data []byte) error {
+	return blueprint.CustomGobDecode[extraFilesZipGob](data, e)
 }
 
 type katiInstalls []katiInstall
@@ -2308,6 +2352,8 @@ func (e configurationEvalutor) EvaluateConfiguration(condition proptools.Configu
 		case "use_debug_art":
 			// TODO(b/234351700): Remove once ART does not have separated debug APEX
 			return proptools.ConfigurableValueBool(ctx.Config().UseDebugArt())
+		case "selinux_ignore_neverallows":
+			return proptools.ConfigurableValueBool(ctx.Config().SelinuxIgnoreNeverallows())
 		default:
 			// TODO(b/323382414): Might add these on a case-by-case basis
 			ctx.OtherModulePropertyErrorf(m, property, fmt.Sprintf("TODO(b/323382414): Product variable %q is not yet supported in selects", variable))

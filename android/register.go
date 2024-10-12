@@ -91,7 +91,13 @@ type mutator struct {
 	bottomUpMutator   blueprint.BottomUpMutator
 	topDownMutator    blueprint.TopDownMutator
 	transitionMutator blueprint.TransitionMutator
-	parallel          bool
+
+	usesRename              bool
+	usesReverseDependencies bool
+	usesReplaceDependencies bool
+	usesCreateModule        bool
+	mutatesDependencies     bool
+	mutatesGlobalState      bool
 }
 
 var _ sortableComponent = &mutator{}

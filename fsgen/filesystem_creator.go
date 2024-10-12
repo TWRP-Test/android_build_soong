@@ -15,13 +15,18 @@
 package fsgen
 
 import (
-	"android/soong/android"
-	"android/soong/filesystem"
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
+	"sync"
+
+	"android/soong/android"
+	"android/soong/filesystem"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/parser"
 	"github.com/google/blueprint/proptools"
 )
 
@@ -33,6 +38,56 @@ func init() {
 
 func registerBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("soong_filesystem_creator", filesystemCreatorFactory)
+	ctx.PreDepsMutators(RegisterCollectFileSystemDepsMutators)
+}
+
+func RegisterCollectFileSystemDepsMutators(ctx android.RegisterMutatorsContext) {
+	ctx.BottomUp("fs_collect_deps", collectDepsMutator).MutatesGlobalState()
+}
+
+var fsDepsMutex = sync.Mutex{}
+var collectFsDepsOnceKey = android.NewOnceKey("CollectFsDeps")
+var depCandidatesOnceKey = android.NewOnceKey("DepCandidates")
+
+func collectDepsMutator(mctx android.BottomUpMutatorContext) {
+	// These additional deps are added according to the cuttlefish system image bp.
+	fsDeps := mctx.Config().Once(collectFsDepsOnceKey, func() interface{} {
+		deps := []string{
+			"android_vintf_manifest",
+			"com.android.apex.cts.shim.v1_prebuilt",
+			"dex_bootjars",
+			"framework_compatibility_matrix.device.xml",
+			"idc_data",
+			"init.environ.rc-soong",
+			"keychars_data",
+			"keylayout_data",
+			"libclang_rt.asan",
+			"libcompiler_rt",
+			"libdmabufheap",
+			"libgsi",
+			"llndk.libraries.txt",
+			"logpersist.start",
+			"preloaded-classes",
+			"public.libraries.android.txt",
+			"update_engine_sideload",
+		}
+		return &deps
+	}).(*[]string)
+
+	depCandidates := mctx.Config().Once(depCandidatesOnceKey, func() interface{} {
+		partitionVars := mctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse
+		candidates := slices.Concat(partitionVars.ProductPackages, partitionVars.ProductPackagesDebug)
+		return &candidates
+	}).(*[]string)
+
+	m := mctx.Module()
+	if slices.Contains(*depCandidates, m.Name()) {
+		if installInSystem(mctx, m) {
+			fsDepsMutex.Lock()
+			*fsDeps = append(*fsDeps, m.Name())
+			fsDepsMutex.Unlock()
+		}
+	}
 }
 
 type filesystemCreatorProps struct {
@@ -49,7 +104,7 @@ type filesystemCreator struct {
 func filesystemCreatorFactory() android.Module {
 	module := &filesystemCreator{}
 
-	android.InitAndroidModule(module)
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	module.AddProperties(&module.properties)
 	android.AddLoadHook(module, func(ctx android.LoadHookContext) {
 		module.createInternalModules(ctx)
@@ -66,14 +121,35 @@ func (f *filesystemCreator) createInternalModules(ctx android.LoadHookContext) {
 			f.properties.Unsupported_partition_types = append(f.properties.Unsupported_partition_types, partitionType)
 		}
 	}
+	f.createDeviceModule(ctx)
 }
 
-func (f *filesystemCreator) generatedModuleNameForPartition(cfg android.Config, partitionType string) string {
+func (f *filesystemCreator) generatedModuleName(cfg android.Config, suffix string) string {
 	prefix := "soong"
 	if cfg.HasDeviceProduct() {
 		prefix = cfg.DeviceProduct()
 	}
-	return fmt.Sprintf("%s_generated_%s_image", prefix, partitionType)
+	return fmt.Sprintf("%s_generated_%s", prefix, suffix)
+}
+
+func (f *filesystemCreator) generatedModuleNameForPartition(cfg android.Config, partitionType string) string {
+	return f.generatedModuleName(cfg, fmt.Sprintf("%s_image", partitionType))
+}
+
+func (f *filesystemCreator) createDeviceModule(ctx android.LoadHookContext) {
+	baseProps := &struct {
+		Name *string
+	}{
+		Name: proptools.StringPtr(f.generatedModuleName(ctx.Config(), "device")),
+	}
+
+	// Currently, only the system partition module is created.
+	partitionProps := &filesystem.PartitionNameProperties{}
+	if android.InList("system", f.properties.Generated_partition_types) {
+		partitionProps.System_partition_name = proptools.StringPtr(f.generatedModuleNameForPartition(ctx.Config(), "system"))
+	}
+
+	ctx.CreateModule(filesystem.AndroidDeviceFactory, baseProps, partitionProps)
 }
 
 // Creates a soong module to build the given partition. Returns false if we can't support building
@@ -109,6 +185,7 @@ func (f *filesystemCreator) createPartition(ctx android.LoadHookContext, partiti
 	// BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE
 	fsProps.Type = proptools.StringPtr(specificPartitionVars.BoardFileSystemType)
 	if *fsProps.Type != "ext4" {
+		// TODO(b/372522486): Support other FS types.
 		// Currently the android_filesystem module type only supports ext4:
 		// https://cs.android.com/android/platform/superproject/main/+/main:build/soong/filesystem/filesystem.go;l=416;drc=98047cfd07944b297a12d173453bc984806760d2
 		return false
@@ -161,16 +238,16 @@ func (f *filesystemCreator) createDiffTest(ctx android.ModuleContext, partitionT
 	makeFileList := android.PathForArbitraryOutput(ctx, fmt.Sprintf("target/product/%s/obj/PACKAGING/%s_intermediates/file_list.txt", ctx.Config().DeviceName(), partitionType))
 	// For now, don't allowlist anything. The test will fail, but that's fine in the current
 	// early stages where we're just figuring out what we need
-	emptyAllowlistFile := android.PathForModuleOut(ctx, "allowlist_%s.txt", partitionModuleName)
+	emptyAllowlistFile := android.PathForModuleOut(ctx, fmt.Sprintf("allowlist_%s.txt", partitionModuleName))
 	android.WriteFileRule(ctx, emptyAllowlistFile, "")
-	diffTestResultFile := android.PathForModuleOut(ctx, "diff_test_%s.txt", partitionModuleName)
+	diffTestResultFile := android.PathForModuleOut(ctx, fmt.Sprintf("diff_test_%s.txt", partitionModuleName))
 
 	builder := android.NewRuleBuilder(pctx, ctx)
 	builder.Command().BuiltTool("file_list_diff").
 		Input(makeFileList).
 		Input(filesystemInfo.FileListFile).
-		Input(emptyAllowlistFile).
-		Text(partitionModuleName)
+		Text(partitionModuleName).
+		FlagWithInput("--allowlists ", emptyAllowlistFile)
 	builder.Command().Text("touch").Output(diffTestResultFile)
 	builder.Build(partitionModuleName+" diff test", partitionModuleName+" diff test")
 	return diffTestResultFile
@@ -206,6 +283,11 @@ func (f *filesystemCreator) GenerateAndroidBuildActions(ctx android.ModuleContex
 	}
 	f.HideFromMake()
 
+	content := generateBpContent(ctx, "system")
+	generatedBp := android.PathForOutput(ctx, "soong_generated_product_config.bp")
+	android.WriteFileRule(ctx, generatedBp, content)
+	ctx.Phony("product_config_to_bp", generatedBp)
+
 	var diffTestFiles []android.Path
 	for _, partitionType := range f.properties.Generated_partition_types {
 		diffTestFiles = append(diffTestFiles, f.createDiffTest(ctx, partitionType))
@@ -214,4 +296,43 @@ func (f *filesystemCreator) GenerateAndroidBuildActions(ctx android.ModuleContex
 		diffTestFiles = append(diffTestFiles, createFailingCommand(ctx, fmt.Sprintf("Couldn't build %s partition", partitionType)))
 	}
 	ctx.Phony("soong_generated_filesystem_tests", diffTestFiles...)
+}
+
+func installInSystem(ctx android.BottomUpMutatorContext, m android.Module) bool {
+	return m.PartitionTag(ctx.DeviceConfig()) == "system" && !m.InstallInData() &&
+		!m.InstallInTestcases() && !m.InstallInSanitizerDir() && !m.InstallInVendorRamdisk() &&
+		!m.InstallInDebugRamdisk() && !m.InstallInRecovery() && !m.InstallInOdm() &&
+		!m.InstallInVendor()
+}
+
+// TODO: assemble baseProps and fsProps here
+func generateBpContent(ctx android.EarlyModuleContext, partitionType string) string {
+	// Currently only system partition is supported
+	if partitionType != "system" {
+		return ""
+	}
+
+	deps := ctx.Config().Get(collectFsDepsOnceKey).(*[]string)
+	depProps := &android.PackagingProperties{
+		Deps: android.NewSimpleConfigurable(android.SortedUniqueStrings(*deps)),
+	}
+
+	result, err := proptools.RepackProperties([]interface{}{depProps})
+	if err != nil {
+		ctx.ModuleErrorf(err.Error())
+	}
+
+	file := &parser.File{
+		Defs: []parser.Definition{
+			&parser.Module{
+				Type: "module",
+				Map:  *result,
+			},
+		},
+	}
+	bytes, err := parser.Print(file)
+	if err != nil {
+		ctx.ModuleErrorf(err.Error())
+	}
+	return strings.TrimSpace(string(bytes))
 }

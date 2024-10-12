@@ -48,10 +48,10 @@ func RegisterCCBuildComponents(ctx android.RegistrationContext) {
 
 	ctx.PreDepsMutators(func(ctx android.RegisterMutatorsContext) {
 		ctx.Transition("sdk", &sdkTransitionMutator{})
-		ctx.BottomUp("llndk", llndkMutator).Parallel()
+		ctx.BottomUp("llndk", llndkMutator)
 		ctx.Transition("link", &linkageTransitionMutator{})
 		ctx.Transition("version", &versionTransitionMutator{})
-		ctx.BottomUp("begin", BeginMutator).Parallel()
+		ctx.BottomUp("begin", BeginMutator)
 	})
 
 	ctx.PostDepsMutators(func(ctx android.RegisterMutatorsContext) {
@@ -59,10 +59,10 @@ func RegisterCCBuildComponents(ctx android.RegistrationContext) {
 			san.registerMutators(ctx)
 		}
 
-		ctx.BottomUp("sanitize_runtime_deps", sanitizerRuntimeDepsMutator).Parallel()
-		ctx.BottomUp("sanitize_runtime", sanitizerRuntimeMutator).Parallel()
+		ctx.BottomUp("sanitize_runtime_deps", sanitizerRuntimeDepsMutator)
+		ctx.BottomUp("sanitize_runtime", sanitizerRuntimeMutator)
 
-		ctx.BottomUp("fuzz_deps", fuzzMutatorDeps)
+		ctx.Transition("fuzz", &fuzzTransitionMutator{})
 
 		ctx.Transition("coverage", &coverageTransitionMutator{})
 
@@ -72,13 +72,13 @@ func RegisterCCBuildComponents(ctx android.RegistrationContext) {
 
 		ctx.Transition("lto", &ltoTransitionMutator{})
 
-		ctx.BottomUp("check_linktype", checkLinkTypeMutator).Parallel()
-		ctx.BottomUp("double_loadable", checkDoubleLoadableLibraries).Parallel()
+		ctx.BottomUp("check_linktype", checkLinkTypeMutator)
+		ctx.BottomUp("double_loadable", checkDoubleLoadableLibraries)
 	})
 
-	ctx.FinalDepsMutators(func(ctx android.RegisterMutatorsContext) {
+	ctx.PostApexMutators(func(ctx android.RegisterMutatorsContext) {
 		// sabi mutator needs to be run after apex mutator finishes.
-		ctx.TopDown("sabi_deps", sabiDepsMutator)
+		ctx.Transition("sabi", &sabiTransitionMutator{})
 	})
 
 	ctx.RegisterParallelSingletonType("kythe_extract_all", kytheExtractAllFactory)

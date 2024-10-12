@@ -287,6 +287,10 @@ func (c Config) ReleaseReadFromNewStorage() bool {
 	return c.config.productVariables.GetBuildFlagBool("RELEASE_READ_FROM_NEW_STORAGE")
 }
 
+func (c Config) ReleaseCreateAconfigStorageFile() bool {
+	return c.config.productVariables.GetBuildFlagBool("RELEASE_CREATE_ACONFIG_STORAGE_FILE")
+}
+
 // A DeviceConfig object represents the configuration for a particular device
 // being built. For now there will only be one of these, but in the future there
 // may be multiple devices being built.

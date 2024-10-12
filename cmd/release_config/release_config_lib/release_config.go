@@ -280,11 +280,28 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 
 	directories := []string{}
 	valueDirectories := []string{}
+	// These path prefixes are exclusive for a release config.
+	// "A release config shall exist in at most one of these."
+	// If we find a benefit to generalizing this, we can do so at that time.
+	exclusiveDirPrefixes := []string{
+		"build/release",
+		"vendor/google_shared/build/release",
+	}
+	var exclusiveDir string
 	for idx, confDir := range configs.configDirs {
 		if _, ok := myDirsMap[idx]; ok {
 			directories = append(directories, confDir)
 		}
 		if _, ok := myValueDirsMap[idx]; ok {
+			for _, dir := range exclusiveDirPrefixes {
+				if strings.HasPrefix(confDir, dir) {
+					if exclusiveDir != "" && !strings.HasPrefix(exclusiveDir, dir) {
+						return fmt.Errorf("%s is declared in both %s and %s",
+							config.Name, exclusiveDir, confDir)
+					}
+					exclusiveDir = confDir
+				}
+			}
 			valueDirectories = append(valueDirectories, confDir)
 		}
 	}

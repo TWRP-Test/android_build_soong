@@ -76,10 +76,13 @@ func (f *filesystem) buildAconfigFlagsFiles(ctx android.ModuleContext, builder *
 		cmd.ImplicitOutput(outputPath)
 		f.appendToEntry(ctx, outputPath)
 	}
-	generatePartitionAconfigStorageFile("package_map", "package.map")
-	generatePartitionAconfigStorageFile("flag_map", "flag.map")
-	generatePartitionAconfigStorageFile("flag_val", "flag.val")
-	generatePartitionAconfigStorageFile("flag_info", "flag.info")
+
+	if ctx.Config().ReleaseCreateAconfigStorageFile() {
+		generatePartitionAconfigStorageFile("package_map", "package.map")
+		generatePartitionAconfigStorageFile("flag_map", "flag.map")
+		generatePartitionAconfigStorageFile("flag_val", "flag.val")
+		generatePartitionAconfigStorageFile("flag_info", "flag.info")
+	}
 
 	android.WriteExecutableFileRuleVerbatim(ctx, aconfigFlagsBuilderPath, sb.String())
 }

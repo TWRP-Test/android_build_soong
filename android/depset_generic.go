@@ -15,10 +15,9 @@
 package android
 
 import (
-	"bytes"
-	"encoding/gob"
-	"errors"
 	"fmt"
+
+	"github.com/google/blueprint"
 )
 
 // DepSet is designed to be conceptually compatible with Bazel's depsets:
@@ -68,28 +67,38 @@ type DepSet[T depSettableType] struct {
 	transitive []*DepSet[T]
 }
 
-func (d *DepSet[T]) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := errors.Join(encoder.Encode(d.preorder), encoder.Encode(d.reverse),
-		encoder.Encode(d.order), encoder.Encode(d.direct), encoder.Encode(d.transitive))
-	if err != nil {
-		return nil, err
-	}
+type depSetGob[T depSettableType] struct {
+	Preorder   bool
+	Reverse    bool
+	Order      DepSetOrder
+	Direct     []T
+	Transitive []*DepSet[T]
+}
 
-	return w.Bytes(), nil
+func (d *DepSet[T]) ToGob() *depSetGob[T] {
+	return &depSetGob[T]{
+		Preorder:   d.preorder,
+		Reverse:    d.reverse,
+		Order:      d.order,
+		Direct:     d.direct,
+		Transitive: d.transitive,
+	}
+}
+
+func (d *DepSet[T]) FromGob(data *depSetGob[T]) {
+	d.preorder = data.Preorder
+	d.reverse = data.Reverse
+	d.order = data.Order
+	d.direct = data.Direct
+	d.transitive = data.Transitive
+}
+
+func (d *DepSet[T]) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[depSetGob[T]](d)
 }
 
 func (d *DepSet[T]) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := errors.Join(decoder.Decode(&d.preorder), decoder.Decode(&d.reverse),
-		decoder.Decode(&d.order), decoder.Decode(&d.direct), decoder.Decode(&d.transitive))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return blueprint.CustomGobDecode[depSetGob[T]](data, d)
 }
 
 // NewDepSet returns an immutable DepSet with the given order, direct and transitive contents.

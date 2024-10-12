@@ -44,7 +44,7 @@ func vintfLibraryFactory() Module {
 	m.AddProperties(
 		&m.properties,
 	)
-	InitAndroidArchModule(m, DeviceSupported, MultilibFirst)
+	InitAndroidArchModule(m, DeviceSupported, MultilibCommon)
 
 	return m
 }

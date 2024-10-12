@@ -47,11 +47,11 @@ func init() {
 func registerPreDepsMutators(ctx android.RegisterMutatorsContext) {
 	ctx.Transition("rust_libraries", &libraryTransitionMutator{})
 	ctx.Transition("rust_stdlinkage", &libstdTransitionMutator{})
-	ctx.BottomUp("rust_begin", BeginMutator).Parallel()
+	ctx.BottomUp("rust_begin", BeginMutator)
 }
 
 func registerPostDepsMutators(ctx android.RegisterMutatorsContext) {
-	ctx.BottomUp("rust_sanitizers", rustSanitizerRuntimeMutator).Parallel()
+	ctx.BottomUp("rust_sanitizers", rustSanitizerRuntimeMutator)
 }
 
 type Flags struct {
@@ -1755,6 +1755,16 @@ func (mod *Module) HostToolPath() android.OptionalPath {
 }
 
 var _ android.ApexModule = (*Module)(nil)
+
+// If a module is marked for exclusion from apexes, don't provide apex variants.
+// TODO(b/362509506): remove this once stubs are properly supported by rust_ffi targets.
+func (m *Module) CanHaveApexVariants() bool {
+	if m.ApexExclude() {
+		return false
+	} else {
+		return m.ApexModuleBase.CanHaveApexVariants()
+	}
+}
 
 func (mod *Module) MinSdkVersion() string {
 	return String(mod.Properties.Min_sdk_version)

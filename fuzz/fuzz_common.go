@@ -44,6 +44,32 @@ const (
 	UnknownFramework Framework = "unknownframework"
 )
 
+func (f Framework) Variant() string {
+	switch f {
+	case AFL:
+		return "afl"
+	case LibFuzzer:
+		return "libfuzzer"
+	case Jazzer:
+		return "jazzer"
+	default:
+		panic(fmt.Errorf("unknown fuzzer %q when getting variant", f))
+	}
+}
+
+func FrameworkFromVariant(v string) Framework {
+	switch v {
+	case "afl":
+		return AFL
+	case "libfuzzer":
+		return LibFuzzer
+	case "jazzer":
+		return Jazzer
+	default:
+		panic(fmt.Errorf("unknown variant %q when getting fuzzer", v))
+	}
+}
+
 var BoolDefault = proptools.BoolDefault
 
 type FuzzModule struct {

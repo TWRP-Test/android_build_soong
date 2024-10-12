@@ -17,7 +17,6 @@ package android
 import (
 	"bytes"
 	"encoding/csv"
-	"encoding/gob"
 	"fmt"
 	"slices"
 	"strconv"
@@ -126,32 +125,32 @@ type ComplianceMetadataInfo struct {
 	properties map[string]string
 }
 
+type complianceMetadataInfoGob struct {
+	Properties map[string]string
+}
+
 func NewComplianceMetadataInfo() *ComplianceMetadataInfo {
 	return &ComplianceMetadataInfo{
 		properties: map[string]string{},
 	}
 }
 
-func (c *ComplianceMetadataInfo) GobEncode() ([]byte, error) {
-	w := new(bytes.Buffer)
-	encoder := gob.NewEncoder(w)
-	err := encoder.Encode(c.properties)
-	if err != nil {
-		return nil, err
+func (m *ComplianceMetadataInfo) ToGob() *complianceMetadataInfoGob {
+	return &complianceMetadataInfoGob{
+		Properties: m.properties,
 	}
+}
 
-	return w.Bytes(), nil
+func (m *ComplianceMetadataInfo) FromGob(data *complianceMetadataInfoGob) {
+	m.properties = data.Properties
+}
+
+func (c *ComplianceMetadataInfo) GobEncode() ([]byte, error) {
+	return blueprint.CustomGobEncode[complianceMetadataInfoGob](c)
 }
 
 func (c *ComplianceMetadataInfo) GobDecode(data []byte) error {
-	r := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(r)
-	err := decoder.Decode(&c.properties)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return blueprint.CustomGobDecode[complianceMetadataInfoGob](data, c)
 }
 
 func (c *ComplianceMetadataInfo) SetStringValue(propertyName string, value string) {

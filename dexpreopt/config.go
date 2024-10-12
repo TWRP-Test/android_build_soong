@@ -462,6 +462,12 @@ func (d dex2oatDependencyTag) AllowDisabledModuleDependency(target android.Modul
 	return target.IsReplacedByPrebuilt()
 }
 
+func (d dex2oatDependencyTag) AllowDisabledModuleDependencyProxy(
+	ctx android.OtherModuleProviderContext, target android.ModuleProxy) bool {
+	return android.OtherModuleProviderOrDefault(
+		ctx, target, android.CommonPropertiesProviderKey).ReplacedByPrebuilt
+}
+
 // Dex2oatDepTag represents the dependency onto the dex2oatd module. It is added to any module that
 // needs dexpreopting and so it makes no sense for it to be checked for visibility or included in
 // the apex.

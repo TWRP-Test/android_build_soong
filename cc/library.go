@@ -548,8 +548,7 @@ func (library *libraryDecorator) compilerFlags(ctx ModuleContext, flags Flags, d
 	return flags
 }
 
-func (library *libraryDecorator) getHeaderAbiCheckerProperties(ctx android.BaseModuleContext) headerAbiCheckerProperties {
-	m := ctx.Module().(*Module)
+func (library *libraryDecorator) getHeaderAbiCheckerProperties(m *Module) headerAbiCheckerProperties {
 	variantProps := &library.Properties.Target.Platform.Header_abi_checker
 	if m.InVendor() {
 		variantProps = &library.Properties.Target.Vendor.Header_abi_checker
@@ -559,7 +558,7 @@ func (library *libraryDecorator) getHeaderAbiCheckerProperties(ctx android.BaseM
 	props := library.Properties.Header_abi_checker
 	err := proptools.AppendProperties(&props, variantProps, nil)
 	if err != nil {
-		ctx.ModuleErrorf("Cannot merge headerAbiCheckerProperties: %s", err.Error())
+		panic(fmt.Errorf("Cannot merge headerAbiCheckerProperties: %s", err.Error()))
 	}
 	return props
 }
@@ -718,7 +717,7 @@ type libraryInterface interface {
 	setShared()
 
 	// Gets the ABI properties for vendor, product, or platform variant
-	getHeaderAbiCheckerProperties(ctx android.BaseModuleContext) headerAbiCheckerProperties
+	getHeaderAbiCheckerProperties(m *Module) headerAbiCheckerProperties
 
 	// Write LOCAL_ADDITIONAL_DEPENDENCIES for ABI diff
 	androidMkWriteAdditionalDependenciesForSourceAbiDiff(w io.Writer)
@@ -1365,7 +1364,7 @@ func (library *libraryDecorator) sourceAbiDiff(ctx android.ModuleContext,
 	sourceVersion, errorMessage string) {
 
 	extraFlags := []string{"-target-version", sourceVersion}
-	headerAbiChecker := library.getHeaderAbiCheckerProperties(ctx)
+	headerAbiChecker := library.getHeaderAbiCheckerProperties(ctx.Module().(*Module))
 	if Bool(headerAbiChecker.Check_all_apis) {
 		extraFlags = append(extraFlags, "-check-all-apis")
 	} else {
@@ -1437,7 +1436,7 @@ func (library *libraryDecorator) optInAbiDiff(ctx android.ModuleContext,
 func (library *libraryDecorator) linkSAbiDumpFiles(ctx ModuleContext, deps PathDeps, objs Objects, fileName string, soFile android.Path) {
 	if library.sabi.shouldCreateSourceAbiDump() {
 		exportedIncludeDirs := library.exportedIncludeDirsForAbiCheck(ctx)
-		headerAbiChecker := library.getHeaderAbiCheckerProperties(ctx)
+		headerAbiChecker := library.getHeaderAbiCheckerProperties(ctx.Module().(*Module))
 		currSdkVersion := currRefAbiDumpSdkVersion(ctx)
 		currVendorVersion := ctx.Config().VendorApiLevel()
 
@@ -1451,7 +1450,7 @@ func (library *libraryDecorator) linkSAbiDumpFiles(ctx ModuleContext, deps PathD
 			[]string{} /* includeSymbolTags */, currSdkVersion, false /* isLlndk */)
 
 		var llndkDump, apexVariantDump android.Path
-		tags := classifySourceAbiDump(ctx)
+		tags := classifySourceAbiDump(ctx.Module().(*Module))
 		optInTags := []lsdumpTag{}
 		for _, tag := range tags {
 			if tag == llndkLsdumpTag && currVendorVersion != "" {
@@ -1868,7 +1867,7 @@ func (library *libraryDecorator) buildStubs() bool {
 }
 
 func (library *libraryDecorator) symbolFileForAbiCheck(ctx ModuleContext) *string {
-	if props := library.getHeaderAbiCheckerProperties(ctx); props.Symbol_file != nil {
+	if props := library.getHeaderAbiCheckerProperties(ctx.Module().(*Module)); props.Symbol_file != nil {
 		return props.Symbol_file
 	}
 	if library.hasStubsVariants() && library.Properties.Stubs.Symbol_file != nil {

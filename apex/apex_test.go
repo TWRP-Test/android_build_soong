@@ -82,14 +82,6 @@ func withFiles(files android.MockFS) android.FixturePreparer {
 	return files.AddToFixture()
 }
 
-func withTargets(targets map[android.OsType][]android.Target) android.FixturePreparer {
-	return android.FixtureModifyConfig(func(config android.Config) {
-		for k, v := range targets {
-			config.Targets[k] = v
-		}
-	})
-}
-
 // withNativeBridgeTargets sets configuration with targets including:
 // - X86_64 (primary)
 // - X86 (secondary)
@@ -4051,11 +4043,20 @@ func TestVndkApexWithBinder32(t *testing.T) {
 			"libvndk27binder32.so": nil,
 		}),
 		withBinder32bit,
-		withTargets(map[android.OsType][]android.Target{
-			android.Android: {
-				{Os: android.Android, Arch: android.Arch{ArchType: android.Arm, ArchVariant: "armv7-a-neon", Abi: []string{"armeabi-v7a"}},
-					NativeBridge: android.NativeBridgeDisabled, NativeBridgeHostArchName: "", NativeBridgeRelativePath: ""},
-			},
+		android.FixtureModifyConfig(func(config android.Config) {
+			target := android.Target{
+				Os: android.Android,
+				Arch: android.Arch{
+					ArchType:    android.Arm,
+					ArchVariant: "armv7-a-neon",
+					Abi:         []string{"armeabi-v7a"},
+				},
+				NativeBridge:             android.NativeBridgeDisabled,
+				NativeBridgeHostArchName: "",
+				NativeBridgeRelativePath: "",
+			}
+			config.Targets[android.Android] = []android.Target{target}
+			config.AndroidFirstDeviceTarget = target
 		}),
 	)
 
@@ -11813,4 +11814,49 @@ func TestSdkLibraryTransitiveClassLoaderContext(t *testing.T) {
 			updatable: true,
 		}
        `)
+}
+
+// If an apex sets system_ext_specific: true, its systemserverclasspath libraries must set this property as well.
+func TestApexSSCPJarMustBeInSamePartitionAsApex(t *testing.T) {
+	testApexError(t, `foo is an apex systemserver jar, but its partition does not match the partition of its containing apex`, `
+		apex {
+			name: "myapex",
+			key: "myapex.key",
+			systemserverclasspath_fragments: [
+				"mysystemserverclasspathfragment",
+			],
+			min_sdk_version: "29",
+			updatable: true,
+			system_ext_specific: true,
+		}
+
+		apex_key {
+			name: "myapex.key",
+			public_key: "testkey.avbpubkey",
+			private_key: "testkey.pem",
+		}
+
+		java_library {
+			name: "foo",
+			srcs: ["b.java"],
+			min_sdk_version: "29",
+			installable: true,
+			apex_available: [
+				"myapex",
+			],
+			sdk_version: "current",
+		}
+
+		systemserverclasspath_fragment {
+			name: "mysystemserverclasspathfragment",
+			contents: [
+				"foo",
+			],
+			apex_available: [
+				"myapex",
+			],
+		}
+	`,
+		dexpreopt.FixtureSetApexSystemServerJars("myapex:foo"),
+	)
 }

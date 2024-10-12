@@ -17,7 +17,12 @@ package android
 import "encoding/gob"
 
 func init() {
+	gob.Register(extraFilesZip{})
+	gob.Register(InstallPath{})
+	gob.Register(ModuleGenPath{})
 	gob.Register(ModuleOutPath{})
+	gob.Register(OutputPath{})
 	gob.Register(PhonyPath{})
+	gob.Register(SourcePath{})
 	gob.Register(unstableInfo{})
 }

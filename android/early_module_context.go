@@ -29,7 +29,7 @@ type EarlyModuleContext interface {
 	Module() Module
 
 	// ModuleName returns the name of the module.  This is generally the value that was returned by Module.Name() when
-	// the module was created, but may have been modified by calls to BaseMutatorContext.Rename.
+	// the module was created, but may have been modified by calls to BottomUpMutatorContext.Rename.
 	ModuleName() string
 
 	// ModuleDir returns the path to the directory that contains the definition of the module.

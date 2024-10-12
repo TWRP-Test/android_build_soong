@@ -154,7 +154,7 @@ type BaseCompilerProperties struct {
 
 	// list of rust automatic crate dependencies.
 	// Rustlibs linkage is rlib for host targets and dylib for device targets.
-	Rustlibs []string `android:"arch_variant"`
+	Rustlibs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of rust proc_macro crate dependencies
 	Proc_macros []string `android:"arch_variant"`
@@ -497,7 +497,7 @@ func (compiler *baseCompiler) strippedOutputFilePath() android.OptionalPath {
 
 func (compiler *baseCompiler) compilerDeps(ctx DepsContext, deps Deps) Deps {
 	deps.Rlibs = append(deps.Rlibs, compiler.Properties.Rlibs...)
-	deps.Rustlibs = append(deps.Rustlibs, compiler.Properties.Rustlibs...)
+	deps.Rustlibs = append(deps.Rustlibs, compiler.Properties.Rustlibs.GetOrDefault(ctx, nil)...)
 	deps.ProcMacros = append(deps.ProcMacros, compiler.Properties.Proc_macros...)
 	deps.StaticLibs = append(deps.StaticLibs, compiler.Properties.Static_libs...)
 	deps.WholeStaticLibs = append(deps.WholeStaticLibs, compiler.Properties.Whole_static_libs...)

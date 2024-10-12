@@ -92,7 +92,7 @@ type FilesystemProperties struct {
 	// Name of the partition stored in vbmeta desc. Defaults to the name of this module.
 	Partition_name *string
 
-	// Type of the filesystem. Currently, ext4, cpio, and compressed_cpio are supported. Default
+	// Type of the filesystem. Currently, ext4, erofs, cpio, and compressed_cpio are supported. Default
 	// is ext4.
 	Type *string
 
@@ -143,6 +143,20 @@ type FilesystemProperties struct {
 	// build modules, where we want to emit some not-yet-working filesystems and we don't want them
 	// to be built.
 	Unchecked_module *bool `blueprint:"mutated"`
+
+	Erofs ErofsProperties
+}
+
+// Additional properties required to generate erofs FS partitions.
+type ErofsProperties struct {
+	// Compressor and Compression level passed to mkfs.erofs. e.g. (lz4hc,9)
+	// Please see external/erofs-utils/README for complete documentation.
+	Compressor *string
+
+	// Used as --compress-hints for mkfs.erofs
+	Compress_hints *string `android:"path"`
+
+	Sparse *bool
 }
 
 // android_filesystem packages a set of modules and their transitive dependencies into a filesystem
@@ -178,6 +192,7 @@ type fsType int
 
 const (
 	ext4Type fsType = iota
+	erofsType
 	compressedCpioType
 	cpioType // uncompressed
 	unknown
@@ -195,6 +210,8 @@ func (f *filesystem) fsType(ctx android.ModuleContext) fsType {
 	switch typeStr {
 	case "ext4":
 		return ext4Type
+	case "erofs":
+		return erofsType
 	case "compressed_cpio":
 		return compressedCpioType
 	case "cpio":
@@ -224,7 +241,7 @@ var pctx = android.NewPackageContext("android/soong/filesystem")
 func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	validatePartitionType(ctx, f)
 	switch f.fsType(ctx) {
-	case ext4Type:
+	case ext4Type, erofsType:
 		f.output = f.buildImageUsingBuildImage(ctx)
 	case compressedCpioType:
 		f.output = f.buildCpioImage(ctx, true)
@@ -434,9 +451,11 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (propFile android.
 	// Type string that build_image.py accepts.
 	fsTypeStr := func(t fsType) string {
 		switch t {
-		// TODO(jiyong): add more types like f2fs, erofs, etc.
+		// TODO(372522486): add more types like f2fs, erofs, etc.
 		case ext4Type:
 			return "ext4"
+		case erofsType:
+			return "erofs"
 		}
 		panic(fmt.Errorf("unsupported fs type %v", t))
 	}
@@ -486,6 +505,24 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (propFile android.
 		addStr("uuid", uuid)
 		addStr("hash_seed", uuid)
 	}
+	// Add erofs properties
+	if f.fsType(ctx) == erofsType {
+		if compressor := f.properties.Erofs.Compressor; compressor != nil {
+			addStr("erofs_default_compressor", proptools.String(compressor))
+		}
+		if compressHints := f.properties.Erofs.Compress_hints; compressHints != nil {
+			addPath("erofs_default_compress_hints", android.PathForModuleSrc(ctx, *compressHints))
+		}
+		if proptools.BoolDefault(f.properties.Erofs.Sparse, true) {
+			// https://source.corp.google.com/h/googleplex-android/platform/build/+/88b1c67239ca545b11580237242774b411f2fed9:core/Makefile;l=2292;bpv=1;bpt=0;drc=ea8f34bc1d6e63656b4ec32f2391e9d54b3ebb6b
+			addStr("erofs_sparse_flag", "-s")
+		}
+	} else if f.properties.Erofs.Compressor != nil || f.properties.Erofs.Compress_hints != nil || f.properties.Erofs.Sparse != nil {
+		// Raise an exception if the propfile contains erofs properties, but the fstype is not erofs
+		fs := fsTypeStr(f.fsType(ctx))
+		ctx.PropertyErrorf("erofs", "erofs is non-empty, but FS type is %s\n. Please delete erofs properties if this partition should use %s\n", fs, fs)
+	}
+
 	propFile = android.PathForModuleOut(ctx, "prop").OutputPath
 	android.WriteFileRuleVerbatim(ctx, propFile, propFileString.String())
 	return propFile, deps

@@ -63,7 +63,7 @@ func RegisterGenruleBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("genrule", GenRuleFactory)
 
 	ctx.FinalDepsMutators(func(ctx android.RegisterMutatorsContext) {
-		ctx.BottomUp("genrule_tool_deps", toolDepsMutator).Parallel()
+		ctx.BottomUp("genrule_tool_deps", toolDepsMutator)
 	})
 }
 
@@ -112,6 +112,12 @@ func (t hostToolDependencyTag) AllowDisabledModuleDependency(target android.Modu
 	return target.IsReplacedByPrebuilt()
 }
 
+func (t hostToolDependencyTag) AllowDisabledModuleDependencyProxy(
+	ctx android.OtherModuleProviderContext, target android.ModuleProxy) bool {
+	return android.OtherModuleProviderOrDefault(
+		ctx, target, android.CommonPropertiesProviderKey).ReplacedByPrebuilt
+}
+
 var _ android.AllowDisabledModuleDependency = (*hostToolDependencyTag)(nil)
 
 type generatorProperties struct {
@@ -139,8 +145,7 @@ type generatorProperties struct {
 	Export_include_dirs []string
 
 	// list of input files
-	Srcs         proptools.Configurable[[]string] `android:"path,arch_variant"`
-	ResolvedSrcs []string                         `blueprint:"mutated"`
+	Srcs proptools.Configurable[[]string] `android:"path,arch_variant"`
 
 	// input files to exclude
 	Exclude_srcs []string `android:"path,arch_variant"`
@@ -316,21 +321,18 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 	var packagedTools []android.PackagingSpec
 	if len(g.properties.Tools) > 0 {
 		seenTools := make(map[string]bool)
-
-		ctx.VisitDirectDepsAllowDisabled(func(module android.Module) {
-			switch tag := ctx.OtherModuleDependencyTag(module).(type) {
+		ctx.VisitDirectDepsProxyAllowDisabled(func(proxy android.ModuleProxy) {
+			switch tag := ctx.OtherModuleDependencyTag(proxy).(type) {
 			case hostToolDependencyTag:
-				tool := ctx.OtherModuleName(module)
 				// Necessary to retrieve any prebuilt replacement for the tool, since
 				// toolDepsMutator runs too late for the prebuilt mutators to have
 				// replaced the dependency.
-				module = android.PrebuiltGetPreferred(ctx, module)
-
-				switch t := module.(type) {
-				case android.HostToolProvider:
+				module := android.PrebuiltGetPreferred(ctx, proxy)
+				tool := ctx.OtherModuleName(module)
+				if h, ok := android.OtherModuleProvider(ctx, module, android.HostToolProviderKey); ok {
 					// A HostToolProvider provides the path to a tool, which will be copied
 					// into the sandbox.
-					if !t.(android.Module).Enabled(ctx) {
+					if !android.OtherModuleProviderOrDefault(ctx, module, android.CommonPropertiesProviderKey).Enabled {
 						if ctx.Config().AllowMissingDependencies() {
 							ctx.AddMissingDependencies([]string{tool})
 						} else {
@@ -338,13 +340,13 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 						}
 						return
 					}
-					path := t.HostToolPath()
+					path := h.HostToolPath
 					if !path.Valid() {
 						ctx.ModuleErrorf("host tool %q missing output file", tool)
 						return
 					}
 					if specs := android.OtherModuleProviderOrDefault(
-						ctx, t, android.InstallFilesProvider).TransitivePackagingSpecs.ToList(); specs != nil {
+						ctx, module, android.InstallFilesProvider).TransitivePackagingSpecs.ToList(); specs != nil {
 						// If the HostToolProvider has PackgingSpecs, which are definitions of the
 						// required relative locations of the tool and its dependencies, use those
 						// instead.  They will be copied to those relative locations in the sbox
@@ -366,7 +368,7 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 						tools = append(tools, path.Path())
 						addLocationLabel(tag.label, toolLocation{android.Paths{path.Path()}})
 					}
-				default:
+				} else {
 					ctx.ModuleErrorf("%q is not a host tool provider", tool)
 					return
 				}
@@ -426,8 +428,8 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 		}
 		return srcFiles
 	}
-	g.properties.ResolvedSrcs = g.properties.Srcs.GetOrDefault(ctx, nil)
-	srcFiles := addLabelsForInputs("srcs", g.properties.ResolvedSrcs, g.properties.Exclude_srcs)
+	srcs := g.properties.Srcs.GetOrDefault(ctx, nil)
+	srcFiles := addLabelsForInputs("srcs", srcs, g.properties.Exclude_srcs)
 	android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: srcFiles.Strings()})
 
 	var copyFrom android.Paths
@@ -643,6 +645,12 @@ func (g *Module) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 
 	g.setOutputFiles(ctx)
+
+	if ctx.Os() == android.Windows {
+		// Make doesn't support windows:
+		// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/module_arch_supported.mk;l=66;drc=f264690860bb6ee7762784d6b7201aae057ba6f2
+		g.HideFromMake()
+	}
 }
 
 func (g *Module) setOutputFiles(ctx android.ModuleContext) {
@@ -659,7 +667,7 @@ func (g *Module) setOutputFiles(ctx android.ModuleContext) {
 // Collect information for opening IDE project files in java/jdeps.go.
 func (g *Module) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	dpInfo.Srcs = append(dpInfo.Srcs, g.Srcs().Strings()...)
-	for _, src := range g.properties.ResolvedSrcs {
+	for _, src := range g.properties.Srcs.GetOrDefault(ctx, nil) {
 		if strings.HasPrefix(src, ":") {
 			src = strings.Trim(src, ":")
 			dpInfo.Deps = append(dpInfo.Deps, src)

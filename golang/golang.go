@@ -22,6 +22,7 @@ package golang
 
 import (
 	"android/soong/android"
+
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/bootstrap"
 )
@@ -46,7 +47,7 @@ type GoPackage struct {
 func goPackageModuleFactory() android.Module {
 	module := &GoPackage{}
 	module.AddProperties(module.Properties()...)
-	android.InitAndroidArchModule(module, android.HostSupported, android.MultilibFirst)
+	android.InitAndroidArchModule(module, android.HostSupportedNoCross, android.MultilibFirst)
 	return module
 }
 

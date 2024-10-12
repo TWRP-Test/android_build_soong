@@ -27,7 +27,7 @@ import (
 // to the output file of the referenced module.
 
 func registerPathDepsMutator(ctx RegisterMutatorsContext) {
-	ctx.BottomUp("pathdeps", pathDepsMutator).Parallel()
+	ctx.BottomUp("pathdeps", pathDepsMutator)
 }
 
 // The pathDepsMutator automatically adds dependencies on any module that is listed with the

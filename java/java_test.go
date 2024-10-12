@@ -569,8 +569,7 @@ func TestBinary(t *testing.T) {
 
 	bar := ctx.ModuleForTests("bar", buildOS+"_common")
 	barJar := bar.Output("bar.jar").Output.String()
-	barWrapper := ctx.ModuleForTests("bar", buildOS+"_x86_64")
-	barWrapperDeps := barWrapper.Output("bar").Implicits.Strings()
+	barWrapperDeps := bar.Output("bar").Implicits.Strings()
 
 	libjni := ctx.ModuleForTests("libjni", buildOS+"_x86_64_shared")
 	libjniSO := libjni.Rule("Cp").Output.String()
@@ -1931,7 +1930,7 @@ func TestDeviceBinaryWrapperGeneration(t *testing.T) {
 			main_class: "foo.bar.jb",
 		}
 	`)
-	wrapperPath := fmt.Sprint(ctx.ModuleForTests("foo", "android_arm64_armv8-a").AllOutputs())
+	wrapperPath := fmt.Sprint(ctx.ModuleForTests("foo", "android_common").AllOutputs())
 	if !strings.Contains(wrapperPath, "foo.sh") {
 		t.Errorf("wrapper file foo.sh is not generated")
 	}
@@ -3102,7 +3101,7 @@ func assertTestOnlyAndTopLevel(t *testing.T, ctx *android.TestResult, expectedTe
 	}
 }
 
-// Test that a dependency edge is created to the "first" variant of a native library listed in `required` of java_binary
+// Test that a dependency edge is created to the matching variant of a native library listed in `jni_libs` of java_binary
 func TestNativeRequiredDepOfJavaBinary(t *testing.T) {
 	findDepsOfModule := func(ctx *android.TestContext, module android.Module, depName string) []blueprint.Module {
 		var ret []blueprint.Module
@@ -3118,20 +3117,13 @@ func TestNativeRequiredDepOfJavaBinary(t *testing.T) {
 java_binary {
 	name: "myjavabin",
 	main_class: "com.android.MyJava",
-	required: ["mynativelib"],
+	jni_libs: ["mynativelib"],
 }
 cc_library_shared {
 	name: "mynativelib",
 }
 `
 	res, _ := testJava(t, bp)
-	// The first variant installs the native library via the common variant, so check the deps of both variants.
-	nativeVariantDepsWithDups := findDepsOfModule(res, res.ModuleForTests("myjavabin", "android_arm64_armv8-a").Module(), "mynativelib")
-	nativeVariantDepsWithDups = append(nativeVariantDepsWithDups, findDepsOfModule(res, res.ModuleForTests("myjavabin", "android_common").Module(), "mynativelib")...)
-
-	nativeVariantDepsUnique := map[blueprint.Module]bool{}
-	for _, dep := range nativeVariantDepsWithDups {
-		nativeVariantDepsUnique[dep] = true
-	}
-	android.AssertIntEquals(t, "Create a dep on the first variant", 1, len(nativeVariantDepsUnique))
+	deps := findDepsOfModule(res, res.ModuleForTests("myjavabin", "android_common").Module(), "mynativelib")
+	android.AssertIntEquals(t, "Create a dep on the first variant", 1, len(deps))
 }

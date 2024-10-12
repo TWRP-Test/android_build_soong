@@ -29,7 +29,7 @@ func init() {
 
 func registerVariableBuildComponents(ctx RegistrationContext) {
 	ctx.PreDepsMutators(func(ctx RegisterMutatorsContext) {
-		ctx.BottomUp("variable", VariableMutator).Parallel()
+		ctx.BottomUp("variable", VariableMutator)
 	})
 }
 
@@ -192,6 +192,9 @@ type variableProperties struct {
 			Cmd                    *string
 			Required               []string
 			Vintf_fragment_modules []string
+		}
+		SelinuxIgnoreNeverallows struct {
+			Required []string
 		}
 	} `android:"arch_variant"`
 }
@@ -476,6 +479,8 @@ type ProductVariables struct {
 
 	ProductManufacturer string `json:",omitempty"`
 	ProductBrand        string `json:",omitempty"`
+	ProductDevice       string `json:",omitempty"`
+	ProductModel        string `json:",omitempty"`
 
 	ReleaseVersion          string   `json:",omitempty"`
 	ReleaseAconfigValueSets []string `json:",omitempty"`
@@ -525,6 +530,8 @@ type ProductVariables struct {
 	PartitionVarsForSoongMigrationOnlyDoNotUse PartitionVariables
 
 	ExtraAllowedDepsTxt *string `json:",omitempty"`
+
+	AdbKeys *string `json:",omitempty"`
 }
 
 type PartitionQualifiedVariablesType struct {

@@ -272,6 +272,25 @@ func InitConfigurablePrebuiltModule(module PrebuiltInterface, srcs *proptools.Co
 	InitPrebuiltModuleWithSrcSupplier(module, srcsSupplier, "srcs")
 }
 
+// InitConfigurablePrebuiltModuleString is the same as InitPrebuiltModule, but uses a
+// Configurable string property instead of a regular list of strings. It only produces a single
+// source file.
+func InitConfigurablePrebuiltModuleString(module PrebuiltInterface, srcs *proptools.Configurable[string], propertyName string) {
+	if srcs == nil {
+		panic(fmt.Errorf("%s must not be nil", propertyName))
+	}
+
+	srcsSupplier := func(ctx BaseModuleContext, _ Module) []string {
+		src := srcs.GetOrDefault(ctx, "")
+		if src == "" {
+			return nil
+		}
+		return []string{src}
+	}
+
+	InitPrebuiltModuleWithSrcSupplier(module, srcsSupplier, propertyName)
+}
+
 func InitSingleSourcePrebuiltModule(module PrebuiltInterface, srcProps interface{}, srcField string) {
 	srcPropsValue := reflect.ValueOf(srcProps).Elem()
 	srcStructField, _ := srcPropsValue.Type().FieldByName(srcField)

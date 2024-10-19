@@ -329,7 +329,7 @@ func SetCommand(configs *rc_lib.ReleaseConfigs, commonFlags Flags, cmd string, a
 		return err
 	}
 	updatedFiles = append(updatedFiles, flagPath)
-	fmt.Printf("Added/Updated: %s\n", strings.Join(updatedFiles, " "))
+	fmt.Printf("\033[1mAdded/Updated: %s\033[0m\n", strings.Join(updatedFiles, " "))
 	return nil
 }
 

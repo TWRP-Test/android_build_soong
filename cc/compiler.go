@@ -430,14 +430,14 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
 	}
 
 	if ctx.useSdk() {
-		// TODO: Switch to --sysroot.
 		// The NDK headers are installed to a common sysroot. While a more
 		// typical Soong approach would be to only make the headers for the
 		// library you're using available, we're trying to emulate the NDK
 		// behavior here, and the NDK always has all the NDK headers available.
 		flags.SystemIncludeFlags = append(flags.SystemIncludeFlags,
-			"-isystem "+getCurrentIncludePath(ctx).String(),
-			"-isystem "+getCurrentIncludePath(ctx).Join(ctx, config.NDKTriple(tc)).String())
+			"--sysroot "+getNdkSysrootBase(ctx).String())
+	} else if ctx.Device() {
+		flags.Global.CommonFlags = append(flags.Global.CFlags, "-nostdlibinc")
 	}
 
 	if ctx.InVendorOrProduct() {
@@ -695,7 +695,9 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
 
 	if ctx.optimizeForSize() {
 		flags.Local.CFlags = append(flags.Local.CFlags, "-Oz")
-		flags.Local.LdFlags = append(flags.Local.LdFlags, "-Wl,-mllvm,-enable-ml-inliner=release")
+		if !ctx.Config().IsEnvFalse("THINLTO_USE_MLGO") {
+			flags.Local.LdFlags = append(flags.Local.LdFlags, "-Wl,-mllvm,-enable-ml-inliner=release")
+		}
 	}
 
 	// Exclude directories from manual binder interface allowed list.

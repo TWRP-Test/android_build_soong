@@ -566,7 +566,7 @@ func (module *SdkLibrary) createXmlFile(mctx android.DefaultableHookContext) {
 		Min_device_sdk            *string
 		Max_device_sdk            *string
 		Sdk_library_min_api_level *string
-		Uses_libs_dependencies    []string
+		Uses_libs_dependencies    proptools.Configurable[[]string]
 	}{
 		Name:                      proptools.StringPtr(module.xmlPermissionsModuleName()),
 		Enabled:                   module.EnabledProperty(),
@@ -577,7 +577,7 @@ func (module *SdkLibrary) createXmlFile(mctx android.DefaultableHookContext) {
 		Min_device_sdk:            module.commonSdkLibraryProperties.Min_device_sdk,
 		Max_device_sdk:            module.commonSdkLibraryProperties.Max_device_sdk,
 		Sdk_library_min_api_level: &moduleMinApiLevelStr,
-		Uses_libs_dependencies:    module.usesLibraryProperties.Uses_libs,
+		Uses_libs_dependencies:    module.usesLibraryProperties.Uses_libs.Clone(),
 	}
 
 	mctx.CreateModule(sdkLibraryXmlFactory, &props)
@@ -742,7 +742,7 @@ type sdkLibraryXmlProperties struct {
 	// Uses-libs dependencies that the shared library requires to work correctly.
 	//
 	// This will add dependency="foo:bar" to the <library> section.
-	Uses_libs_dependencies []string
+	Uses_libs_dependencies proptools.Configurable[[]string]
 }
 
 // java_sdk_library_xml builds the permission xml file for a java_sdk_library.
@@ -864,7 +864,7 @@ func (module *sdkLibraryXml) permissionsContents(ctx android.ModuleContext) stri
 	implicitUntilAttr := formattedOptionalSdkLevelAttribute(ctx, "on-bootclasspath-before", module.properties.On_bootclasspath_before)
 	minSdkAttr := formattedOptionalSdkLevelAttribute(ctx, "min-device-sdk", module.properties.Min_device_sdk)
 	maxSdkAttr := formattedOptionalSdkLevelAttribute(ctx, "max-device-sdk", module.properties.Max_device_sdk)
-	dependenciesAttr := formattedDependenciesAttribute(module.properties.Uses_libs_dependencies)
+	dependenciesAttr := formattedDependenciesAttribute(module.properties.Uses_libs_dependencies.GetOrDefault(ctx, nil))
 	// <library> is understood in all android versions whereas <apex-library> is only understood from API T (and ignored before that).
 	// similarly, min_device_sdk is only understood from T. So if a library is using that, we need to use the apex-library to make sure this library is not loaded before T
 	var libraryTag string

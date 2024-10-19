@@ -113,6 +113,10 @@ type Module interface {
 	VintfFragmentModuleNames(ctx ConfigurableEvaluatorContext) []string
 
 	ConfigurableEvaluator(ctx ConfigurableEvaluatorContext) proptools.ConfigurableEvaluator
+
+	// The usage of this method is experimental and should not be used outside of fsgen package.
+	// This will be removed once product packaging migration to Soong is complete.
+	DecodeMultilib(ctx ConfigContext) (string, string)
 }
 
 // Qualified id for a module
@@ -2280,6 +2284,10 @@ func (m *ModuleBase) MakeAsSystemExt() {
 // IsNativeBridgeSupported returns true if "native_bridge_supported" is explicitly set as "true"
 func (m *ModuleBase) IsNativeBridgeSupported() bool {
 	return proptools.Bool(m.commonProperties.Native_bridge_supported)
+}
+
+func (m *ModuleBase) DecodeMultilib(ctx ConfigContext) (string, string) {
+	return decodeMultilib(ctx, m)
 }
 
 type ConfigContext interface {

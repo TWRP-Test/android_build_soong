@@ -201,3 +201,7 @@ func (m ModuleProxy) VintfFragmentModuleNames(ctx ConfigurableEvaluatorContext) 
 func (m ModuleProxy) ConfigurableEvaluator(ctx ConfigurableEvaluatorContext) proptools.ConfigurableEvaluator {
 	panic("method is not implemented on ModuleProxy")
 }
+
+func (m ModuleProxy) DecodeMultilib(ctx ConfigContext) (string, string) {
+	panic("method is not implemented on ModuleProxy")
+}

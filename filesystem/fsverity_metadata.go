@@ -15,6 +15,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -121,8 +122,13 @@ func (f *filesystem) buildFsverityMetadataFiles(ctx android.ModuleContext, build
 
 	// STEP 2-2: generate BuildManifest.apk (unsigned)
 	aapt2Path := ctx.Config().HostToolPath(ctx, "aapt2")
-	apkPath := rebasedDir.Join(ctx, "etc", "security", "fsverity", "BuildManifest.apk")
-	idsigPath := rebasedDir.Join(ctx, "etc", "security", "fsverity", "BuildManifest.apk.idsig")
+	apkNameSuffix := ""
+	if f.PartitionType() == "system_ext" {
+		//https://source.corp.google.com/h/googleplex-android/platform/build/+/e392d2b486c2d4187b20a72b1c67cc737ecbcca5:core/Makefile;l=3410;drc=ea8f34bc1d6e63656b4ec32f2391e9d54b3ebb6b;bpv=1;bpt=0
+		apkNameSuffix = "SystemExt"
+	}
+	apkPath := rebasedDir.Join(ctx, "etc", "security", "fsverity", fmt.Sprintf("BuildManifest%s.apk", apkNameSuffix))
+	idsigPath := rebasedDir.Join(ctx, "etc", "security", "fsverity", fmt.Sprintf("BuildManifest%s.apk.idsig", apkNameSuffix))
 	manifestTemplatePath := android.PathForSource(ctx, "system/security/fsverity/AndroidManifest.xml")
 	libs := android.PathsForModuleSrc(ctx, f.properties.Fsverity.Libs)
 	cmd.Implicit(aapt2Path)

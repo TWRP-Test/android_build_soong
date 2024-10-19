@@ -145,6 +145,10 @@ type FilesystemProperties struct {
 	Unchecked_module *bool `blueprint:"mutated"`
 
 	Erofs ErofsProperties
+
+	// Determines if the module is auto-generated from Soong or not. If the module is
+	// auto-generated, its deps are exempted from visibility enforcement.
+	Is_auto_generated *bool
 }
 
 // Additional properties required to generate erofs FS partitions.
@@ -179,13 +183,29 @@ func initFilesystemModule(module android.DefaultableModule, filesystemModule *fi
 	android.InitDefaultableModule(module)
 }
 
-var dependencyTag = struct {
+type depTag struct {
 	blueprint.BaseDependencyTag
 	android.PackagingItemAlwaysDepTag
-}{}
+}
+
+var dependencyTag = depTag{}
+
+type depTagWithVisibilityEnforcementBypass struct {
+	depTag
+}
+
+var _ android.ExcludeFromVisibilityEnforcementTag = (*depTagWithVisibilityEnforcementBypass)(nil)
+
+func (t depTagWithVisibilityEnforcementBypass) ExcludeFromVisibilityEnforcement() {}
+
+var dependencyTagWithVisibilityEnforcementBypass = depTagWithVisibilityEnforcementBypass{}
 
 func (f *filesystem) DepsMutator(ctx android.BottomUpMutatorContext) {
-	f.AddDeps(ctx, dependencyTag)
+	if proptools.Bool(f.properties.Is_auto_generated) {
+		f.AddDeps(ctx, dependencyTagWithVisibilityEnforcementBypass)
+	} else {
+		f.AddDeps(ctx, dependencyTag)
+	}
 }
 
 type fsType int
@@ -198,6 +218,10 @@ const (
 	unknown
 )
 
+func (fs fsType) IsUnknown() bool {
+	return fs == unknown
+}
+
 type FilesystemInfo struct {
 	// A text file containing the list of paths installed on the partition.
 	FileListFile android.Path
@@ -205,8 +229,7 @@ type FilesystemInfo struct {
 
 var FilesystemProvider = blueprint.NewProvider[FilesystemInfo]()
 
-func (f *filesystem) fsType(ctx android.ModuleContext) fsType {
-	typeStr := proptools.StringDefault(f.properties.Type, "ext4")
+func GetFsTypeFromString(ctx android.EarlyModuleContext, typeStr string) fsType {
 	switch typeStr {
 	case "ext4":
 		return ext4Type
@@ -217,9 +240,17 @@ func (f *filesystem) fsType(ctx android.ModuleContext) fsType {
 	case "cpio":
 		return cpioType
 	default:
-		ctx.PropertyErrorf("type", "%q not supported", typeStr)
 		return unknown
 	}
+}
+
+func (f *filesystem) fsType(ctx android.ModuleContext) fsType {
+	typeStr := proptools.StringDefault(f.properties.Type, "ext4")
+	fsType := GetFsTypeFromString(ctx, typeStr)
+	if fsType == unknown {
+		ctx.PropertyErrorf("type", "%q not supported", typeStr)
+	}
+	return fsType
 }
 
 func (f *filesystem) installFileName() string {
@@ -233,7 +264,7 @@ func (f *filesystem) partitionName() string {
 func (f *filesystem) filterInstallablePackagingSpec(ps android.PackagingSpec) bool {
 	// Filesystem module respects the installation semantic. A PackagingSpec from a module with
 	// IsSkipInstall() is skipped.
-	return !ps.SkipInstall()
+	return !ps.SkipInstall() && (ps.Partition() == f.PartitionType())
 }
 
 var pctx = android.NewPackageContext("android/soong/filesystem")

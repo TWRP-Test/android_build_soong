@@ -52,6 +52,7 @@ bootstrap_go_package {
         "defs.go",
         "depset_generic.go",
         "deptag.go",
+        "dirgroup.go",
         "early_module_context.go",
         "expand.go",
         "filegroup.go",

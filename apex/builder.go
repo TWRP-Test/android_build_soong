@@ -253,10 +253,10 @@ var (
 
 	apexHostVerifierRule = pctx.StaticRule("apexHostVerifierRule", blueprint.RuleParams{
 		Command: `${host_apex_verifier} --deapexer=${deapexer} --debugfs=${debugfs_static} ` +
-			`--fsckerofs=${fsck_erofs} --apex=${in} && touch ${out}`,
+			`--fsckerofs=${fsck_erofs} --apex=${in} --partition_tag=${partition_tag} && touch ${out}`,
 		CommandDeps: []string{"${host_apex_verifier}", "${deapexer}", "${debugfs_static}", "${fsck_erofs}"},
 		Description: "run host_apex_verifier",
-	})
+	}, "partition_tag")
 
 	assembleVintfRule = pctx.StaticRule("assembleVintfRule", blueprint.RuleParams{
 		Command:     `rm -f $out && VINTF_IGNORE_TARGET_FCM_VERSION=true ${assemble_vintf} -i $in -o $out`,
@@ -621,7 +621,8 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 				}
 			} else {
 				if installSymbolFiles {
-					installedPath = ctx.InstallFile(apexDir.Join(ctx, fi.installDir), fi.stem(), fi.builtFile)
+					// store installedPath. symlinks might be created if required.
+					installedPath = apexDir.Join(ctx, fi.installDir, fi.stem())
 				}
 			}
 
@@ -964,7 +965,7 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 			runApexElfCheckerUnwanted(ctx, unsignedOutputFile.OutputPath, a.properties.Unwanted_transitive_deps))
 	}
 	if !a.testApex && android.InList(a.payloadFsType, []fsType{ext4, erofs}) {
-		validations = append(validations, runApexHostVerifier(ctx, unsignedOutputFile.OutputPath))
+		validations = append(validations, runApexHostVerifier(ctx, a, unsignedOutputFile.OutputPath))
 	}
 	ctx.Build(pctx, android.BuildParams{
 		Rule:        rule,
@@ -1275,12 +1276,15 @@ func runApexElfCheckerUnwanted(ctx android.ModuleContext, apexFile android.Outpu
 	return timestamp
 }
 
-func runApexHostVerifier(ctx android.ModuleContext, apexFile android.OutputPath) android.Path {
+func runApexHostVerifier(ctx android.ModuleContext, a *apexBundle, apexFile android.OutputPath) android.Path {
 	timestamp := android.PathForModuleOut(ctx, "host_apex_verifier.timestamp")
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   apexHostVerifierRule,
 		Input:  apexFile,
 		Output: timestamp,
+		Args: map[string]string{
+			"partition_tag": a.PartitionTag(ctx.DeviceConfig()),
+		},
 	})
 	return timestamp
 }

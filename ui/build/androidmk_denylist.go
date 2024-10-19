@@ -16,6 +16,8 @@ package build
 
 import (
 	"strings"
+
+	"android/soong/android"
 )
 
 var androidmk_denylist []string = []string{
@@ -63,4 +65,30 @@ func blockAndroidMks(ctx Context, androidMks []string) {
 			}
 		}
 	}
+}
+
+// The Android.mk files in these directories are for NDK build system.
+var external_ndk_androidmks []string = []string{
+	"external/fmtlib/",
+	"external/google-breakpad/",
+	"external/googletest/",
+	"external/libaom/",
+	"external/libusb/",
+	"external/libvpx/",
+	"external/libwebm/",
+	"external/libwebsockets/",
+	"external/vulkan-validation-layers/",
+	"external/walt/",
+	"external/webp/",
+}
+
+func ignoreNdkAndroidMks(androidMks []string) []string {
+	return android.FilterListPred(androidMks, func(s string) bool {
+		for _, d := range external_ndk_androidmks {
+			if strings.HasPrefix(s, d) {
+				return false
+			}
+		}
+		return true
+	})
 }

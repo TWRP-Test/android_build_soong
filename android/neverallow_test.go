@@ -359,6 +359,21 @@ var neverallowTests = []struct {
 			`headers_only can only be used for generating framework-minus-apex headers for non-updatable modules`,
 		},
 	},
+	// Test for the rule restricting use of is_auto_generated
+	{
+		name: `"is_auto_generated" outside allowed directory`,
+		fs: map[string][]byte{
+			"a/b/Android.bp": []byte(`
+				filesystem {
+					name: "baaz",
+					is_auto_generated: true,
+				}
+			`),
+		},
+		expectedErrors: []string{
+			`is_auto_generated property is only allowed for filesystem modules in build/soong/fsgen directory`,
+		},
+	},
 }
 
 var prepareForNeverAllowTest = GroupFixturePreparers(
@@ -367,6 +382,7 @@ var prepareForNeverAllowTest = GroupFixturePreparers(
 		ctx.RegisterModuleType("java_library", newMockJavaLibraryModule)
 		ctx.RegisterModuleType("java_library_host", newMockJavaLibraryModule)
 		ctx.RegisterModuleType("java_device_for_host", newMockJavaLibraryModule)
+		ctx.RegisterModuleType("filesystem", newMockFilesystemModule)
 	}),
 )
 

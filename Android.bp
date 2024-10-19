@@ -147,6 +147,16 @@ all_apex_contributions {
 // Framework guests.
 cc_defaults {
     name: "cc_baremetal_defaults",
+    arch: {
+        arm64: {
+            cflags: [
+                // Prevent the compiler from optimizing code using SVE, as the
+                // baremetal environment might not have configured the hardware.
+                "-Xclang -target-feature",
+                "-Xclang -sve",
+            ],
+        },
+    },
     defaults_visibility: ["//visibility:public"],
 }
 
@@ -161,10 +171,11 @@ build_prop {
     name: "system-build.prop",
     stem: "build.prop",
     product_config: ":product_config",
-    // Currently, only microdroid and cf system image can refer to system-build.prop
+    // Currently, only microdroid, Ravenwood, and cf system image can refer to system-build.prop
     visibility: [
         "//build/make/target/product/generic",
         "//packages/modules/Virtualization/build/microdroid",
+        "//frameworks/base/ravenwood",
     ],
 }
 

@@ -2454,7 +2454,7 @@ func (al *ApiLibrary) ideDeps(ctx android.BaseModuleContext) []string {
 	ret := []string{}
 	ret = append(ret, al.properties.Libs.GetOrDefault(ctx, nil)...)
 	ret = append(ret, al.properties.Static_libs.GetOrDefault(ctx, nil)...)
-	if al.properties.System_modules != nil {
+	if proptools.StringDefault(al.properties.System_modules, "none") != "none" {
 		ret = append(ret, proptools.String(al.properties.System_modules))
 	}
 	// Other non java_library dependencies like java_api_contribution are ignored for now.
@@ -3343,7 +3343,7 @@ func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 	if sdkLib != nil {
 		optional := false
 		if module, ok := ctx.Module().(ModuleWithUsesLibrary); ok {
-			if android.InList(*sdkLib, module.UsesLibrary().usesLibraryProperties.Optional_uses_libs) {
+			if android.InList(*sdkLib, module.UsesLibrary().usesLibraryProperties.Optional_uses_libs.GetOrDefault(ctx, nil)) {
 				optional = true
 			}
 		}

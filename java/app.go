@@ -30,7 +30,6 @@ import (
 	"android/soong/android"
 	"android/soong/cc"
 	"android/soong/dexpreopt"
-	"android/soong/genrule"
 	"android/soong/tradefed"
 )
 
@@ -679,7 +678,7 @@ func (a *AndroidApp) dexBuildActions(ctx android.ModuleContext) (android.Path, a
 		a.dexProperties.Uncompress_dex = proptools.BoolPtr(a.shouldUncompressDex(ctx))
 	}
 	a.dexpreopter.uncompressedDex = *a.dexProperties.Uncompress_dex
-	a.dexpreopter.enforceUsesLibs = a.usesLibrary.enforceUsesLibraries()
+	a.dexpreopter.enforceUsesLibs = a.usesLibrary.enforceUsesLibraries(ctx)
 	a.dexpreopter.classLoaderContexts = a.classLoaderContexts
 	a.dexpreopter.manifestFile = a.mergedManifestFile
 	a.dexpreopter.preventInstall = a.appProperties.PreventInstall
@@ -908,10 +907,10 @@ func (a *AndroidApp) generateAndroidBuildActions(ctx android.ModuleContext) {
 	// Process all building blocks, from AAPT to certificates.
 	a.aaptBuildActions(ctx)
 	// The decision to enforce <uses-library> checks is made before adding implicit SDK libraries.
-	a.usesLibrary.freezeEnforceUsesLibraries()
+	a.usesLibrary.freezeEnforceUsesLibraries(ctx)
 
 	// Check that the <uses-library> list is coherent with the manifest.
-	if a.usesLibrary.enforceUsesLibraries() {
+	if a.usesLibrary.enforceUsesLibraries(ctx) {
 		manifestCheckFile := a.usesLibrary.verifyUsesLibrariesManifest(
 			ctx, a.mergedManifestFile, &a.classLoaderContexts)
 		apkDeps = append(apkDeps, manifestCheckFile)
@@ -1333,7 +1332,7 @@ func AndroidAppFactory() android.Module {
 			Srcs:  []string{":" + a.Name() + "{.apk}"},
 			Cmd:   proptools.StringPtr("$(location characteristics_rro_generator) $$($(location aapt2) dump packagename $(in)) $(out)"),
 		}
-		ctx.CreateModule(genrule.GenRuleFactory, &rroManifestProperties)
+		ctx.CreateModule(GenRuleFactory, &rroManifestProperties)
 
 		rroProperties := struct {
 			Name           *string
@@ -1687,11 +1686,11 @@ func OverrideAndroidTestModuleFactory() android.Module {
 
 type UsesLibraryProperties struct {
 	// A list of shared library modules that will be listed in uses-library tags in the AndroidManifest.xml file.
-	Uses_libs []string
+	Uses_libs proptools.Configurable[[]string]
 
 	// A list of shared library modules that will be listed in uses-library tags in the AndroidManifest.xml file with
 	// required=false.
-	Optional_uses_libs []string
+	Optional_uses_libs proptools.Configurable[[]string]
 
 	// If true, the list of uses_libs and optional_uses_libs modules must match the AndroidManifest.xml file.  Defaults
 	// to true if either uses_libs or optional_uses_libs is set.  Will unconditionally default to true in the future.
@@ -1739,7 +1738,7 @@ type usesLibrary struct {
 
 func (u *usesLibrary) deps(ctx android.BottomUpMutatorContext, addCompatDeps bool) {
 	if !ctx.Config().UnbundledBuild() || ctx.Config().UnbundledBuildImage() {
-		ctx.AddVariationDependencies(nil, usesLibReqTag, u.usesLibraryProperties.Uses_libs...)
+		ctx.AddVariationDependencies(nil, usesLibReqTag, u.usesLibraryProperties.Uses_libs.GetOrDefault(ctx, nil)...)
 		presentOptionalUsesLibs := u.presentOptionalUsesLibs(ctx)
 		ctx.AddVariationDependencies(nil, usesLibOptTag, presentOptionalUsesLibs...)
 		// Only add these extra dependencies if the module is an app that depends on framework
@@ -1752,17 +1751,17 @@ func (u *usesLibrary) deps(ctx android.BottomUpMutatorContext, addCompatDeps boo
 			ctx.AddVariationDependencies(nil, usesLibCompat28OptTag, dexpreopt.OptionalCompatUsesLibs28...)
 			ctx.AddVariationDependencies(nil, usesLibCompat30OptTag, dexpreopt.OptionalCompatUsesLibs30...)
 		}
-		_, diff, _ := android.ListSetDifference(u.usesLibraryProperties.Optional_uses_libs, presentOptionalUsesLibs)
+		_, diff, _ := android.ListSetDifference(u.usesLibraryProperties.Optional_uses_libs.GetOrDefault(ctx, nil), presentOptionalUsesLibs)
 		u.usesLibraryProperties.Missing_optional_uses_libs = diff
 	} else {
-		ctx.AddVariationDependencies(nil, r8LibraryJarTag, u.usesLibraryProperties.Uses_libs...)
+		ctx.AddVariationDependencies(nil, r8LibraryJarTag, u.usesLibraryProperties.Uses_libs.GetOrDefault(ctx, nil)...)
 		ctx.AddVariationDependencies(nil, r8LibraryJarTag, u.presentOptionalUsesLibs(ctx)...)
 	}
 }
 
 // presentOptionalUsesLibs returns optional_uses_libs after filtering out libraries that don't exist in the source tree.
 func (u *usesLibrary) presentOptionalUsesLibs(ctx android.BaseModuleContext) []string {
-	optionalUsesLibs := android.FilterListPred(u.usesLibraryProperties.Optional_uses_libs, func(s string) bool {
+	optionalUsesLibs := android.FilterListPred(u.usesLibraryProperties.Optional_uses_libs.GetOrDefault(ctx, nil), func(s string) bool {
 		exists := ctx.OtherModuleExists(s)
 		if !exists && !android.InList(ctx.ModuleName(), ctx.Config().BuildWarningBadOptionalUsesLibsAllowlist()) {
 			fmt.Printf("Warning: Module '%s' depends on non-existing optional_uses_libs '%s'\n", ctx.ModuleName(), s)
@@ -1828,15 +1827,15 @@ func (u *usesLibrary) classLoaderContextForUsesLibDeps(ctx android.ModuleContext
 // enforceUsesLibraries returns true of <uses-library> tags should be checked against uses_libs and optional_uses_libs
 // properties.  Defaults to true if either of uses_libs or optional_uses_libs is specified.  Will default to true
 // unconditionally in the future.
-func (u *usesLibrary) enforceUsesLibraries() bool {
-	defaultEnforceUsesLibs := len(u.usesLibraryProperties.Uses_libs) > 0 ||
-		len(u.usesLibraryProperties.Optional_uses_libs) > 0
+func (u *usesLibrary) enforceUsesLibraries(ctx android.ModuleContext) bool {
+	defaultEnforceUsesLibs := len(u.usesLibraryProperties.Uses_libs.GetOrDefault(ctx, nil)) > 0 ||
+		len(u.usesLibraryProperties.Optional_uses_libs.GetOrDefault(ctx, nil)) > 0
 	return BoolDefault(u.usesLibraryProperties.Enforce_uses_libs, u.enforce || defaultEnforceUsesLibs)
 }
 
 // Freeze the value of `enforce_uses_libs` based on the current values of `uses_libs` and `optional_uses_libs`.
-func (u *usesLibrary) freezeEnforceUsesLibraries() {
-	enforce := u.enforceUsesLibraries()
+func (u *usesLibrary) freezeEnforceUsesLibraries(ctx android.ModuleContext) {
+	enforce := u.enforceUsesLibraries(ctx)
 	u.usesLibraryProperties.Enforce_uses_libs = &enforce
 }
 

@@ -139,3 +139,15 @@ func FileGroupDefaultsFactory() Module {
 
 	return module
 }
+
+// Collect information for opening IDE project files in java/jdeps.go.
+// Copied from build/soong/genrule/genrule.go
+func (fg *fileGroup) IDEInfo(ctx BaseModuleContext, dpInfo *IdeInfo) {
+	dpInfo.Srcs = append(dpInfo.Srcs, fg.Srcs().Strings()...)
+	for _, src := range fg.properties.Srcs.GetOrDefault(ctx, nil) {
+		if mod, _ := SrcIsModuleWithTag(src); mod != "" {
+			// Register the module name without any tags in `Deps`
+			dpInfo.Deps = append(dpInfo.Deps, mod)
+		}
+	}
+}

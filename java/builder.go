@@ -301,7 +301,7 @@ var (
 
 	gatherReleasedFlaggedApisRule = pctx.AndroidStaticRule("gatherReleasedFlaggedApisRule",
 		blueprint.RuleParams{
-			Command: `${aconfig} dump-cache --dedup --format='{fully_qualified_name}={state:bool}' ` +
+			Command: `${aconfig} dump-cache --dedup --format='{fully_qualified_name}' ` +
 				`--out ${out} ` +
 				`${flags_path} ` +
 				`${filter_args} `,

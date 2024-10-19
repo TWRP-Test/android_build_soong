@@ -11860,3 +11860,42 @@ func TestApexSSCPJarMustBeInSamePartitionAsApex(t *testing.T) {
 		dexpreopt.FixtureSetApexSystemServerJars("myapex:foo"),
 	)
 }
+
+// partitions should not package the artifacts that are included inside the apex.
+func TestFilesystemWithApexDeps(t *testing.T) {
+	t.Parallel()
+	result := testApex(t, `
+		android_filesystem {
+			name: "myfilesystem",
+			deps: ["myapex"],
+		}
+		apex {
+			name: "myapex",
+			key: "myapex.key",
+			binaries: ["binfoo"],
+			native_shared_libs: ["libfoo"],
+			apps: ["appfoo"],
+			updatable: false,
+		}
+		apex_key {
+			name: "myapex.key",
+		}
+		cc_binary {
+			name: "binfoo",
+			apex_available: ["myapex"],
+		}
+		cc_library {
+			name: "libfoo",
+			apex_available: ["myapex"],
+		}
+		android_app {
+			name: "appfoo",
+			sdk_version: "current",
+			apex_available: ["myapex"],
+		}
+	`, filesystem.PrepareForTestWithFilesystemBuildComponents)
+
+	partition := result.ModuleForTests("myfilesystem", "android_common")
+	fileList := android.ContentFromFileRuleForTests(t, result, partition.Output("fileList"))
+	android.AssertDeepEquals(t, "filesystem with apex", "apex/myapex.apex\n", fileList)
+}

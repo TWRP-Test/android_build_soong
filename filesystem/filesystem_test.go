@@ -584,3 +584,28 @@ func TestErofsPartition(t *testing.T) {
 	android.AssertStringDoesContain(t, "erofs fs type compress hint", buildImageConfig, "erofs_default_compress_hints=compress_hints.txt")
 	android.AssertStringDoesContain(t, "erofs fs type sparse", buildImageConfig, "erofs_sparse_flag=-s")
 }
+
+// If a system_ext/ module depends on system/ module, the dependency should *not*
+// be installed in system_ext/
+func TestDoNotPackageCrossPartitionDependencies(t *testing.T) {
+	result := fixture.RunTestWithBp(t, `
+		android_filesystem {
+			name: "myfilesystem",
+			deps: ["binfoo"],
+			partition_type: "system_ext",
+		}
+
+		cc_binary {
+			name: "binfoo",
+			shared_libs: ["libfoo"],
+			system_ext_specific: true,
+		}
+		cc_library_shared {
+			name: "libfoo", // installed in system/
+		}
+	`)
+
+	partition := result.ModuleForTests("myfilesystem", "android_common")
+	fileList := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("fileList"))
+	android.AssertDeepEquals(t, "filesystem with dependencies on different partition", "bin/binfoo\n", fileList)
+}

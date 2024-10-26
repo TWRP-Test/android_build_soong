@@ -1173,7 +1173,7 @@ func TestJavaLibraryOutputFiles(t *testing.T) {
 
 				filegroup {
 					name: "core-jar",
-					srcs: [":core{.jar}"],
+					device_common_srcs: [":core{.jar}"],
 				}
 		`),
 	})
@@ -1189,7 +1189,7 @@ func TestJavaImportOutputFiles(t *testing.T) {
 
 				filegroup {
 					name: "core-jar",
-					srcs: [":core{.jar}"],
+					device_common_srcs: [":core{.jar}"],
 				}
 		`),
 	})

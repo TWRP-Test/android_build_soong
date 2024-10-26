@@ -1724,7 +1724,7 @@ func TestSnapshotWithJavaSdkLibrary_DoctagFiles(t *testing.T) {
 
 		filegroup {
 			name: "mygroup",
-			srcs: [":myjavalib{.doctags}"],
+			device_common_srcs: [":myjavalib{.doctags}"],
 		}
 	`)
 

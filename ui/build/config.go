@@ -68,7 +68,6 @@ type Config struct{ *configImpl }
 
 type configImpl struct {
 	// Some targets that are implemented in soong_build
-	// (bp2build, json-module-graph) are not here and have their own bits below.
 	arguments     []string
 	goma          bool
 	environ       *Environment
@@ -83,7 +82,6 @@ type configImpl struct {
 	checkbuild               bool
 	dist                     bool
 	jsonModuleGraph          bool
-	queryview                bool
 	reportMkMetrics          bool // Collect and report mk2bp migration progress metrics.
 	soongDocs                bool
 	skipConfig               bool
@@ -911,8 +909,6 @@ func (c *configImpl) parseArgs(ctx Context, args []string) {
 			c.dist = true
 		} else if arg == "json-module-graph" {
 			c.jsonModuleGraph = true
-		} else if arg == "queryview" {
-			c.queryview = true
 		} else if arg == "soong_docs" {
 			c.soongDocs = true
 		} else {
@@ -1007,7 +1003,7 @@ func (c *configImpl) SoongBuildInvocationNeeded() bool {
 		return true
 	}
 
-	if !c.JsonModuleGraph() && !c.Queryview() && !c.SoongDocs() {
+	if !c.JsonModuleGraph() && !c.SoongDocs() {
 		// Command line was empty, the default Ninja target is built
 		return true
 	}
@@ -1080,10 +1076,6 @@ func (c *configImpl) SoongDocsHtml() string {
 	return shared.JoinPath(c.SoongOutDir(), "docs/soong_build.html")
 }
 
-func (c *configImpl) QueryviewMarkerFile() string {
-	return shared.JoinPath(c.SoongOutDir(), "queryview.marker")
-}
-
 func (c *configImpl) ModuleGraphFile() string {
 	return shared.JoinPath(c.SoongOutDir(), "module-graph.json")
 }
@@ -1119,10 +1111,6 @@ func (c *configImpl) Dist() bool {
 
 func (c *configImpl) JsonModuleGraph() bool {
 	return c.jsonModuleGraph
-}
-
-func (c *configImpl) Queryview() bool {
-	return c.queryview
 }
 
 func (c *configImpl) SoongDocs() bool {
@@ -1341,7 +1329,7 @@ func (c *configImpl) sandboxPath(base, in string) string {
 
 func (c *configImpl) UseRBE() bool {
 	// These alternate modes of running Soong do not use RBE / reclient.
-	if c.Queryview() || c.JsonModuleGraph() {
+	if c.JsonModuleGraph() {
 		return false
 	}
 

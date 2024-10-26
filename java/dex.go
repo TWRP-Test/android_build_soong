@@ -324,20 +324,16 @@ func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams) 
 	r8Deps = append(r8Deps, flags.dexClasspath...)
 
 	transitiveStaticLibsLookupMap := map[android.Path]bool{}
-	if d.transitiveStaticLibsHeaderJarsForR8 != nil {
-		for _, jar := range d.transitiveStaticLibsHeaderJarsForR8.ToList() {
-			transitiveStaticLibsLookupMap[jar] = true
-		}
+	for _, jar := range d.transitiveStaticLibsHeaderJarsForR8.ToList() {
+		transitiveStaticLibsLookupMap[jar] = true
 	}
 	transitiveHeaderJars := android.Paths{}
-	if d.transitiveLibsHeaderJarsForR8 != nil {
-		for _, jar := range d.transitiveLibsHeaderJarsForR8.ToList() {
-			if _, ok := transitiveStaticLibsLookupMap[jar]; ok {
-				// don't include a lib if it is already packaged in the current JAR as a static lib
-				continue
-			}
-			transitiveHeaderJars = append(transitiveHeaderJars, jar)
+	for _, jar := range d.transitiveLibsHeaderJarsForR8.ToList() {
+		if _, ok := transitiveStaticLibsLookupMap[jar]; ok {
+			// don't include a lib if it is already packaged in the current JAR as a static lib
+			continue
 		}
+		transitiveHeaderJars = append(transitiveHeaderJars, jar)
 	}
 	transitiveClasspath := classpath(transitiveHeaderJars)
 	r8Flags = append(r8Flags, transitiveClasspath.FormJavaClassPath("-libraryjars"))
@@ -404,6 +400,10 @@ func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams) 
 		r8Flags = append(r8Flags, "--resource-output", d.resourcesOutput.Path().String())
 		if d.dexProperties.optimizedResourceShrinkingEnabled(ctx) {
 			r8Flags = append(r8Flags, "--optimized-resource-shrinking")
+			if Bool(d.dexProperties.Optimize.Optimized_shrink_resources) {
+				// Explicitly opted into optimized shrinking, no need for keeping R$id entries
+				r8Flags = append(r8Flags, "--force-optimized-resource-shrinking")
+			}
 		}
 	}
 

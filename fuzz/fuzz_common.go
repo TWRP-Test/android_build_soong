@@ -411,6 +411,11 @@ type FuzzProperties struct {
 	// Optional list of seed files to be installed to the fuzz target's output
 	// directory.
 	Corpus []string `android:"path"`
+
+	// Same as corpus, but adds dependencies on module references using the device's os variant
+	// and the common arch variant.
+	Device_common_corpus []string `android:"path_device_common"`
+
 	// Optional list of data files to be installed to the fuzz target's output
 	// directory. Directory structure relative to the module is preserved.
 	Data []string `android:"path"`

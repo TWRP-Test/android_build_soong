@@ -4679,3 +4679,51 @@ func TestNotApplyOverrideApexManifestDefaultVersion(t *testing.T) {
 		"--override-placeholder-version",
 	)
 }
+
+func TestResourcesWithFlagDirectories(t *testing.T) {
+	result := android.GroupFixturePreparers(
+		PrepareForTestWithJavaDefaultModules,
+		android.FixtureMergeMockFs(android.MockFS{
+			"res/flag(test.package.flag1)/values/bools.xml":                          nil,
+			"res/flag(!test.package.flag2)/values/bools.xml":                         nil,
+			"res/flag(test.package.flag1)/values-config/strings_google_services.xml": nil,
+			"res/flags(test.package.flag1)/values/strings.xml":                       nil,
+		}),
+	).RunTestWithBp(t, `
+		android_library {
+			name: "foo",
+			srcs: ["a.java"],
+			use_resource_processor: true,
+			resource_dirs: [
+				"res",
+			],
+		}
+	`)
+	fooModule := result.ModuleForTests("foo", "android_common")
+	compileOutputPaths := fooModule.Rule("aapt2Compile").Outputs.Strings()
+
+	android.AssertStringListContains(
+		t,
+		"Expected to generate flag path",
+		compileOutputPaths,
+		"out/soong/.intermediates/foo/android_common/aapt2/res/values_bools.(test.package.flag1).arsc.flat",
+	)
+	android.AssertStringListContains(
+		t,
+		"Expected to generate flag path with ! prefix in name",
+		compileOutputPaths,
+		"out/soong/.intermediates/foo/android_common/aapt2/res/values_bools.(!test.package.flag2).arsc.flat",
+	)
+	android.AssertStringListContains(
+		t,
+		"Expected to generate flag path with configs",
+		compileOutputPaths,
+		"out/soong/.intermediates/foo/android_common/aapt2/res/values-config_strings_google_services.(test.package.flag1).arsc.flat",
+	)
+	android.AssertStringListDoesNotContain(
+		t,
+		"Expected to not generate flag path with non-flag(flag_name) pattern",
+		compileOutputPaths,
+		"out/soong/.intermediates/foo/android_common/aapt2/res/values_strings.(test.package.flag1).arsc.flat",
+	)
+}

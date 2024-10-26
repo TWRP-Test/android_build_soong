@@ -182,13 +182,9 @@ func (fuzzBin *fuzzBinary) linkerDeps(ctx DepsContext, deps Deps) Deps {
 }
 
 func (fuzz *fuzzBinary) linkerFlags(ctx ModuleContext, flags Flags) Flags {
-	var subdir string
-	if ctx.isForPlatform() {
-		subdir = "lib"
-	} else if ctx.inVendor() {
+	subdir := "lib"
+	if ctx.inVendor() {
 		subdir = "lib/vendor"
-	} else {
-		ctx.ModuleErrorf("Fuzzer must be system or vendor variant")
 	}
 
 	flags = fuzz.binaryDecorator.linkerFlags(ctx, flags)
@@ -351,6 +347,7 @@ func (fuzzBin *fuzzBinary) install(ctx ModuleContext, file android.Path) {
 
 func PackageFuzzModule(ctx android.ModuleContext, fuzzPackagedModule fuzz.FuzzPackagedModule, pctx android.PackageContext) fuzz.FuzzPackagedModule {
 	fuzzPackagedModule.Corpus = android.PathsForModuleSrc(ctx, fuzzPackagedModule.FuzzProperties.Corpus)
+	fuzzPackagedModule.Corpus = append(fuzzPackagedModule.Corpus, android.PathsForModuleSrc(ctx, fuzzPackagedModule.FuzzProperties.Device_common_corpus)...)
 
 	fuzzPackagedModule.Data = android.PathsForModuleSrc(ctx, fuzzPackagedModule.FuzzProperties.Data)
 

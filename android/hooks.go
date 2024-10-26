@@ -37,6 +37,7 @@ type LoadHookContext interface {
 	AppendProperties(...interface{})
 	PrependProperties(...interface{})
 	CreateModule(ModuleFactory, ...interface{}) Module
+	CreateModuleInDirectory(ModuleFactory, string, ...interface{}) Module
 
 	registerScopedModuleType(name string, factory blueprint.ModuleFactory)
 	moduleFactories() map[string]blueprint.ModuleFactory
@@ -93,13 +94,37 @@ func (l *loadHookContext) createModule(factory blueprint.ModuleFactory, name str
 	return l.bp.CreateModule(factory, name, props...)
 }
 
+func (l *loadHookContext) createModuleInDirectory(factory blueprint.ModuleFactory, name, moduleDir string, props ...interface{}) blueprint.Module {
+	return l.bp.CreateModuleInDirectory(factory, name, moduleDir, props...)
+}
+
+type specifyDirectory struct {
+	specified bool
+	directory string
+}
+
+func doesNotSpecifyDirectory() specifyDirectory {
+	return specifyDirectory{
+		specified: false,
+		directory: "",
+	}
+}
+
+func specifiesDirectory(directory string) specifyDirectory {
+	return specifyDirectory{
+		specified: true,
+		directory: directory,
+	}
+}
+
 type createModuleContext interface {
 	Module() Module
 	HasMutatorFinished(mutatorName string) bool
 	createModule(blueprint.ModuleFactory, string, ...interface{}) blueprint.Module
+	createModuleInDirectory(blueprint.ModuleFactory, string, string, ...interface{}) blueprint.Module
 }
 
-func createModule(ctx createModuleContext, factory ModuleFactory, ext string, props ...interface{}) Module {
+func createModule(ctx createModuleContext, factory ModuleFactory, ext string, specifyDirectory specifyDirectory, props ...interface{}) Module {
 	if ctx.HasMutatorFinished("defaults") {
 		// Creating modules late is oftentimes problematic, because they don't have earlier
 		// mutators run on them. Prevent making modules after the defaults mutator has run.
@@ -119,7 +144,12 @@ func createModule(ctx createModuleContext, factory ModuleFactory, ext string, pr
 	}
 	typeName = typeName + "_" + ext
 
-	module := ctx.createModule(ModuleFactoryAdaptor(factory), typeName, append(inherited, props...)...).(Module)
+	var module Module
+	if specifyDirectory.specified {
+		module = ctx.createModuleInDirectory(ModuleFactoryAdaptor(factory), typeName, specifyDirectory.directory, append(inherited, props...)...).(Module)
+	} else {
+		module = ctx.createModule(ModuleFactoryAdaptor(factory), typeName, append(inherited, props...)...).(Module)
+	}
 
 	if ctx.Module().base().variableProperties != nil && module.base().variableProperties != nil {
 		src := ctx.Module().base().variableProperties
@@ -139,7 +169,11 @@ func createModule(ctx createModuleContext, factory ModuleFactory, ext string, pr
 }
 
 func (l *loadHookContext) CreateModule(factory ModuleFactory, props ...interface{}) Module {
-	return createModule(l, factory, "_loadHookModule", props...)
+	return createModule(l, factory, "_loadHookModule", doesNotSpecifyDirectory(), props...)
+}
+
+func (l *loadHookContext) CreateModuleInDirectory(factory ModuleFactory, directory string, props ...interface{}) Module {
+	return createModule(l, factory, "_loadHookModule", specifiesDirectory(directory), props...)
 }
 
 func (l *loadHookContext) registerScopedModuleType(name string, factory blueprint.ModuleFactory) {

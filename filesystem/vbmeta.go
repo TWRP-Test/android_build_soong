@@ -98,7 +98,7 @@ type chainedPartitionProperties struct {
 func vbmetaFactory() android.Module {
 	module := &vbmeta{}
 	module.AddProperties(&module.properties)
-	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibFirst)
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	return module
 }
 

@@ -14,44 +14,61 @@
 
 package android
 
+type ImageInterfaceContext interface {
+	ArchModuleContext
+
+	Module() Module
+
+	ModuleErrorf(fmt string, args ...interface{})
+	PropertyErrorf(property, fmt string, args ...interface{})
+
+	DeviceSpecific() bool
+	SocSpecific() bool
+	ProductSpecific() bool
+	SystemExtSpecific() bool
+	Platform() bool
+
+	Config() Config
+}
+
 // ImageInterface is implemented by modules that need to be split by the imageTransitionMutator.
 type ImageInterface interface {
 	// ImageMutatorBegin is called before any other method in the ImageInterface.
-	ImageMutatorBegin(ctx BaseModuleContext)
+	ImageMutatorBegin(ctx ImageInterfaceContext)
 
 	// VendorVariantNeeded should return true if the module needs a vendor variant (installed on the vendor image).
-	VendorVariantNeeded(ctx BaseModuleContext) bool
+	VendorVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// ProductVariantNeeded should return true if the module needs a product variant (installed on the product image).
-	ProductVariantNeeded(ctx BaseModuleContext) bool
+	ProductVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// CoreVariantNeeded should return true if the module needs a core variant (installed on the system image).
-	CoreVariantNeeded(ctx BaseModuleContext) bool
+	CoreVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// RamdiskVariantNeeded should return true if the module needs a ramdisk variant (installed on the
 	// ramdisk partition).
-	RamdiskVariantNeeded(ctx BaseModuleContext) bool
+	RamdiskVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// VendorRamdiskVariantNeeded should return true if the module needs a vendor ramdisk variant (installed on the
 	// vendor ramdisk partition).
-	VendorRamdiskVariantNeeded(ctx BaseModuleContext) bool
+	VendorRamdiskVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// DebugRamdiskVariantNeeded should return true if the module needs a debug ramdisk variant (installed on the
 	// debug ramdisk partition: $(PRODUCT_OUT)/debug_ramdisk).
-	DebugRamdiskVariantNeeded(ctx BaseModuleContext) bool
+	DebugRamdiskVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// RecoveryVariantNeeded should return true if the module needs a recovery variant (installed on the
 	// recovery partition).
-	RecoveryVariantNeeded(ctx BaseModuleContext) bool
+	RecoveryVariantNeeded(ctx ImageInterfaceContext) bool
 
 	// ExtraImageVariations should return a list of the additional variations needed for the module.  After the
 	// variants are created the SetImageVariation method will be called on each newly created variant with the
 	// its variation.
-	ExtraImageVariations(ctx BaseModuleContext) []string
+	ExtraImageVariations(ctx ImageInterfaceContext) []string
 
 	// SetImageVariation is called for each newly created image variant. The receiver is the original
 	// module, "variation" is the name of the newly created variant. "variation" is set on the receiver.
-	SetImageVariation(ctx BaseModuleContext, variation string)
+	SetImageVariation(ctx ImageInterfaceContext, variation string)
 }
 
 const (

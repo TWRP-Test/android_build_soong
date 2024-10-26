@@ -26,9 +26,9 @@ import (
 	"strings"
 
 	"android/soong/remoteexec"
-	"android/soong/testing"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/depset"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
@@ -242,10 +242,10 @@ type ProguardSpecInfo struct {
 	// TransitiveDepsProguardSpecFiles is a depset of paths to proguard flags files that are exported from
 	// all transitive deps. This list includes all proguard flags files from transitive static dependencies,
 	// and all proguard flags files from transitive libs dependencies which set `export_proguard_spec: true`.
-	ProguardFlagsFiles *android.DepSet[android.Path]
+	ProguardFlagsFiles depset.DepSet[android.Path]
 
 	// implementation detail to store transitive proguard flags files from exporting shared deps
-	UnconditionallyExportedProguardFlags *android.DepSet[android.Path]
+	UnconditionallyExportedProguardFlags depset.DepSet[android.Path]
 }
 
 var ProguardSpecInfoProvider = blueprint.NewProvider[ProguardSpecInfo]()
@@ -260,19 +260,19 @@ type JavaInfo struct {
 	RepackagedHeaderJars android.Paths
 
 	// set of header jars for all transitive libs deps
-	TransitiveLibsHeaderJarsForR8 *android.DepSet[android.Path]
+	TransitiveLibsHeaderJarsForR8 depset.DepSet[android.Path]
 
 	// set of header jars for all transitive static libs deps
-	TransitiveStaticLibsHeaderJarsForR8 *android.DepSet[android.Path]
+	TransitiveStaticLibsHeaderJarsForR8 depset.DepSet[android.Path]
 
 	// depset of header jars for this module and all transitive static dependencies
-	TransitiveStaticLibsHeaderJars *android.DepSet[android.Path]
+	TransitiveStaticLibsHeaderJars depset.DepSet[android.Path]
 
 	// depset of implementation jars for this module and all transitive static dependencies
-	TransitiveStaticLibsImplementationJars *android.DepSet[android.Path]
+	TransitiveStaticLibsImplementationJars depset.DepSet[android.Path]
 
 	// depset of resource jars for this module and all transitive static dependencies
-	TransitiveStaticLibsResourceJars *android.DepSet[android.Path]
+	TransitiveStaticLibsResourceJars depset.DepSet[android.Path]
 
 	// ImplementationAndResourceJars is a list of jars that contain the implementations of classes
 	// in the module as well as any resources included in the module.
@@ -300,7 +300,7 @@ type JavaInfo struct {
 	SrcJarDeps android.Paths
 
 	// The source files of this module and all its transitive static dependencies.
-	TransitiveSrcFiles *android.DepSet[android.Path]
+	TransitiveSrcFiles depset.DepSet[android.Path]
 
 	// ExportedPlugins is a list of paths that should be used as annotation processors for any
 	// module that depends on this module.
@@ -586,9 +586,9 @@ type deps struct {
 
 	disableTurbine bool
 
-	transitiveStaticLibsHeaderJars         []*android.DepSet[android.Path]
-	transitiveStaticLibsImplementationJars []*android.DepSet[android.Path]
-	transitiveStaticLibsResourceJars       []*android.DepSet[android.Path]
+	transitiveStaticLibsHeaderJars         []depset.DepSet[android.Path]
+	transitiveStaticLibsImplementationJars []depset.DepSet[android.Path]
+	transitiveStaticLibsResourceJars       []depset.DepSet[android.Path]
 }
 
 func checkProducesJars(ctx android.ModuleContext, dep android.SourceFileProducer) {
@@ -1291,6 +1291,32 @@ type testProperties struct {
 	// the test
 	Data []string `android:"path"`
 
+	// Same as data, but will add dependencies on modules using the device's os variation and
+	// the common arch variation. Useful for a host test that wants to embed a module built for
+	// device.
+	Device_common_data []string `android:"path_device_common"`
+
+	// same as data, but adds dependencies using the device's os variation and the device's first
+	// architecture's variation. Can be used to add a module built for device to the data of a
+	// host test.
+	Device_first_data []string `android:"path_device_first"`
+
+	// same as data, but adds dependencies using the device's os variation, the device's first
+	// architecture's variation, and the vendor image variation. Can be used to add a module built
+	// for device to the data of a host test.
+	Device_first_vendor_data []string `android:"path_device_first_vendor"`
+
+	// same as data, but adds dependencies using the device's os variation, the device's first
+	// architecture's variation, the vendor image variation, and the shared linkage variation. Can
+	// be used to add a module built for device to the data of a host test.
+	Device_first_vendor_shared_data []string `android:"path_device_first_vendor_shared"`
+
+	// same as data, but adds dependencies using the device's os variation and the device's first
+	// 32-bit architecture's variation. If a 32-bit arch doesn't exist for this device, it will use
+	// a 64 bit arch instead. Can be used to add a module built for device to the data of a
+	// host test.
+	Device_first_prefer32_data []string `android:"path_device_first_prefer32"`
+
 	// Flag to indicate whether or not to create test config automatically. If AndroidTest.xml
 	// doesn't exist next to the Android.bp, this attribute doesn't need to be set to true
 	// explicitly.
@@ -1541,7 +1567,6 @@ func (j *TestHost) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 
 	j.Test.generateAndroidBuildActionsWithConfig(ctx, configs)
-	android.SetProvider(ctx, testing.TestModuleProviderKey, testing.TestModuleProviderData{})
 	android.SetProvider(ctx, tradefed.BaseTestProviderKey, tradefed.BaseTestProviderData{
 		InstalledFiles:      j.data,
 		OutputFile:          j.outputFile,
@@ -1557,7 +1582,6 @@ func (j *TestHost) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 func (j *Test) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	checkMinSdkVersionMts(ctx, j.MinSdkVersion(ctx))
 	j.generateAndroidBuildActionsWithConfig(ctx, nil)
-	android.SetProvider(ctx, testing.TestModuleProviderKey, testing.TestModuleProviderData{})
 }
 
 func (j *Test) generateAndroidBuildActionsWithConfig(ctx android.ModuleContext, configs []tradefed.Config) {
@@ -1581,6 +1605,11 @@ func (j *Test) generateAndroidBuildActionsWithConfig(ctx android.ModuleContext, 
 	})
 
 	j.data = android.PathsForModuleSrc(ctx, j.testProperties.Data)
+	j.data = append(j.data, android.PathsForModuleSrc(ctx, j.testProperties.Device_common_data)...)
+	j.data = append(j.data, android.PathsForModuleSrc(ctx, j.testProperties.Device_first_data)...)
+	j.data = append(j.data, android.PathsForModuleSrc(ctx, j.testProperties.Device_first_prefer32_data)...)
+	j.data = append(j.data, android.PathsForModuleSrc(ctx, j.testProperties.Device_first_vendor_data)...)
+	j.data = append(j.data, android.PathsForModuleSrc(ctx, j.testProperties.Device_first_vendor_shared_data)...)
 
 	j.extraTestConfigs = android.PathsForModuleSrc(ctx, j.testProperties.Test_options.Extra_test_configs)
 
@@ -2396,8 +2425,8 @@ func (al *ApiLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	android.SetProvider(ctx, JavaInfoProvider, &JavaInfo{
 		HeaderJars:                             android.PathsIfNonNil(al.stubsJar),
 		LocalHeaderJars:                        android.PathsIfNonNil(al.stubsJar),
-		TransitiveStaticLibsHeaderJars:         android.NewDepSet(android.PREORDER, android.PathsIfNonNil(al.stubsJar), nil),
-		TransitiveStaticLibsImplementationJars: android.NewDepSet(android.PREORDER, android.PathsIfNonNil(al.stubsJar), nil),
+		TransitiveStaticLibsHeaderJars:         depset.New(depset.PREORDER, android.PathsIfNonNil(al.stubsJar), nil),
+		TransitiveStaticLibsImplementationJars: depset.New(depset.PREORDER, android.PathsIfNonNil(al.stubsJar), nil),
 		ImplementationAndResourcesJars:         android.PathsIfNonNil(al.stubsJar),
 		ImplementationJars:                     android.PathsIfNonNil(al.stubsJar),
 		AidlIncludeDirs:                        android.Paths{},
@@ -2661,11 +2690,11 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	var flags javaBuilderFlags
 
-	var transitiveClasspathHeaderJars []*android.DepSet[android.Path]
-	var transitiveBootClasspathHeaderJars []*android.DepSet[android.Path]
-	var transitiveStaticLibsHeaderJars []*android.DepSet[android.Path]
-	var transitiveStaticLibsImplementationJars []*android.DepSet[android.Path]
-	var transitiveStaticLibsResourceJars []*android.DepSet[android.Path]
+	var transitiveClasspathHeaderJars []depset.DepSet[android.Path]
+	var transitiveBootClasspathHeaderJars []depset.DepSet[android.Path]
+	var transitiveStaticLibsHeaderJars []depset.DepSet[android.Path]
+	var transitiveStaticLibsImplementationJars []depset.DepSet[android.Path]
+	var transitiveStaticLibsResourceJars []depset.DepSet[android.Path]
 
 	j.collectTransitiveHeaderJarsForR8(ctx)
 	var staticJars android.Paths
@@ -2678,29 +2707,19 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 			case libTag, sdkLibTag:
 				flags.classpath = append(flags.classpath, dep.HeaderJars...)
 				flags.dexClasspath = append(flags.dexClasspath, dep.HeaderJars...)
-				if dep.TransitiveStaticLibsHeaderJars != nil {
-					transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
-				}
+				transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
 			case staticLibTag:
 				flags.classpath = append(flags.classpath, dep.HeaderJars...)
 				staticJars = append(staticJars, dep.ImplementationJars...)
 				staticResourceJars = append(staticResourceJars, dep.ResourceJars...)
 				staticHeaderJars = append(staticHeaderJars, dep.HeaderJars...)
-				if dep.TransitiveStaticLibsHeaderJars != nil {
-					transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
-					transitiveStaticLibsHeaderJars = append(transitiveStaticLibsHeaderJars, dep.TransitiveStaticLibsHeaderJars)
-				}
-				if dep.TransitiveStaticLibsImplementationJars != nil {
-					transitiveStaticLibsImplementationJars = append(transitiveStaticLibsImplementationJars, dep.TransitiveStaticLibsImplementationJars)
-				}
-				if dep.TransitiveStaticLibsResourceJars != nil {
-					transitiveStaticLibsResourceJars = append(transitiveStaticLibsResourceJars, dep.TransitiveStaticLibsResourceJars)
-				}
+				transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
+				transitiveStaticLibsHeaderJars = append(transitiveStaticLibsHeaderJars, dep.TransitiveStaticLibsHeaderJars)
+				transitiveStaticLibsImplementationJars = append(transitiveStaticLibsImplementationJars, dep.TransitiveStaticLibsImplementationJars)
+				transitiveStaticLibsResourceJars = append(transitiveStaticLibsResourceJars, dep.TransitiveStaticLibsResourceJars)
 			case bootClasspathTag:
 				flags.bootClasspath = append(flags.bootClasspath, dep.HeaderJars...)
-				if dep.TransitiveStaticLibsHeaderJars != nil {
-					transitiveBootClasspathHeaderJars = append(transitiveBootClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
-				}
+				transitiveBootClasspathHeaderJars = append(transitiveBootClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
 			}
 		} else if _, ok := android.OtherModuleProvider(ctx, module, SdkLibraryInfoProvider); ok {
 			switch tag {
@@ -2725,9 +2744,9 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		false, j.properties.Exclude_files, j.properties.Exclude_dirs)
 	localStrippedJars := android.Paths{localCombinedHeaderJar}
 
-	completeStaticLibsHeaderJars := android.NewDepSet(android.PREORDER, localStrippedJars, transitiveStaticLibsHeaderJars)
-	completeStaticLibsImplementationJars := android.NewDepSet(android.PREORDER, localStrippedJars, transitiveStaticLibsImplementationJars)
-	completeStaticLibsResourceJars := android.NewDepSet(android.PREORDER, nil, transitiveStaticLibsResourceJars)
+	completeStaticLibsHeaderJars := depset.New(depset.PREORDER, localStrippedJars, transitiveStaticLibsHeaderJars)
+	completeStaticLibsImplementationJars := depset.New(depset.PREORDER, localStrippedJars, transitiveStaticLibsImplementationJars)
+	completeStaticLibsResourceJars := depset.New(depset.PREORDER, nil, transitiveStaticLibsResourceJars)
 
 	// Always pass the input jars to TransformJarsToJar, even if there is only a single jar, we need the output
 	// file of the module to be named jarName.
@@ -2788,8 +2807,8 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 		// Enabling jetifier requires modifying classes from transitive dependencies, disable transitive
 		// classpath and use the combined header jar instead.
-		completeStaticLibsHeaderJars = android.NewDepSet(android.PREORDER, android.Paths{headerJar}, nil)
-		completeStaticLibsImplementationJars = android.NewDepSet(android.PREORDER, android.Paths{outputFile}, nil)
+		completeStaticLibsHeaderJars = depset.New(depset.PREORDER, android.Paths{headerJar}, nil)
+		completeStaticLibsImplementationJars = depset.New(depset.PREORDER, android.Paths{outputFile}, nil)
 	}
 
 	implementationJarFile := outputFile

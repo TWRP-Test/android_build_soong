@@ -217,3 +217,39 @@ func TestFileSystemCreatorDepsWithNamespace(t *testing.T) {
 		"//c/d:bar",
 	)
 }
+
+func TestRemoveOverriddenModulesFromDeps(t *testing.T) {
+	result := android.GroupFixturePreparers(
+		android.PrepareForIntegrationTestWithAndroid,
+		android.PrepareForTestWithAndroidBuildComponents,
+		android.PrepareForTestWithAllowMissingDependencies,
+		prepareForTestWithFsgenBuildComponents,
+		java.PrepareForTestWithJavaBuildComponents,
+		android.FixtureMergeMockFs(android.MockFS{
+			"external/avb/test/data/testkey_rsa4096.pem": nil,
+			"build/soong/fsgen/Android.bp": []byte(`
+			soong_filesystem_creator {
+				name: "foo",
+			}
+			`),
+		}),
+		android.FixtureModifyConfig(func(config android.Config) {
+			config.TestProductVariables.PartitionVarsForSoongMigrationOnlyDoNotUse.ProductPackages = []string{"libfoo", "libbar"}
+		}),
+	).RunTestWithBp(t, `
+java_library {
+	name: "libfoo",
+}
+java_library {
+	name: "libbar",
+	required: ["libbaz"],
+}
+java_library {
+	name: "libbaz",
+	overrides: ["libfoo"], // overrides libfoo
+}
+	`)
+	resolvedSystemDeps := result.TestContext.Config().Get(fsGenStateOnceKey).(*FsGenState).fsDeps["system"]
+	_, libFooInDeps := (*resolvedSystemDeps)["libfoo"]
+	android.AssertBoolEquals(t, "libfoo should not appear in deps because it has been overridden by libbaz. The latter is a required dep of libbar, which is listed in PRODUCT_PACKAGES", false, libFooInDeps)
+}

@@ -18,8 +18,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"android/soong/testing"
-
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 
@@ -120,6 +118,16 @@ type TestProperties struct {
 	// the test.
 	Data []string `android:"path,arch_variant"`
 
+	// same as data, but adds dependencies using the device's os variation and the common
+	// architecture's variation. Can be used to add a module built for device to the data of a
+	// host test.
+	Device_common_data []string `android:"path_device_common"`
+
+	// same as data, but adds dependencies using the device's os variation and the device's first
+	// architecture's variation. Can be used to add a module built for device to the data of a
+	// host test.
+	Device_first_data []string `android:"path_device_first"`
+
 	// Add RootTargetPreparer to auto generated test config. This guarantees the test to run
 	// with root permission.
 	Require_root *bool
@@ -210,41 +218,41 @@ func (s *ShBinary) Symlinks() []string {
 
 var _ android.ImageInterface = (*ShBinary)(nil)
 
-func (s *ShBinary) ImageMutatorBegin(ctx android.BaseModuleContext) {}
+func (s *ShBinary) ImageMutatorBegin(ctx android.ImageInterfaceContext) {}
 
-func (s *ShBinary) VendorVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) VendorVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return s.InstallInVendor()
 }
 
-func (s *ShBinary) ProductVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) ProductVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return s.InstallInProduct()
 }
 
-func (s *ShBinary) CoreVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) CoreVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return !s.InstallInRecovery() && !s.InstallInRamdisk() && !s.InstallInVendorRamdisk() && !s.ModuleBase.InstallInVendor()
 }
 
-func (s *ShBinary) RamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) RamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(s.properties.Ramdisk_available) || s.InstallInRamdisk()
 }
 
-func (s *ShBinary) VendorRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) VendorRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(s.properties.Vendor_ramdisk_available) || s.InstallInVendorRamdisk()
 }
 
-func (s *ShBinary) DebugRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) DebugRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (s *ShBinary) RecoveryVariantNeeded(ctx android.BaseModuleContext) bool {
+func (s *ShBinary) RecoveryVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(s.properties.Recovery_available) || s.InstallInRecovery()
 }
 
-func (s *ShBinary) ExtraImageVariations(ctx android.BaseModuleContext) []string {
+func (s *ShBinary) ExtraImageVariations(ctx android.ImageInterfaceContext) []string {
 	return nil
 }
 
-func (s *ShBinary) SetImageVariation(ctx android.BaseModuleContext, variation string) {
+func (s *ShBinary) SetImageVariation(ctx android.ImageInterfaceContext, variation string) {
 	s.properties.ImageVariation = variation
 }
 
@@ -407,6 +415,8 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	s.ShBinary.generateAndroidBuildActions(ctx)
 
 	expandedData := android.PathsForModuleSrc(ctx, s.testProperties.Data)
+	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, s.testProperties.Device_common_data)...)
+	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, s.testProperties.Device_first_data)...)
 	// Emulate the data property for java_data dependencies.
 	for _, javaData := range ctx.GetDirectDepsWithTag(shTestJavaDataTag) {
 		expandedData = append(expandedData, android.OutputFilesForModule(ctx, javaData, "")...)
@@ -498,8 +508,6 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	installedData := ctx.InstallTestData(s.installDir, s.data)
 	s.installedFile = ctx.InstallExecutable(s.installDir, s.outputFilePath.Base(), s.outputFilePath, installedData...)
-
-	android.SetProvider(ctx, testing.TestModuleProviderKey, testing.TestModuleProviderData{})
 }
 
 func (s *ShTest) InstallInData() bool {

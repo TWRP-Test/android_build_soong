@@ -25,14 +25,15 @@ import (
 	"android/soong/dexpreopt"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/depset"
 	"github.com/google/blueprint/proptools"
 )
 
 type AndroidLibraryDependency interface {
 	ExportPackage() android.Path
-	ResourcesNodeDepSet() *android.DepSet[*resourcesNode]
-	RRODirsDepSet() *android.DepSet[rroDir]
-	ManifestsDepSet() *android.DepSet[android.Path]
+	ResourcesNodeDepSet() depset.DepSet[*resourcesNode]
+	RRODirsDepSet() depset.DepSet[rroDir]
+	ManifestsDepSet() depset.DepSet[android.Path]
 	SetRROEnforcedForDependent(enforce bool)
 	IsRROEnforced(ctx android.BaseModuleContext) bool
 }
@@ -136,9 +137,9 @@ type aapt struct {
 
 	aaptProperties aaptProperties
 
-	resourcesNodesDepSet *android.DepSet[*resourcesNode]
-	rroDirsDepSet        *android.DepSet[rroDir]
-	manifestsDepSet      *android.DepSet[android.Path]
+	resourcesNodesDepSet depset.DepSet[*resourcesNode]
+	rroDirsDepSet        depset.DepSet[rroDir]
+	manifestsDepSet      depset.DepSet[android.Path]
 
 	manifestValues struct {
 		applicationId string
@@ -232,15 +233,15 @@ func (a *aapt) filterProduct() string {
 func (a *aapt) ExportPackage() android.Path {
 	return a.exportPackage
 }
-func (a *aapt) ResourcesNodeDepSet() *android.DepSet[*resourcesNode] {
+func (a *aapt) ResourcesNodeDepSet() depset.DepSet[*resourcesNode] {
 	return a.resourcesNodesDepSet
 }
 
-func (a *aapt) RRODirsDepSet() *android.DepSet[rroDir] {
+func (a *aapt) RRODirsDepSet() depset.DepSet[rroDir] {
 	return a.rroDirsDepSet
 }
 
-func (a *aapt) ManifestsDepSet() *android.DepSet[android.Path] {
+func (a *aapt) ManifestsDepSet() depset.DepSet[android.Path] {
 	return a.manifestsDepSet
 }
 
@@ -639,7 +640,7 @@ func (a *aapt) buildActions(ctx android.ModuleContext, opts aaptBuildActionOptio
 	a.extraAaptPackagesFile = extraPackages
 	a.rTxt = rTxt
 	a.splits = splits
-	a.resourcesNodesDepSet = android.NewDepSetBuilder[*resourcesNode](android.TOPOLOGICAL).
+	a.resourcesNodesDepSet = depset.NewBuilder[*resourcesNode](depset.TOPOLOGICAL).
 		Direct(&resourcesNode{
 			resPackage:          a.exportPackage,
 			manifest:            a.manifestPath,
@@ -651,10 +652,10 @@ func (a *aapt) buildActions(ctx android.ModuleContext, opts aaptBuildActionOptio
 			usedResourceProcessor: a.useResourceProcessorBusyBox(ctx),
 		}).
 		Transitive(staticResourcesNodesDepSet).Build()
-	a.rroDirsDepSet = android.NewDepSetBuilder[rroDir](android.TOPOLOGICAL).
+	a.rroDirsDepSet = depset.NewBuilder[rroDir](depset.TOPOLOGICAL).
 		Direct(rroDirs...).
 		Transitive(staticRRODirsDepSet).Build()
-	a.manifestsDepSet = android.NewDepSetBuilder[android.Path](android.TOPOLOGICAL).
+	a.manifestsDepSet = depset.NewBuilder[android.Path](depset.TOPOLOGICAL).
 		Direct(a.manifestPath).
 		DirectSlice(additionalManifests).
 		Transitive(staticManifestsDepSet).Build()
@@ -773,8 +774,8 @@ func (t transitiveAarDeps) assets() android.Paths {
 // aaptLibs collects libraries from dependencies and sdk_version and converts them into paths
 func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 	classLoaderContexts dexpreopt.ClassLoaderContextMap, usesLibrary *usesLibrary) (
-	staticResourcesNodes, sharedResourcesNodes *android.DepSet[*resourcesNode], staticRRODirs *android.DepSet[rroDir],
-	staticManifests *android.DepSet[android.Path], sharedLibs android.Paths, flags []string) {
+	staticResourcesNodes, sharedResourcesNodes depset.DepSet[*resourcesNode], staticRRODirs depset.DepSet[rroDir],
+	staticManifests depset.DepSet[android.Path], sharedLibs android.Paths, flags []string) {
 
 	if classLoaderContexts == nil {
 		// Not all callers need to compute class loader context, those who don't just pass nil.
@@ -787,10 +788,10 @@ func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 		sharedLibs = append(sharedLibs, sdkDep.jars...)
 	}
 
-	var staticResourcesNodeDepSets []*android.DepSet[*resourcesNode]
-	var sharedResourcesNodeDepSets []*android.DepSet[*resourcesNode]
-	rroDirsDepSetBuilder := android.NewDepSetBuilder[rroDir](android.TOPOLOGICAL)
-	manifestsDepSetBuilder := android.NewDepSetBuilder[android.Path](android.TOPOLOGICAL)
+	var staticResourcesNodeDepSets []depset.DepSet[*resourcesNode]
+	var sharedResourcesNodeDepSets []depset.DepSet[*resourcesNode]
+	rroDirsDepSetBuilder := depset.NewBuilder[rroDir](depset.TOPOLOGICAL)
+	manifestsDepSetBuilder := depset.NewBuilder[android.Path](depset.TOPOLOGICAL)
 
 	ctx.VisitDirectDeps(func(module android.Module) {
 		depTag := ctx.OtherModuleDependencyTag(module)
@@ -834,9 +835,9 @@ func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 	// dependencies) the highest priority dependency is listed first, but for resources the highest priority
 	// dependency has to be listed last.  This is also inconsistent with the way manifests from the same
 	// transitive dependencies are merged.
-	staticResourcesNodes = android.NewDepSet(android.TOPOLOGICAL, nil,
+	staticResourcesNodes = depset.New(depset.TOPOLOGICAL, nil,
 		android.ReverseSliceInPlace(staticResourcesNodeDepSets))
-	sharedResourcesNodes = android.NewDepSet(android.TOPOLOGICAL, nil,
+	sharedResourcesNodes = depset.New(depset.TOPOLOGICAL, nil,
 		android.ReverseSliceInPlace(sharedResourcesNodeDepSets))
 
 	staticRRODirs = rroDirsDepSetBuilder.Build()
@@ -1064,8 +1065,8 @@ type AARImport struct {
 	rTxt                               android.Path
 	rJar                               android.Path
 
-	resourcesNodesDepSet *android.DepSet[*resourcesNode]
-	manifestsDepSet      *android.DepSet[android.Path]
+	resourcesNodesDepSet depset.DepSet[*resourcesNode]
+	manifestsDepSet      depset.DepSet[android.Path]
 
 	hideApexVariantFromMake bool
 
@@ -1111,15 +1112,15 @@ var _ AndroidLibraryDependency = (*AARImport)(nil)
 func (a *AARImport) ExportPackage() android.Path {
 	return a.exportPackage
 }
-func (a *AARImport) ResourcesNodeDepSet() *android.DepSet[*resourcesNode] {
+func (a *AARImport) ResourcesNodeDepSet() depset.DepSet[*resourcesNode] {
 	return a.resourcesNodesDepSet
 }
 
-func (a *AARImport) RRODirsDepSet() *android.DepSet[rroDir] {
-	return android.NewDepSet[rroDir](android.TOPOLOGICAL, nil, nil)
+func (a *AARImport) RRODirsDepSet() depset.DepSet[rroDir] {
+	return depset.New[rroDir](depset.TOPOLOGICAL, nil, nil)
 }
 
-func (a *AARImport) ManifestsDepSet() *android.DepSet[android.Path] {
+func (a *AARImport) ManifestsDepSet() depset.DepSet[android.Path] {
 	return a.manifestsDepSet
 }
 
@@ -1233,13 +1234,13 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	proguardFlags := extractedAARDir.Join(ctx, "proguard.txt")
 	transitiveProguardFlags, transitiveUnconditionalExportedFlags := collectDepProguardSpecInfo(ctx)
 	android.SetProvider(ctx, ProguardSpecInfoProvider, ProguardSpecInfo{
-		ProguardFlagsFiles: android.NewDepSet[android.Path](
-			android.POSTORDER,
+		ProguardFlagsFiles: depset.New[android.Path](
+			depset.POSTORDER,
 			android.Paths{proguardFlags},
 			transitiveProguardFlags,
 		),
-		UnconditionallyExportedProguardFlags: android.NewDepSet[android.Path](
-			android.POSTORDER,
+		UnconditionallyExportedProguardFlags: depset.New[android.Path](
+			depset.POSTORDER,
 			nil,
 			transitiveUnconditionalExportedFlags,
 		),
@@ -1320,7 +1321,7 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	aapt2ExtractExtraPackages(ctx, extraAaptPackagesFile, a.rJar)
 	a.extraAaptPackagesFile = extraAaptPackagesFile
 
-	resourcesNodesDepSetBuilder := android.NewDepSetBuilder[*resourcesNode](android.TOPOLOGICAL)
+	resourcesNodesDepSetBuilder := depset.NewBuilder[*resourcesNode](depset.TOPOLOGICAL)
 	resourcesNodesDepSetBuilder.Direct(&resourcesNode{
 		resPackage: a.exportPackage,
 		manifest:   a.manifest,
@@ -1333,7 +1334,7 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	resourcesNodesDepSetBuilder.Transitive(staticResourcesNodesDepSet)
 	a.resourcesNodesDepSet = resourcesNodesDepSetBuilder.Build()
 
-	manifestDepSetBuilder := android.NewDepSetBuilder[android.Path](android.TOPOLOGICAL).Direct(a.manifest)
+	manifestDepSetBuilder := depset.NewBuilder[android.Path](depset.TOPOLOGICAL).Direct(a.manifest)
 	manifestDepSetBuilder.Transitive(staticManifestsDepSet)
 	a.manifestsDepSet = manifestDepSetBuilder.Build()
 
@@ -1352,9 +1353,9 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	var staticJars android.Paths
 	var staticHeaderJars android.Paths
 	var staticResourceJars android.Paths
-	var transitiveStaticLibsHeaderJars []*android.DepSet[android.Path]
-	var transitiveStaticLibsImplementationJars []*android.DepSet[android.Path]
-	var transitiveStaticLibsResourceJars []*android.DepSet[android.Path]
+	var transitiveStaticLibsHeaderJars []depset.DepSet[android.Path]
+	var transitiveStaticLibsImplementationJars []depset.DepSet[android.Path]
+	var transitiveStaticLibsResourceJars []depset.DepSet[android.Path]
 
 	ctx.VisitDirectDeps(func(module android.Module) {
 		if dep, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
@@ -1364,24 +1365,18 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 				staticJars = append(staticJars, dep.ImplementationJars...)
 				staticHeaderJars = append(staticHeaderJars, dep.HeaderJars...)
 				staticResourceJars = append(staticResourceJars, dep.ResourceJars...)
-				if dep.TransitiveStaticLibsHeaderJars != nil {
-					transitiveStaticLibsHeaderJars = append(transitiveStaticLibsHeaderJars, dep.TransitiveStaticLibsHeaderJars)
-				}
-				if dep.TransitiveStaticLibsImplementationJars != nil {
-					transitiveStaticLibsImplementationJars = append(transitiveStaticLibsImplementationJars, dep.TransitiveStaticLibsImplementationJars)
-				}
-				if dep.TransitiveStaticLibsResourceJars != nil {
-					transitiveStaticLibsResourceJars = append(transitiveStaticLibsResourceJars, dep.TransitiveStaticLibsResourceJars)
-				}
+				transitiveStaticLibsHeaderJars = append(transitiveStaticLibsHeaderJars, dep.TransitiveStaticLibsHeaderJars)
+				transitiveStaticLibsImplementationJars = append(transitiveStaticLibsImplementationJars, dep.TransitiveStaticLibsImplementationJars)
+				transitiveStaticLibsResourceJars = append(transitiveStaticLibsResourceJars, dep.TransitiveStaticLibsResourceJars)
 			}
 		}
 		addCLCFromDep(ctx, module, a.classLoaderContexts)
 		addMissingOptionalUsesLibsFromDep(ctx, module, &a.usesLibrary)
 	})
 
-	completeStaticLibsHeaderJars := android.NewDepSet(android.PREORDER, android.Paths{classpathFile}, transitiveStaticLibsHeaderJars)
-	completeStaticLibsImplementationJars := android.NewDepSet(android.PREORDER, android.Paths{classpathFile}, transitiveStaticLibsImplementationJars)
-	completeStaticLibsResourceJars := android.NewDepSet(android.PREORDER, nil, transitiveStaticLibsResourceJars)
+	completeStaticLibsHeaderJars := depset.New(depset.PREORDER, android.Paths{classpathFile}, transitiveStaticLibsHeaderJars)
+	completeStaticLibsImplementationJars := depset.New(depset.PREORDER, android.Paths{classpathFile}, transitiveStaticLibsImplementationJars)
+	completeStaticLibsResourceJars := depset.New(depset.PREORDER, nil, transitiveStaticLibsResourceJars)
 
 	var implementationJarFile android.Path
 	var combineJars android.Paths

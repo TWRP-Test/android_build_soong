@@ -122,6 +122,7 @@ func makeVarsProvider(ctx android.MakeVarsContext) {
 	sort.Strings(exportedVendorPublicLibraries)
 	ctx.Strict("VENDOR_PUBLIC_LIBRARIES", strings.Join(exportedVendorPublicLibraries, " "))
 
+	lsdumpPaths := *lsdumpPaths(ctx.Config())
 	sort.Strings(lsdumpPaths)
 	ctx.Strict("LSDUMP_PATHS", strings.Join(lsdumpPaths, " "))
 

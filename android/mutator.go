@@ -742,8 +742,12 @@ func (b *bottomUpMutatorContext) createModule(factory blueprint.ModuleFactory, n
 	return b.bp.CreateModule(factory, name, props...)
 }
 
+func (b *bottomUpMutatorContext) createModuleInDirectory(factory blueprint.ModuleFactory, name string, _ string, props ...interface{}) blueprint.Module {
+	panic("createModuleInDirectory is not implemented for bottomUpMutatorContext")
+}
+
 func (b *bottomUpMutatorContext) CreateModule(factory ModuleFactory, props ...interface{}) Module {
-	return createModule(b, factory, "_bottomUpMutatorModule", props...)
+	return createModule(b, factory, "_bottomUpMutatorModule", doesNotSpecifyDirectory(), props...)
 }
 
 func (b *bottomUpMutatorContext) AddDependency(module blueprint.Module, tag blueprint.DependencyTag, name ...string) []blueprint.Module {

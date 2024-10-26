@@ -104,41 +104,41 @@ type libbpfProg struct {
 
 var _ android.ImageInterface = (*libbpfProg)(nil)
 
-func (libbpf *libbpfProg) ImageMutatorBegin(ctx android.BaseModuleContext) {}
+func (libbpf *libbpfProg) ImageMutatorBegin(ctx android.ImageInterfaceContext) {}
 
-func (libbpf *libbpfProg) VendorVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) VendorVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (libbpf *libbpfProg) ProductVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) ProductVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (libbpf *libbpfProg) CoreVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) CoreVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return true
 }
 
-func (libbpf *libbpfProg) RamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) RamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (libbpf *libbpfProg) VendorRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) VendorRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (libbpf *libbpfProg) DebugRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) DebugRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (libbpf *libbpfProg) RecoveryVariantNeeded(ctx android.BaseModuleContext) bool {
+func (libbpf *libbpfProg) RecoveryVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (libbpf *libbpfProg) ExtraImageVariations(ctx android.BaseModuleContext) []string {
+func (libbpf *libbpfProg) ExtraImageVariations(ctx android.ImageInterfaceContext) []string {
 	return nil
 }
 
-func (libbpf *libbpfProg) SetImageVariation(ctx android.BaseModuleContext, variation string) {
+func (libbpf *libbpfProg) SetImageVariation(ctx android.ImageInterfaceContext, variation string) {
 }
 
 func (libbpf *libbpfProg) DepsMutator(ctx android.BottomUpMutatorContext) {

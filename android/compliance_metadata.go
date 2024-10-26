@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/gobtools"
 )
 
 var (
@@ -146,11 +147,11 @@ func (m *ComplianceMetadataInfo) FromGob(data *complianceMetadataInfoGob) {
 }
 
 func (c *ComplianceMetadataInfo) GobEncode() ([]byte, error) {
-	return blueprint.CustomGobEncode[complianceMetadataInfoGob](c)
+	return gobtools.CustomGobEncode[complianceMetadataInfoGob](c)
 }
 
 func (c *ComplianceMetadataInfo) GobDecode(data []byte) error {
-	return blueprint.CustomGobDecode[complianceMetadataInfoGob](data, c)
+	return gobtools.CustomGobDecode[complianceMetadataInfoGob](data, c)
 }
 
 func (c *ComplianceMetadataInfo) SetStringValue(propertyName string, value string) {

@@ -205,3 +205,7 @@ func (m ModuleProxy) ConfigurableEvaluator(ctx ConfigurableEvaluatorContext) pro
 func (m ModuleProxy) DecodeMultilib(ctx ConfigContext) (string, string) {
 	panic("method is not implemented on ModuleProxy")
 }
+
+func (m ModuleProxy) Overrides() []string {
+	panic("method is not implemented on ModuleProxy")
+}

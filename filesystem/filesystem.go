@@ -66,7 +66,7 @@ type filesystem struct {
 	entries []string
 }
 
-type symlinkDefinition struct {
+type SymlinkDefinition struct {
 	Target *string
 	Name   *string
 }
@@ -111,7 +111,7 @@ type FilesystemProperties struct {
 	Dirs proptools.Configurable[[]string]
 
 	// Symbolic links to be created under root with "ln -sf <target> <name>".
-	Symlinks []symlinkDefinition
+	Symlinks []SymlinkDefinition
 
 	// Seconds since unix epoch to override timestamps of file entries
 	Fake_timestamp *string
@@ -264,7 +264,10 @@ func (f *filesystem) partitionName() string {
 func (f *filesystem) filterInstallablePackagingSpec(ps android.PackagingSpec) bool {
 	// Filesystem module respects the installation semantic. A PackagingSpec from a module with
 	// IsSkipInstall() is skipped.
-	return !ps.SkipInstall() && (ps.Partition() == f.PartitionType())
+	if proptools.Bool(f.properties.Is_auto_generated) { // TODO (spandandas): Remove this.
+		return !ps.SkipInstall() && (ps.Partition() == f.PartitionType())
+	}
+	return !ps.SkipInstall()
 }
 
 var pctx = android.NewPackageContext("android/soong/filesystem")

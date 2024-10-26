@@ -40,6 +40,7 @@ func (t *testClasspathElementContext) ModuleErrorf(fmt string, args ...interface
 var _ java.ClasspathElementContext = (*testClasspathElementContext)(nil)
 
 func TestCreateClasspathElements(t *testing.T) {
+	t.Parallel()
 	preparer := android.GroupFixturePreparers(
 		prepareForTestWithPlatformBootclasspath,
 		prepareForTestWithArtApex,
@@ -240,6 +241,7 @@ func TestCreateClasspathElements(t *testing.T) {
 
 	// Verify that CreateClasspathElements works when given valid input.
 	t.Run("art:baz, art:quuz, my:bar, foo", func(t *testing.T) {
+		t.Parallel()
 		ctx := newCtx()
 		elements := java.CreateClasspathElements(ctx, []android.Module{artBaz, artQuuz, myBar, platformFoo}, []android.Module{artFragment, myFragment})
 		expectedElements := java.ClasspathElements{
@@ -252,6 +254,7 @@ func TestCreateClasspathElements(t *testing.T) {
 
 	// Verify that CreateClasspathElements detects when an apex has multiple fragments.
 	t.Run("multiple fragments for same apex", func(t *testing.T) {
+		t.Parallel()
 		ctx := newCtx()
 		elements := java.CreateClasspathElements(ctx, []android.Module{}, []android.Module{artFragment, artFragment})
 		android.FailIfNoMatchingErrors(t, "apex com.android.art has multiple fragments, art-bootclasspath-fragment{.*} and art-bootclasspath-fragment{.*}", ctx.errs)
@@ -261,6 +264,7 @@ func TestCreateClasspathElements(t *testing.T) {
 
 	// Verify that CreateClasspathElements detects when a library is in multiple fragments.
 	t.Run("library from multiple fragments", func(t *testing.T) {
+		t.Parallel()
 		ctx := newCtx()
 		elements := java.CreateClasspathElements(ctx, []android.Module{other}, []android.Module{artFragment, myFragment})
 		android.FailIfNoMatchingErrors(t, "library othersdklibrary{.*} is in two separate fragments, art-bootclasspath-fragment{.*} and mybootclasspath-fragment{.*}", ctx.errs)
@@ -271,6 +275,7 @@ func TestCreateClasspathElements(t *testing.T) {
 	// Verify that CreateClasspathElements detects when a fragment's contents are not contiguous and
 	// are separated by a library from another fragment.
 	t.Run("discontiguous separated by fragment", func(t *testing.T) {
+		t.Parallel()
 		ctx := newCtx()
 		elements := java.CreateClasspathElements(ctx, []android.Module{artBaz, myBar, artQuuz, platformFoo}, []android.Module{artFragment, myFragment})
 		expectedElements := java.ClasspathElements{
@@ -285,6 +290,7 @@ func TestCreateClasspathElements(t *testing.T) {
 	// Verify that CreateClasspathElements detects when a fragment's contents are not contiguous and
 	// are separated by a standalone library.
 	t.Run("discontiguous separated by library", func(t *testing.T) {
+		t.Parallel()
 		ctx := newCtx()
 		elements := java.CreateClasspathElements(ctx, []android.Module{artBaz, platformFoo, artQuuz, myBar}, []android.Module{artFragment, myFragment})
 		expectedElements := java.ClasspathElements{
@@ -300,6 +306,7 @@ func TestCreateClasspathElements(t *testing.T) {
 	// indicates it is from an apex the supplied fragments list does not contain a fragment for that
 	// apex.
 	t.Run("no fragment for apex", func(t *testing.T) {
+		t.Parallel()
 		ctx := newCtx()
 		elements := java.CreateClasspathElements(ctx, []android.Module{artBaz, otherApexLibrary}, []android.Module{artFragment})
 		expectedElements := java.ClasspathElements{

@@ -61,41 +61,41 @@ func otacertsZipFactory() android.Module {
 
 var _ android.ImageInterface = (*otacertsZipModule)(nil)
 
-func (m *otacertsZipModule) ImageMutatorBegin(ctx android.BaseModuleContext) {}
+func (m *otacertsZipModule) ImageMutatorBegin(ctx android.ImageInterfaceContext) {}
 
-func (m *otacertsZipModule) VendorVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) VendorVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (m *otacertsZipModule) ProductVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) ProductVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (m *otacertsZipModule) CoreVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) CoreVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return !m.ModuleBase.InstallInRecovery()
 }
 
-func (m *otacertsZipModule) RamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) RamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (m *otacertsZipModule) VendorRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) VendorRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (m *otacertsZipModule) DebugRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) DebugRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (m *otacertsZipModule) RecoveryVariantNeeded(ctx android.BaseModuleContext) bool {
+func (m *otacertsZipModule) RecoveryVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(m.properties.Recovery_available) || m.ModuleBase.InstallInRecovery()
 }
 
-func (m *otacertsZipModule) ExtraImageVariations(ctx android.BaseModuleContext) []string {
+func (m *otacertsZipModule) ExtraImageVariations(ctx android.ImageInterfaceContext) []string {
 	return nil
 }
 
-func (m *otacertsZipModule) SetImageVariation(ctx android.BaseModuleContext, variation string) {
+func (m *otacertsZipModule) SetImageVariation(ctx android.ImageInterfaceContext, variation string) {
 }
 
 func (m *otacertsZipModule) InRecovery() bool {

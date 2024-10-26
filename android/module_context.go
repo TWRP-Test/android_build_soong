@@ -16,6 +16,7 @@ package android
 
 import (
 	"fmt"
+	"github.com/google/blueprint/depset"
 	"path"
 	"path/filepath"
 	"strings"
@@ -261,7 +262,7 @@ type moduleContext struct {
 	// the OutputFilesProvider in GenerateBuildActions
 	outputFiles OutputFilesInfo
 
-	TransitiveInstallFiles *DepSet[InstallPath]
+	TransitiveInstallFiles depset.DepSet[InstallPath]
 
 	// set of dependency module:location mappings used to populate the license metadata for
 	// apex containers.

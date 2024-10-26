@@ -65,6 +65,7 @@ func RegisterPrebuiltEtcBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("prebuilt_dsp", PrebuiltDSPFactory)
 	ctx.RegisterModuleType("prebuilt_rfsa", PrebuiltRFSAFactory)
 	ctx.RegisterModuleType("prebuilt_renderscript_bitcode", PrebuiltRenderScriptBitcodeFactory)
+	ctx.RegisterModuleType("prebuilt_media_audio", PrebuiltMediaAudioFactory)
 
 	ctx.RegisterModuleType("prebuilt_defaults", defaultsFactory)
 
@@ -236,30 +237,30 @@ func (p *PrebuiltEtc) InstallInRecovery() bool {
 
 var _ android.ImageInterface = (*PrebuiltEtc)(nil)
 
-func (p *PrebuiltEtc) ImageMutatorBegin(ctx android.BaseModuleContext) {}
+func (p *PrebuiltEtc) ImageMutatorBegin(ctx android.ImageInterfaceContext) {}
 
-func (p *PrebuiltEtc) VendorVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) VendorVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (p *PrebuiltEtc) ProductVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) ProductVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return false
 }
 
-func (p *PrebuiltEtc) CoreVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) CoreVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return !p.ModuleBase.InstallInRecovery() && !p.ModuleBase.InstallInRamdisk() &&
 		!p.ModuleBase.InstallInVendorRamdisk() && !p.ModuleBase.InstallInDebugRamdisk()
 }
 
-func (p *PrebuiltEtc) RamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) RamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(p.properties.Ramdisk_available) || p.ModuleBase.InstallInRamdisk()
 }
 
-func (p *PrebuiltEtc) VendorRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) VendorRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(p.properties.Vendor_ramdisk_available) || p.ModuleBase.InstallInVendorRamdisk()
 }
 
-func (p *PrebuiltEtc) DebugRamdiskVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) DebugRamdiskVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(p.properties.Debug_ramdisk_available) || p.ModuleBase.InstallInDebugRamdisk()
 }
 
@@ -267,15 +268,15 @@ func (p *PrebuiltEtc) InstallInRoot() bool {
 	return proptools.Bool(p.rootProperties.Install_in_root)
 }
 
-func (p *PrebuiltEtc) RecoveryVariantNeeded(ctx android.BaseModuleContext) bool {
+func (p *PrebuiltEtc) RecoveryVariantNeeded(ctx android.ImageInterfaceContext) bool {
 	return proptools.Bool(p.properties.Recovery_available) || p.ModuleBase.InstallInRecovery()
 }
 
-func (p *PrebuiltEtc) ExtraImageVariations(ctx android.BaseModuleContext) []string {
+func (p *PrebuiltEtc) ExtraImageVariations(ctx android.ImageInterfaceContext) []string {
 	return nil
 }
 
-func (p *PrebuiltEtc) SetImageVariation(ctx android.BaseModuleContext, variation string) {
+func (p *PrebuiltEtc) SetImageVariation(ctx android.ImageInterfaceContext, variation string) {
 }
 
 func (p *PrebuiltEtc) SourceFilePath(ctx android.ModuleContext) android.Path {
@@ -785,6 +786,16 @@ func PrebuiltRFSAFactory() android.Module {
 	InitPrebuiltEtcModule(module, "lib/rfsa")
 	// This module is device-only
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibFirst)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_media_audio installs audio files in <partition>/media/audio directory.
+func PrebuiltMediaAudioFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "media/audio")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)
 	return module
 }

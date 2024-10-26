@@ -7,6 +7,7 @@ bootstrap_go_package {
     pkgPath: "android/soong/cc",
     deps: [
         "blueprint",
+        "blueprint-depset",
         "blueprint-pathtools",
         "soong",
         "soong-aconfig",
@@ -16,7 +17,6 @@ bootstrap_go_package {
         "soong-etc",
         "soong-fuzz",
         "soong-genrule",
-        "soong-testing",
         "soong-tradefed",
     ],
     srcs: [

@@ -35,7 +35,6 @@ bootstrap_go_package {
         "blueprint",
         "blueprint-bootstrap",
         "blueprint-microfactory",
-        "soong-android",
         "soong-elf",
         "soong-finder",
         "soong-remoteexec",

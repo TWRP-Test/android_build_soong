@@ -16,8 +16,6 @@ package build
 
 import (
 	"strings"
-
-	"android/soong/android"
 )
 
 var androidmk_denylist []string = []string{
@@ -82,13 +80,21 @@ var external_ndk_androidmks []string = []string{
 	"external/webp/",
 }
 
-func ignoreNdkAndroidMks(androidMks []string) []string {
-	return android.FilterListPred(androidMks, func(s string) bool {
+func ignoreNdkAndroidMks(androidMks []string) (filtered []string) {
+	filter := func(s string) bool {
 		for _, d := range external_ndk_androidmks {
 			if strings.HasPrefix(s, d) {
 				return false
 			}
 		}
 		return true
-	})
+	}
+
+	for _, l := range androidMks {
+		if filter(l) {
+			filtered = append(filtered, l)
+		}
+	}
+
+	return
 }

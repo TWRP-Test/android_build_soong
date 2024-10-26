@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/depset"
 
 	"android/soong/android"
 	"android/soong/cc"
@@ -620,7 +621,7 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 	}
 
 	if library.static() {
-		depSet := android.NewDepSetBuilder[android.Path](android.TOPOLOGICAL).Direct(outputFile).Build()
+		depSet := depset.NewBuilder[android.Path](depset.TOPOLOGICAL).Direct(outputFile).Build()
 		android.SetProvider(ctx, cc.StaticLibraryInfoProvider, cc.StaticLibraryInfo{
 			StaticLibrary: outputFile,
 

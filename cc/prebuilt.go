@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/blueprint/depset"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
@@ -156,7 +157,7 @@ func (p *prebuiltLibraryLinker) link(ctx ModuleContext,
 		}
 
 		if p.static() {
-			depSet := android.NewDepSetBuilder[android.Path](android.TOPOLOGICAL).Direct(in).Build()
+			depSet := depset.NewBuilder[android.Path](depset.TOPOLOGICAL).Direct(in).Build()
 			android.SetProvider(ctx, StaticLibraryInfoProvider, StaticLibraryInfo{
 				StaticLibrary: in,
 

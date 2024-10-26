@@ -100,6 +100,11 @@ type BaseCompilerProperties struct {
 	// of genrule modules.
 	Generated_headers proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`
 
+	// Same as generated_headers, but the dependencies will be added based on the first supported
+	// arch variant and the device os variant. This can be useful for creating a host tool that
+	// embeds a copy of a device tool, that it then extracts and pushes to a device at runtime.
+	Device_first_generated_headers proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`
+
 	// pass -frtti instead of -fno-rtti
 	Rtti *bool `android:"arch_variant"`
 
@@ -294,6 +299,7 @@ func (compiler *baseCompiler) compilerDeps(ctx DepsContext, deps Deps) Deps {
 	deps.GeneratedSources = append(deps.GeneratedSources, compiler.Properties.Generated_sources...)
 	deps.GeneratedSources = removeListFromList(deps.GeneratedSources, compiler.Properties.Exclude_generated_sources)
 	deps.GeneratedHeaders = append(deps.GeneratedHeaders, compiler.Properties.Generated_headers.GetOrDefault(ctx, nil)...)
+	deps.DeviceFirstGeneratedHeaders = append(deps.DeviceFirstGeneratedHeaders, compiler.Properties.Device_first_generated_headers.GetOrDefault(ctx, nil)...)
 	deps.AidlLibs = append(deps.AidlLibs, compiler.Properties.Aidl.Libs...)
 
 	android.ProtoDeps(ctx, &compiler.Proto)

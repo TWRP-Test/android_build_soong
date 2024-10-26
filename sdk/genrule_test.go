@@ -23,21 +23,14 @@ import (
 )
 
 func TestSdkGenrule(t *testing.T) {
-	// Test that an sdk_genrule can depend on an sdk, and that a genrule can depend on an sdk_genrule
+	// Test that a genrule can depend on an sdk if using common_os_srcs
 	bp := `
 				sdk {
 					name: "my_sdk",
 				}
-				sdk_genrule {
-					name: "my_sdk_genrule",
-					tool_files: ["tool"],
-					cmd: "$(location tool) $(in) $(out)",
-					srcs: [":my_sdk"],
-					out: ["out"],
-				}
 				genrule {
 					name: "my_regular_genrule",
-					srcs: [":my_sdk_genrule"],
+					common_os_srcs: [":my_sdk"],
 					out: ["out"],
 					cmd: "cp $(in) $(out)",
 				}

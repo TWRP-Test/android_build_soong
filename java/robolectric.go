@@ -19,7 +19,6 @@ import (
 
 	"android/soong/android"
 	"android/soong/java/config"
-	"android/soong/testing"
 	"android/soong/tradefed"
 
 	"github.com/google/blueprint/proptools"
@@ -149,6 +148,11 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 		HostTemplate:           "${RobolectricTestConfigTemplate}",
 	})
 	r.data = android.PathsForModuleSrc(ctx, r.testProperties.Data)
+	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_common_data)...)
+	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_data)...)
+	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_prefer32_data)...)
+	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_vendor_data)...)
+	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_vendor_shared_data)...)
 
 	var ok bool
 	var instrumentedApp *AndroidApp
@@ -208,6 +212,11 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	installPath := android.PathForModuleInstall(ctx, r.BaseModuleName())
 	var installDeps android.InstallPaths
 
+	for _, data := range r.data {
+		installedData := ctx.InstallFile(installPath, data.Rel(), data)
+		installDeps = append(installDeps, installedData)
+	}
+
 	if manifest != nil {
 		r.data = append(r.data, manifest)
 		installedManifest := ctx.InstallFile(installPath, ctx.ModuleName()+"-AndroidManifest.xml", manifest)
@@ -228,11 +237,6 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	installedConfig := ctx.InstallFile(installPath, ctx.ModuleName()+".config", r.testConfig)
 	installDeps = append(installDeps, installedConfig)
 
-	for _, data := range android.PathsForModuleSrc(ctx, r.testProperties.Data) {
-		installedData := ctx.InstallFile(installPath, data.Rel(), data)
-		installDeps = append(installDeps, installedData)
-	}
-
 	soInstallPath := installPath.Join(ctx, getLibPath(r.forceArchType))
 	for _, jniLib := range collectTransitiveJniDeps(ctx) {
 		installJni := ctx.InstallFile(soInstallPath, jniLib.path.Base(), jniLib.path)
@@ -240,7 +244,6 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	}
 
 	r.installFile = ctx.InstallFile(installPath, ctx.ModuleName()+".jar", r.outputFile, installDeps...)
-	android.SetProvider(ctx, testing.TestModuleProviderKey, testing.TestModuleProviderData{})
 }
 
 func generateSameDirRoboTestConfigJar(ctx android.ModuleContext, outputFile android.ModuleOutPath) {

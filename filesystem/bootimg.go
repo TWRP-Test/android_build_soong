@@ -75,7 +75,7 @@ type bootimgProperties struct {
 
 	// Path to the private key that avbtool will use to sign this filesystem image.
 	// TODO(jiyong): allow apex_key to be specified here
-	Avb_private_key *string `android:"path"`
+	Avb_private_key *string `android:"path_device_first"`
 
 	// Hash and signing algorithm for avbtool. Default is SHA256_RSA4096.
 	Avb_algorithm *string

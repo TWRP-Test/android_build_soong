@@ -33,6 +33,7 @@ var withAconfigValidationError = android.FixtureModifyProductVariables(func(vari
 })
 
 func TestValidationAcrossContainersExportedPass(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
 		bp   string
@@ -294,6 +295,7 @@ func TestValidationAcrossContainersExportedPass(t *testing.T) {
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			android.GroupFixturePreparers(
 				java.PrepareForTestWithJavaDefaultModules,
 				cc.PrepareForTestWithCcBuildComponents,
@@ -309,6 +311,7 @@ func TestValidationAcrossContainersExportedPass(t *testing.T) {
 }
 
 func TestValidationAcrossContainersNotExportedFail(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		expectedError string
@@ -709,6 +712,7 @@ func TestValidationAcrossContainersNotExportedFail(t *testing.T) {
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			errorHandler := android.FixtureExpectsNoErrors
 			if test.expectedError != "" {
 				errorHandler = android.FixtureExpectsAtLeastOneErrorMatchingPattern(test.expectedError)
@@ -730,6 +734,7 @@ func TestValidationAcrossContainersNotExportedFail(t *testing.T) {
 }
 
 func TestValidationNotPropagateAcrossShared(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
 		bp   string
@@ -786,6 +791,7 @@ func TestValidationNotPropagateAcrossShared(t *testing.T) {
 	}
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			android.GroupFixturePreparers(
 				java.PrepareForTestWithJavaDefaultModules,
 				cc.PrepareForTestWithCcBuildComponents,

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/depset"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
@@ -101,19 +102,19 @@ type linter struct {
 }
 
 type LintDepSets struct {
-	HTML, Text, XML, Baseline *android.DepSet[android.Path]
+	HTML, Text, XML, Baseline depset.DepSet[android.Path]
 }
 
 type LintDepSetsBuilder struct {
-	HTML, Text, XML, Baseline *android.DepSetBuilder[android.Path]
+	HTML, Text, XML, Baseline *depset.Builder[android.Path]
 }
 
 func NewLintDepSetBuilder() LintDepSetsBuilder {
 	return LintDepSetsBuilder{
-		HTML:     android.NewDepSetBuilder[android.Path](android.POSTORDER),
-		Text:     android.NewDepSetBuilder[android.Path](android.POSTORDER),
-		XML:      android.NewDepSetBuilder[android.Path](android.POSTORDER),
-		Baseline: android.NewDepSetBuilder[android.Path](android.POSTORDER),
+		HTML:     depset.NewBuilder[android.Path](depset.POSTORDER),
+		Text:     depset.NewBuilder[android.Path](depset.POSTORDER),
+		XML:      depset.NewBuilder[android.Path](depset.POSTORDER),
+		Baseline: depset.NewBuilder[android.Path](depset.POSTORDER),
 	}
 }
 
@@ -128,18 +129,10 @@ func (l LintDepSetsBuilder) Direct(html, text, xml android.Path, baseline androi
 }
 
 func (l LintDepSetsBuilder) Transitive(info *LintInfo) LintDepSetsBuilder {
-	if info.TransitiveHTML != nil {
-		l.HTML.Transitive(info.TransitiveHTML)
-	}
-	if info.TransitiveText != nil {
-		l.Text.Transitive(info.TransitiveText)
-	}
-	if info.TransitiveXML != nil {
-		l.XML.Transitive(info.TransitiveXML)
-	}
-	if info.TransitiveBaseline != nil {
-		l.Baseline.Transitive(info.TransitiveBaseline)
-	}
+	l.HTML.Transitive(info.TransitiveHTML)
+	l.Text.Transitive(info.TransitiveText)
+	l.XML.Transitive(info.TransitiveXML)
+	l.Baseline.Transitive(info.TransitiveBaseline)
 	return l
 }
 
@@ -204,10 +197,10 @@ type LintInfo struct {
 	XML               android.Path
 	ReferenceBaseline android.Path
 
-	TransitiveHTML     *android.DepSet[android.Path]
-	TransitiveText     *android.DepSet[android.Path]
-	TransitiveXML      *android.DepSet[android.Path]
-	TransitiveBaseline *android.DepSet[android.Path]
+	TransitiveHTML     depset.DepSet[android.Path]
+	TransitiveText     depset.DepSet[android.Path]
+	TransitiveXML      depset.DepSet[android.Path]
+	TransitiveBaseline depset.DepSet[android.Path]
 }
 
 func (l *linter) enabled() bool {

@@ -147,6 +147,18 @@ type generatorProperties struct {
 	// list of input files
 	Srcs proptools.Configurable[[]string] `android:"path,arch_variant"`
 
+	// Same as srcs, but will add dependencies on modules via a device os variation and the device's
+	// first supported arch's variation. Can be used to add a dependency from a host genrule to
+	// a device module.
+	Device_first_srcs proptools.Configurable[[]string] `android:"path_device_first"`
+
+	// Same as srcs, but will add dependencies on modules via a device os variation and the common
+	// arch variation. Can be used to add a dependency from a host genrule to a device module.
+	Device_common_srcs proptools.Configurable[[]string] `android:"path_device_common"`
+
+	// Same as srcs, but will add dependencies on modules via a common_os os variation.
+	Common_os_srcs proptools.Configurable[[]string] `android:"path_common_os"`
+
 	// input files to exclude
 	Exclude_srcs []string `android:"path,arch_variant"`
 
@@ -289,7 +301,15 @@ func isModuleInBuildNumberAllowlist(ctx android.ModuleContext) bool {
 // approach zero; there should be no genrule action registration done directly
 // by Soong logic in the mixed-build case.
 func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
-	g.subName = ctx.ModuleSubDir()
+	// Add the variant as a suffix to the make modules to create, so that the make modules
+	// don't conflict because make doesn't know about variants. However, this causes issues with
+	// tracking required dependencies as the required property in soong is passed straight to make
+	// without accounting for these suffixes. To make it a little easier to work with, don't use
+	// a suffix for android_common variants so that java_genrules look like regular 1-variant
+	// genrules to make.
+	if ctx.ModuleSubDir() != "android_common" {
+		g.subName = ctx.ModuleSubDir()
+	}
 
 	if len(g.properties.Export_include_dirs) > 0 {
 		for _, dir := range g.properties.Export_include_dirs {
@@ -431,6 +451,9 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 	}
 	srcs := g.properties.Srcs.GetOrDefault(ctx, nil)
 	srcFiles := addLabelsForInputs("srcs", srcs, g.properties.Exclude_srcs)
+	srcFiles = append(srcFiles, addLabelsForInputs("device_first_srcs", g.properties.Device_first_srcs.GetOrDefault(ctx, nil), nil)...)
+	srcFiles = append(srcFiles, addLabelsForInputs("device_common_srcs", g.properties.Device_common_srcs.GetOrDefault(ctx, nil), nil)...)
+	srcFiles = append(srcFiles, addLabelsForInputs("common_os_srcs", g.properties.Common_os_srcs.GetOrDefault(ctx, nil), nil)...)
 	android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: srcFiles.Strings()})
 
 	var copyFrom android.Paths
@@ -723,16 +746,22 @@ func generatorFactory(taskGenerator taskFunc, props ...interface{}) *Module {
 
 type noopImageInterface struct{}
 
-func (x noopImageInterface) ImageMutatorBegin(android.BaseModuleContext)                 {}
-func (x noopImageInterface) VendorVariantNeeded(android.BaseModuleContext) bool          { return false }
-func (x noopImageInterface) ProductVariantNeeded(android.BaseModuleContext) bool         { return false }
-func (x noopImageInterface) CoreVariantNeeded(android.BaseModuleContext) bool            { return false }
-func (x noopImageInterface) RamdiskVariantNeeded(android.BaseModuleContext) bool         { return false }
-func (x noopImageInterface) VendorRamdiskVariantNeeded(android.BaseModuleContext) bool   { return false }
-func (x noopImageInterface) DebugRamdiskVariantNeeded(android.BaseModuleContext) bool    { return false }
-func (x noopImageInterface) RecoveryVariantNeeded(android.BaseModuleContext) bool        { return false }
-func (x noopImageInterface) ExtraImageVariations(ctx android.BaseModuleContext) []string { return nil }
-func (x noopImageInterface) SetImageVariation(ctx android.BaseModuleContext, variation string) {
+func (x noopImageInterface) ImageMutatorBegin(android.ImageInterfaceContext)         {}
+func (x noopImageInterface) VendorVariantNeeded(android.ImageInterfaceContext) bool  { return false }
+func (x noopImageInterface) ProductVariantNeeded(android.ImageInterfaceContext) bool { return false }
+func (x noopImageInterface) CoreVariantNeeded(android.ImageInterfaceContext) bool    { return false }
+func (x noopImageInterface) RamdiskVariantNeeded(android.ImageInterfaceContext) bool { return false }
+func (x noopImageInterface) VendorRamdiskVariantNeeded(android.ImageInterfaceContext) bool {
+	return false
+}
+func (x noopImageInterface) DebugRamdiskVariantNeeded(android.ImageInterfaceContext) bool {
+	return false
+}
+func (x noopImageInterface) RecoveryVariantNeeded(android.ImageInterfaceContext) bool { return false }
+func (x noopImageInterface) ExtraImageVariations(ctx android.ImageInterfaceContext) []string {
+	return nil
+}
+func (x noopImageInterface) SetImageVariation(ctx android.ImageInterfaceContext, variation string) {
 }
 
 func NewGenSrcs() *Module {

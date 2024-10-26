@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/gobtools"
 	"github.com/google/blueprint/pathtools"
 )
 
@@ -368,11 +369,11 @@ func (p *OptionalPath) FromGob(data *optionalPathGob) {
 }
 
 func (p OptionalPath) GobEncode() ([]byte, error) {
-	return blueprint.CustomGobEncode[optionalPathGob](&p)
+	return gobtools.CustomGobEncode[optionalPathGob](&p)
 }
 
 func (p *OptionalPath) GobDecode(data []byte) error {
-	return blueprint.CustomGobDecode[optionalPathGob](data, p)
+	return gobtools.CustomGobDecode[optionalPathGob](data, p)
 }
 
 // Valid returns whether there is a valid path
@@ -1157,11 +1158,11 @@ func (p *basePath) FromGob(data *basePathGob) {
 }
 
 func (p basePath) GobEncode() ([]byte, error) {
-	return blueprint.CustomGobEncode[basePathGob](&p)
+	return gobtools.CustomGobEncode[basePathGob](&p)
 }
 
 func (p *basePath) GobDecode(data []byte) error {
-	return blueprint.CustomGobDecode[basePathGob](data, p)
+	return gobtools.CustomGobDecode[basePathGob](data, p)
 }
 
 func (p basePath) Ext() string {
@@ -1435,11 +1436,11 @@ func (p *OutputPath) FromGob(data *outputPathGob) {
 }
 
 func (p OutputPath) GobEncode() ([]byte, error) {
-	return blueprint.CustomGobEncode[outputPathGob](&p)
+	return gobtools.CustomGobEncode[outputPathGob](&p)
 }
 
 func (p *OutputPath) GobDecode(data []byte) error {
-	return blueprint.CustomGobDecode[outputPathGob](data, p)
+	return gobtools.CustomGobDecode[outputPathGob](data, p)
 }
 
 func (p OutputPath) withRel(rel string) OutputPath {
@@ -1869,11 +1870,11 @@ func (p *InstallPath) FromGob(data *installPathGob) {
 }
 
 func (p InstallPath) GobEncode() ([]byte, error) {
-	return blueprint.CustomGobEncode[installPathGob](&p)
+	return gobtools.CustomGobEncode[installPathGob](&p)
 }
 
 func (p *InstallPath) GobDecode(data []byte) error {
-	return blueprint.CustomGobDecode[installPathGob](data, p)
+	return gobtools.CustomGobDecode[installPathGob](data, p)
 }
 
 // Will panic if called from outside a test environment.

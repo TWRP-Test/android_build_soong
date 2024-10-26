@@ -47,6 +47,7 @@ func TestLibbpfProgDataDependency(t *testing.T) {
 
 		cc_test {
 			name: "vts_test_binary_bpf_module",
+			compile_multilib: "first",
 			srcs: ["BpfTest.cpp"],
 			data: [":bpf.o"],
 			gtest: false,

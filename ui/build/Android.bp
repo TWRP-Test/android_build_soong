@@ -37,6 +37,7 @@ bootstrap_go_package {
         "blueprint-microfactory",
         "soong-elf",
         "soong-finder",
+        "soong-finder-fs",
         "soong-remoteexec",
         "soong-shared",
         "soong-ui-build-paths",

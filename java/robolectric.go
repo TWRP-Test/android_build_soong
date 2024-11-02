@@ -151,8 +151,6 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_common_data)...)
 	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_data)...)
 	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_prefer32_data)...)
-	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_vendor_data)...)
-	r.data = append(r.data, android.PathsForModuleSrc(ctx, r.testProperties.Device_first_vendor_shared_data)...)
 
 	var ok bool
 	var instrumentedApp *AndroidApp

@@ -72,6 +72,9 @@ var (
 
 		// Warnings disabled by default.
 
+		// We should encourage use of C23 features even when the whole project
+		// isn't C23-ready.
+		"-Wno-c23-extensions",
 		// Designated initializer syntax is recommended by the Google C++ style
 		// and is OK to use even if not formally supported by the chosen C++
 		// version.

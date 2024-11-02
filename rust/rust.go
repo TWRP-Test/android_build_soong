@@ -974,6 +974,7 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			// side dependencies. In particular, proc-macros need to be captured in the
 			// host snapshot.
 			mod.HideFromMake()
+			mod.SkipInstall()
 		} else if !mod.installable(apexInfo) {
 			mod.SkipInstall()
 		}

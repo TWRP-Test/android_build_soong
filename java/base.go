@@ -67,19 +67,19 @@ type CommonProperties struct {
 	Exclude_java_resource_dirs []string `android:"arch_variant"`
 
 	// list of files to use as Java resources
-	Java_resources []string `android:"path,arch_variant"`
+	Java_resources proptools.Configurable[[]string] `android:"path,arch_variant"`
 
 	// list of files that should be excluded from java_resources and java_resource_dirs
 	Exclude_java_resources []string `android:"path,arch_variant"`
 
 	// Same as java_resources, but modules added here will use the device variant. Can be useful
 	// for making a host test that tests the contents of a device built app.
-	Device_common_java_resources []string `android:"path_device_common"`
+	Device_common_java_resources proptools.Configurable[[]string] `android:"path_device_common"`
 
 	// Same as java_resources, but modules added here will use the device's os variant and the
 	// device's first architecture variant. Can be useful for making a host test that tests the
 	// contents of a native device built app.
-	Device_first_java_resources []string `android:"path_device_first"`
+	Device_first_java_resources proptools.Configurable[[]string] `android:"path_device_first"`
 
 	// list of module-specific flags that will be used for javac compiles
 	Javacflags []string `android:"arch_variant"`
@@ -1495,9 +1495,9 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 
 	dirArgs, dirDeps := ResourceDirsToJarArgs(ctx, j.properties.Java_resource_dirs,
 		j.properties.Exclude_java_resource_dirs, j.properties.Exclude_java_resources)
-	fileArgs, fileDeps := ResourceFilesToJarArgs(ctx, j.properties.Java_resources, j.properties.Exclude_java_resources)
-	fileArgs2, fileDeps2 := ResourceFilesToJarArgs(ctx, j.properties.Device_common_java_resources, nil)
-	fileArgs3, fileDeps3 := ResourceFilesToJarArgs(ctx, j.properties.Device_first_java_resources, nil)
+	fileArgs, fileDeps := ResourceFilesToJarArgs(ctx, j.properties.Java_resources.GetOrDefault(ctx, nil), j.properties.Exclude_java_resources)
+	fileArgs2, fileDeps2 := ResourceFilesToJarArgs(ctx, j.properties.Device_common_java_resources.GetOrDefault(ctx, nil), nil)
+	fileArgs3, fileDeps3 := ResourceFilesToJarArgs(ctx, j.properties.Device_first_java_resources.GetOrDefault(ctx, nil), nil)
 	fileArgs = slices.Concat(fileArgs, fileArgs2, fileArgs3)
 	fileDeps = slices.Concat(fileDeps, fileDeps2, fileDeps3)
 	extraArgs, extraDeps := resourcePathsToJarArgs(j.extraResources), j.extraResources

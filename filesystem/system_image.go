@@ -59,42 +59,9 @@ func (s *systemImage) buildLinkerConfigFile(ctx android.ModuleContext, root andr
 	input := android.PathForModuleSrc(ctx, android.String(s.properties.Linker_config_src))
 	output := root.Join(ctx, "system", "etc", "linker.config.pb")
 
-	// we need "Module"s for packaging items
-	modulesInPackageByModule := make(map[android.Module]bool)
-	modulesInPackageByName := make(map[string]bool)
-
-	deps := s.gatherFilteredPackagingSpecs(ctx)
-	ctx.WalkDeps(func(child, parent android.Module) bool {
-		for _, ps := range android.OtherModuleProviderOrDefault(
-			ctx, child, android.InstallFilesProvider).PackagingSpecs {
-			if _, ok := deps[ps.RelPathInPackage()]; ok {
-				modulesInPackageByModule[child] = true
-				modulesInPackageByName[child.Name()] = true
-				return true
-			}
-		}
-		return true
-	})
-
-	provideModules := make([]android.Module, 0, len(modulesInPackageByModule))
-	for mod := range modulesInPackageByModule {
-		provideModules = append(provideModules, mod)
-	}
-
-	var requireModules []android.Module
-	ctx.WalkDeps(func(child, parent android.Module) bool {
-		_, parentInPackage := modulesInPackageByModule[parent]
-		_, childInPackageName := modulesInPackageByName[child.Name()]
-
-		// When parent is in the package, and child (or its variant) is not, this can be from an interface.
-		if parentInPackage && !childInPackageName {
-			requireModules = append(requireModules, child)
-		}
-		return true
-	})
-
+	provideModules, requireModules := s.getLibsForLinkerConfig(ctx)
 	builder := android.NewRuleBuilder(pctx, ctx)
-	linkerconfig.BuildLinkerConfig(ctx, builder, input, provideModules, requireModules, output)
+	linkerconfig.BuildLinkerConfig(ctx, builder, android.Paths{input}, provideModules, requireModules, output)
 	builder.Build("conv_linker_config", "Generate linker config protobuf "+output.String())
 	return output
 }

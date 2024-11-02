@@ -342,6 +342,7 @@ type ProductVariables struct {
 	VendorPath           *string `json:",omitempty"`
 	BuildingVendorImage  *bool   `json:",omitempty"`
 	OdmPath              *string `json:",omitempty"`
+	BuildingOdmImage     *bool   `json:",omitempty"`
 	ProductPath          *string `json:",omitempty"`
 	BuildingProductImage *bool   `json:",omitempty"`
 	SystemExtPath        *string `json:",omitempty"`
@@ -522,6 +523,7 @@ type ProductVariables struct {
 	SystemExtPropFiles []string `json:",omitempty"`
 	ProductPropFiles   []string `json:",omitempty"`
 	OdmPropFiles       []string `json:",omitempty"`
+	VendorPropFiles    []string `json:",omitempty"`
 
 	EnableUffdGc *string `json:",omitempty"`
 
@@ -535,6 +537,13 @@ type ProductVariables struct {
 	ExtraAllowedDepsTxt *string `json:",omitempty"`
 
 	AdbKeys *string `json:",omitempty"`
+
+	DeviceMatrixFile       []string `json:",omitempty"`
+	ProductManifestFiles   []string `json:",omitempty"`
+	SystemManifestFile     []string `json:",omitempty"`
+	SystemExtManifestFiles []string `json:",omitempty"`
+	DeviceManifestFiles    []string `json:",omitempty"`
+	OdmManifestFiles       []string `json:",omitempty"`
 }
 
 type PartitionQualifiedVariablesType struct {
@@ -591,8 +600,10 @@ type PartitionVariables struct {
 
 	BoardAvbEnable bool `json:",omitempty"`
 
-	ProductPackages      []string `json:",omitempty"`
-	ProductPackagesDebug []string `json:",omitempty"`
+	ProductPackages         []string `json:",omitempty"`
+	ProductPackagesDebug    []string `json:",omitempty"`
+	VendorLinkerConfigSrcs  []string `json:",omitempty"`
+	ProductLinkerConfigSrcs []string `json:",omitempty"`
 
 	ProductCopyFiles map[string]string `json:",omitempty"`
 }

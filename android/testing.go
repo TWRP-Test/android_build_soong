@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1150,6 +1151,30 @@ func AndroidMkEntriesForTest(t *testing.T, ctx *TestContext, mod blueprint.Modul
 		entriesList[i].fillInEntries(ctx, mod)
 	}
 	return entriesList
+}
+
+func AndroidMkInfoForTest(t *testing.T, ctx *TestContext, mod blueprint.Module) *AndroidMkProviderInfo {
+	if runtime.GOOS == "darwin" && mod.(Module).base().Os() != Darwin {
+		// The AndroidMkInfo provider is not set in this case.
+		t.Skip("AndroidMkInfo provider is not set on darwin")
+	}
+
+	t.Helper()
+	var ok bool
+	if _, ok = mod.(AndroidMkProviderInfoProducer); !ok {
+		t.Errorf("module does not implement AndroidMkProviderInfoProducer: " + mod.Name())
+	}
+
+	info := OtherModuleProviderOrDefault(ctx, mod, AndroidMkInfoProvider)
+	aconfigUpdateAndroidMkInfos(ctx, mod.(Module), info)
+	info.PrimaryInfo.fillInEntries(ctx, mod)
+	if len(info.ExtraInfo) > 0 {
+		for _, ei := range info.ExtraInfo {
+			ei.fillInEntries(ctx, mod)
+		}
+	}
+
+	return info
 }
 
 func AndroidMkDataForTest(t *testing.T, ctx *TestContext, mod blueprint.Module) AndroidMkData {

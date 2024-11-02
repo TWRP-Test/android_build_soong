@@ -213,7 +213,6 @@ func (v *vbmeta) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	ctx.InstallFile(v.installDir, v.installFileName(), v.output)
 
 	ctx.SetOutputFiles([]android.Path{v.output}, "")
-	android.SetProvider(ctx, android.AndroidMkInfoProvider, v.prepareAndroidMKProviderInfo())
 }
 
 // Returns the embedded shell command that prints the rollback index
@@ -266,7 +265,9 @@ func (v *vbmeta) extractPublicKeys(ctx android.ModuleContext) map[string]android
 	return result
 }
 
-func (v *vbmeta) prepareAndroidMKProviderInfo() *android.AndroidMkProviderInfo {
+var _ android.AndroidMkProviderInfoProducer = (*vbmeta)(nil)
+
+func (v *vbmeta) PrepareAndroidMKProviderInfo(config android.Config) *android.AndroidMkProviderInfo {
 	providerData := android.AndroidMkProviderInfo{
 		PrimaryInfo: android.AndroidMkInfo{
 			Class:      "ETC",

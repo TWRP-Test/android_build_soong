@@ -52,16 +52,12 @@ func addPathDepsForProps(ctx BottomUpMutatorContext, props []interface{}) {
 	var pathProperties []string
 	var pathDeviceFirstProperties []string
 	var pathDeviceFirstPrefer32Properties []string
-	var pathDeviceFirstVendorProperties []string
-	var pathDeviceFirstVendorSharedProperties []string
 	var pathDeviceCommonProperties []string
 	var pathCommonOsProperties []string
 	for _, ps := range props {
 		pathProperties = append(pathProperties, taggedPropertiesForPropertyStruct(ctx, ps, "path")...)
 		pathDeviceFirstProperties = append(pathDeviceFirstProperties, taggedPropertiesForPropertyStruct(ctx, ps, "path_device_first")...)
 		pathDeviceFirstPrefer32Properties = append(pathDeviceFirstPrefer32Properties, taggedPropertiesForPropertyStruct(ctx, ps, "path_device_first_prefer32")...)
-		pathDeviceFirstVendorProperties = append(pathDeviceFirstVendorProperties, taggedPropertiesForPropertyStruct(ctx, ps, "path_device_first_vendor")...)
-		pathDeviceFirstVendorSharedProperties = append(pathDeviceFirstVendorSharedProperties, taggedPropertiesForPropertyStruct(ctx, ps, "path_device_first_vendor_shared")...)
 		pathDeviceCommonProperties = append(pathDeviceCommonProperties, taggedPropertiesForPropertyStruct(ctx, ps, "path_device_common")...)
 		pathCommonOsProperties = append(pathCommonOsProperties, taggedPropertiesForPropertyStruct(ctx, ps, "path_common_os")...)
 	}
@@ -70,8 +66,6 @@ func addPathDepsForProps(ctx BottomUpMutatorContext, props []interface{}) {
 	pathProperties = FirstUniqueStrings(pathProperties)
 	pathDeviceFirstProperties = FirstUniqueStrings(pathDeviceFirstProperties)
 	pathDeviceFirstPrefer32Properties = FirstUniqueStrings(pathDeviceFirstPrefer32Properties)
-	pathDeviceFirstVendorProperties = FirstUniqueStrings(pathDeviceFirstVendorProperties)
-	pathDeviceFirstVendorSharedProperties = FirstUniqueStrings(pathDeviceFirstVendorSharedProperties)
 	pathDeviceCommonProperties = FirstUniqueStrings(pathDeviceCommonProperties)
 	pathCommonOsProperties = FirstUniqueStrings(pathCommonOsProperties)
 
@@ -106,23 +100,6 @@ func addPathDepsForProps(ctx BottomUpMutatorContext, props []interface{}) {
 					ctx.AddVariationDependencies(targets[0].Variations(), sourceOrOutputDepTag(m, t), m)
 				}
 			}
-		}
-	}
-	// path_device_first_vendor is path_device_first + vendor variation
-	deviceFirstVendorVariations := ctx.Config().AndroidFirstDeviceTarget.Variations()
-	deviceFirstVendorVariations = append(deviceFirstVendorVariations,
-		blueprint.Variation{Mutator: "image", Variation: "vendor"})
-	for _, s := range pathDeviceFirstVendorProperties {
-		if m, t := SrcIsModuleWithTag(s); m != "" {
-			ctx.AddVariationDependencies(deviceFirstVendorVariations, sourceOrOutputDepTag(m, t), m)
-		}
-	}
-	// path_device_first_vendor_shared is path_device_first_vendor + shared linkage variation
-	deviceFirstVendorSharedVariations := append(deviceFirstVendorVariations,
-		blueprint.Variation{Mutator: "link", Variation: "shared"})
-	for _, s := range pathDeviceFirstVendorSharedProperties {
-		if m, t := SrcIsModuleWithTag(s); m != "" {
-			ctx.AddVariationDependencies(deviceFirstVendorSharedVariations, sourceOrOutputDepTag(m, t), m)
 		}
 	}
 	// properties tagged "path_device_common" get the device common variant

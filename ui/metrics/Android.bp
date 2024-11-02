@@ -21,18 +21,33 @@ bootstrap_go_package {
     pkgPath: "android/soong/ui/metrics",
     deps: [
         "golang-protobuf-proto",
+        "soong-finder-fs",
         "soong-ui-metrics_upload_proto",
         "soong-ui-metrics_proto",
         "soong-ui-mk_metrics_proto",
         "soong-shared",
     ],
     srcs: [
+        "hostinfo.go",
         "metrics.go",
         "event.go",
     ],
     testSrcs: [
         "event_test.go",
     ],
+    linux: {
+        srcs: [
+            "hostinfo_linux.go",
+        ],
+        testSrcs: [
+            "hostinfo_linux_test.go",
+        ],
+    },
+    darwin: {
+        srcs: [
+            "hostinfo_darwin.go",
+        ],
+    },
 }
 
 bootstrap_go_package {

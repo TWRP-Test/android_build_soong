@@ -21,9 +21,20 @@ import (
 	"github.com/google/blueprint"
 )
 
+// ModuleErrorContext provides only methods to report errors about the current module.
+type ModuleErrorContext interface {
+	// ModuleErrorf reports an error at the line number of the module type in the module definition.
+	ModuleErrorf(fmt string, args ...interface{})
+
+	// PropertyErrorf reports an error at the line number of a property in the module definition.
+	PropertyErrorf(property, fmt string, args ...interface{})
+}
+
 // EarlyModuleContext provides methods that can be called early, as soon as the properties have
 // been parsed into the module and before any mutators have run.
 type EarlyModuleContext interface {
+	ModuleErrorContext
+
 	// Module returns the current module as a Module.  It should rarely be necessary, as the module already has a
 	// reference to itself.
 	Module() Module
@@ -48,12 +59,6 @@ type EarlyModuleContext interface {
 
 	// Errorf reports an error at the specified position of the module definition file.
 	Errorf(pos scanner.Position, fmt string, args ...interface{})
-
-	// ModuleErrorf reports an error at the line number of the module type in the module definition.
-	ModuleErrorf(fmt string, args ...interface{})
-
-	// PropertyErrorf reports an error at the line number of a property in the module definition.
-	PropertyErrorf(property, fmt string, args ...interface{})
 
 	// OtherModulePropertyErrorf reports an error at the line number of a property in the given module definition.
 	OtherModulePropertyErrorf(module Module, property, fmt string, args ...interface{})

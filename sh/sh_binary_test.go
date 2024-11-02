@@ -294,3 +294,92 @@ func TestShTestHost_javaData(t *testing.T) {
 	actualData := entries.EntryMap["LOCAL_TEST_DATA"]
 	android.AssertStringPathsRelativeToTopEquals(t, "LOCAL_TEST_DATA", config, expectedData, actualData)
 }
+
+func TestDefaultsForTests(t *testing.T) {
+	ctx, config := testShBinary(t, `
+		sh_defaults {
+			name: "defaults",
+			src: "test.sh",
+			filename: "test.sh",
+			data: [
+				"testdata/data1",
+				"testdata/sub/data2",
+			],
+		}
+		sh_test_host {
+			name: "foo",
+			defaults: ["defaults"],
+			data: [
+				"testdata/more_data",
+			],
+			java_data: [
+				"javalib",
+			],
+		}
+
+		java_library_host {
+			name: "javalib",
+			srcs: [],
+		}
+
+		sh_test {
+			name: "sh-test",
+			defaults: ["defaults"],
+		}
+
+	`)
+	buildOS := ctx.Config().BuildOS.String()
+	mod := ctx.ModuleForTests("foo", buildOS+"_x86_64").Module().(*ShTest)
+	if !mod.Host() {
+		t.Errorf("host bit is not set for a sh_test_host module.")
+	}
+	expectedData := []string{
+		":testdata/data1",
+		":testdata/sub/data2",
+		":testdata/more_data",
+		"out/soong/.intermediates/javalib/" + buildOS + "_common/combined/:javalib.jar",
+	}
+
+	entries := android.AndroidMkEntriesForTest(t, ctx, mod)[0]
+	actualData := entries.EntryMap["LOCAL_TEST_DATA"]
+	android.AssertStringPathsRelativeToTopEquals(t, "LOCAL_TEST_DATA", config, expectedData, actualData)
+
+	// Just the defaults
+	expectedData = []string{
+		":testdata/data1",
+		":testdata/sub/data2",
+	}
+	mod = ctx.ModuleForTests("sh-test", "android_arm64_armv8-a").Module().(*ShTest)
+	entries = android.AndroidMkEntriesForTest(t, ctx, mod)[0]
+	actualData = entries.EntryMap["LOCAL_TEST_DATA"]
+	android.AssertStringPathsRelativeToTopEquals(t, "LOCAL_TEST_DATA", config, expectedData, actualData)
+}
+
+func TestDefaultsForBinaries(t *testing.T) {
+	ctx, _ := testShBinary(t, `
+		sh_defaults {
+			name: "defaults",
+			src: "test.sh",
+			filename: "test.sh",
+		}
+		sh_binary_host {
+			name: "the-host-binary",
+			defaults: ["defaults"],
+		}
+		sh_binary{
+			name: "the-binary",
+			defaults: ["defaults"],
+		}
+	`)
+	buildOS := ctx.Config().BuildOS.String()
+	mod := ctx.ModuleForTests("the-host-binary", buildOS+"_x86_64").Module().(*ShBinary)
+	if !mod.Host() {
+		t.Errorf("host bit is not set for a sh_binary_host module.")
+	}
+
+	expectedFilename := "test.sh"
+	android.AssertStringEquals(t, "Filename", expectedFilename, *mod.properties.Filename)
+
+	mod = ctx.ModuleForTests("the-binary", "android_arm64_armv8-a").Module().(*ShBinary)
+	android.AssertStringEquals(t, "Filename", expectedFilename, *mod.properties.Filename)
+}

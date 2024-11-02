@@ -164,6 +164,7 @@ product_config {
     name: "product_config",
     visibility: [
         "//build/make/target/product/generic",
+        "//build/soong/fsgen",
     ],
 }
 

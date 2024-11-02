@@ -85,6 +85,7 @@ type Module interface {
 	PartitionTag(DeviceConfig) string
 	HideFromMake()
 	IsHideFromMake() bool
+	SkipInstall()
 	IsSkipInstall() bool
 	MakeUninstallable()
 	ReplacedByPrebuilt()
@@ -543,6 +544,13 @@ type CommonTestOptions struct {
 // SetAndroidMkEntries sets AndroidMkEntries according to the value of base
 // `test_options`.
 func (t *CommonTestOptions) SetAndroidMkEntries(entries *AndroidMkEntries) {
+	entries.SetBoolIfTrue("LOCAL_IS_UNIT_TEST", Bool(t.Unit_test))
+	if len(t.Tags) > 0 {
+		entries.AddStrings("LOCAL_TEST_OPTIONS_TAGS", t.Tags...)
+	}
+}
+
+func (t *CommonTestOptions) SetAndroidMkInfoEntries(entries *AndroidMkInfo) {
 	entries.SetBoolIfTrue("LOCAL_IS_UNIT_TEST", Bool(t.Unit_test))
 	if len(t.Tags) > 0 {
 		entries.AddStrings("LOCAL_TEST_OPTIONS_TAGS", t.Tags...)
@@ -1414,6 +1422,7 @@ func (m *ModuleBase) IsSkipInstall() bool {
 func (m *ModuleBase) MakeUninstallable() {
 	m.commonProperties.UninstallableApexPlatformVariant = true
 	m.HideFromMake()
+	m.SkipInstall()
 }
 
 func (m *ModuleBase) ReplacedByPrebuilt() {
@@ -1667,7 +1676,7 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 	}
 }
 
-func determineModuleKind(m *ModuleBase, ctx blueprint.EarlyModuleContext) moduleKind {
+func determineModuleKind(m *ModuleBase, ctx ModuleErrorContext) moduleKind {
 	var socSpecific = Bool(m.commonProperties.Vendor) || Bool(m.commonProperties.Proprietary) || Bool(m.commonProperties.Soc_specific)
 	var deviceSpecific = Bool(m.commonProperties.Device_specific)
 	var productSpecific = Bool(m.commonProperties.Product_specific)
@@ -2090,6 +2099,10 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 	if h, ok := m.module.(HostToolProvider); ok {
 		SetProvider(ctx, HostToolProviderKey, HostToolProviderData{
 			HostToolPath: h.HostToolPath()})
+	}
+
+	if p, ok := m.module.(AndroidMkProviderInfoProducer); ok && !shouldSkipAndroidMkProcessing(ctx, m) {
+		SetProvider(ctx, AndroidMkInfoProvider, p.PrepareAndroidMKProviderInfo(ctx.Config()))
 	}
 }
 

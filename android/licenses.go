@@ -15,7 +15,10 @@
 package android
 
 import (
+	"fmt"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/google/blueprint"
@@ -155,7 +158,25 @@ func licensesPropertyGatherer(ctx BottomUpMutatorContext) {
 	}
 
 	licenses := getLicenses(ctx, m)
-	ctx.AddVariationDependencies(nil, licensesTag, licenses...)
+
+	var fullyQualifiedLicenseNames []string
+	for _, license := range licenses {
+		fullyQualifiedLicenseName := license
+		if !strings.HasPrefix(license, "//") {
+			licenseModuleDir := ctx.OtherModuleDir(m)
+			for licenseModuleDir != "." && !ctx.OtherModuleExists(fmt.Sprintf("//%s:%s", licenseModuleDir, license)) {
+				licenseModuleDir = filepath.Dir(licenseModuleDir)
+			}
+			if licenseModuleDir == "." {
+				fullyQualifiedLicenseName = license
+			} else {
+				fullyQualifiedLicenseName = fmt.Sprintf("//%s:%s", licenseModuleDir, license)
+			}
+		}
+		fullyQualifiedLicenseNames = append(fullyQualifiedLicenseNames, fullyQualifiedLicenseName)
+	}
+
+	ctx.AddVariationDependencies(nil, licensesTag, fullyQualifiedLicenseNames...)
 }
 
 // Verifies the license and license_kind dependencies are each the correct kind of module.

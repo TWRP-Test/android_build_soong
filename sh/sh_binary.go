@@ -45,6 +45,7 @@ func registerShBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("sh_binary_host", ShBinaryHostFactory)
 	ctx.RegisterModuleType("sh_test", ShTestFactory)
 	ctx.RegisterModuleType("sh_test_host", ShTestHostFactory)
+	ctx.RegisterModuleType("sh_defaults", ShDefaultsFactory)
 }
 
 // Test fixture preparer that will register most sh build components.
@@ -167,6 +168,7 @@ type TestProperties struct {
 
 type ShBinary struct {
 	android.ModuleBase
+	android.DefaultableModuleBase
 
 	properties shBinaryProperties
 
@@ -548,6 +550,7 @@ func ShBinaryFactory() android.Module {
 	module := &ShBinary{}
 	initShBinaryModule(module)
 	android.InitAndroidArchModule(module, android.HostAndDeviceSupported, android.MultilibFirst)
+	android.InitDefaultableModule(module)
 	return module
 }
 
@@ -557,6 +560,7 @@ func ShBinaryHostFactory() android.Module {
 	module := &ShBinary{}
 	initShBinaryModule(module)
 	android.InitAndroidArchModule(module, android.HostSupported, android.MultilibFirst)
+	android.InitDefaultableModule(module)
 	return module
 }
 
@@ -567,6 +571,7 @@ func ShTestFactory() android.Module {
 	module.AddProperties(&module.testProperties)
 
 	android.InitAndroidArchModule(module, android.HostAndDeviceSupported, android.MultilibFirst)
+	android.InitDefaultableModule(module)
 	return module
 }
 
@@ -581,6 +586,21 @@ func ShTestHostFactory() android.Module {
 	}
 
 	android.InitAndroidArchModule(module, android.HostSupported, android.MultilibFirst)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+type ShDefaults struct {
+	android.ModuleBase
+	android.DefaultsModuleBase
+}
+
+func ShDefaultsFactory() android.Module {
+	module := &ShDefaults{}
+
+	module.AddProperties(&shBinaryProperties{}, &TestProperties{})
+	android.InitDefaultsModule(module)
+
 	return module
 }
 

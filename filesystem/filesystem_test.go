@@ -664,3 +664,30 @@ cc_library {
 	fileList := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("fileList"))
 	android.AssertDeepEquals(t, "Shared library dep of overridden binary should not be installed", fileList, "bin/binfoo1\nlib64/libc++.so\nlib64/libc.so\nlib64/libdl.so\nlib64/libfoo2.so\nlib64/libm.so\n")
 }
+
+func TestInstallLinkerConfigFile(t *testing.T) {
+	result := fixture.RunTestWithBp(t, `
+android_filesystem {
+    name: "myfilesystem",
+    deps: ["libfoo_has_no_stubs", "libfoo_has_stubs"],
+    linkerconfig: {
+	    gen_linker_config: true,
+	    linker_config_srcs: ["linker.config.json"],
+    },
+    partition_type: "vendor",
+}
+cc_library {
+    name: "libfoo_has_no_stubs",
+    vendor: true,
+}
+cc_library {
+    name: "libfoo_has_stubs",
+    stubs: {symbol_file: "libfoo.map.txt"},
+    vendor: true,
+}
+	`)
+
+	linkerConfigCmd := result.ModuleForTests("myfilesystem", "android_common").Rule("build_filesystem_image").RuleParams.Command
+	android.AssertStringDoesContain(t, "Could not find linker.config.json file in cmd", linkerConfigCmd, "conv_linker_config proto --force -s linker.config.json")
+	android.AssertStringDoesContain(t, "Could not find stub in `provideLibs`", linkerConfigCmd, "--key provideLibs --value libfoo_has_stubs.so")
+}

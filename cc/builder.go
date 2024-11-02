@@ -821,7 +821,7 @@ func generateRustStaticlib(ctx android.ModuleContext, rlibDeps []RustRlibDep) an
 		return nil
 	}
 
-	output := android.PathForModuleOut(ctx, "generated_rust_staticlib", "lib"+ctx.ModuleName()+"_rust_staticlib.a")
+	output := android.PathForModuleOut(ctx, "generated_rust_staticlib", "librustlibs.a")
 	stemFile := output.ReplaceExtension(ctx, "rs")
 	crateNames := []string{}
 

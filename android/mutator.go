@@ -151,6 +151,7 @@ var preArch = []RegisterMutatorFunc{
 
 func registerArchMutator(ctx RegisterMutatorsContext) {
 	ctx.Transition("os", &osTransitionMutator{})
+	ctx.BottomUp("image_begin", imageMutatorBeginMutator)
 	ctx.Transition("image", &imageTransitionMutator{})
 	ctx.Transition("arch", &archTransitionMutator{})
 }
@@ -339,6 +340,7 @@ func (x *registerMutatorsContext) BottomUpBlueprint(name string, m blueprint.Bot
 type IncomingTransitionContext interface {
 	ArchModuleContext
 	ModuleProviderContext
+	ModuleErrorContext
 
 	// Module returns the target of the dependency edge for which the transition
 	// is being computed
@@ -537,6 +539,14 @@ func (c *incomingTransitionContextImpl) IsAddingDependency() bool {
 
 func (c *incomingTransitionContextImpl) provider(provider blueprint.AnyProviderKey) (any, bool) {
 	return c.bp.Provider(provider)
+}
+
+func (c *incomingTransitionContextImpl) ModuleErrorf(fmt string, args ...interface{}) {
+	c.bp.ModuleErrorf(fmt, args)
+}
+
+func (c *incomingTransitionContextImpl) PropertyErrorf(property, fmt string, args ...interface{}) {
+	c.bp.PropertyErrorf(property, fmt, args)
 }
 
 func (a *androidTransitionMutator) IncomingTransition(bpctx blueprint.IncomingTransitionContext, incomingVariation string) string {

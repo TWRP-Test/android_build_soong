@@ -682,7 +682,7 @@ func TestValidationAcrossContainersNotExportedFail(t *testing.T) {
 				}
 				filegroup {
 						name: "my_filegroup_foo_srcjars",
-						srcs: [
+						device_common_srcs: [
 								":my_aconfig_declarations_group_foo{.srcjars}",
 						],
 				}

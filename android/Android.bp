@@ -111,6 +111,7 @@ bootstrap_go_package {
         "util.go",
         "variable.go",
         "vintf_fragment.go",
+        "vintf_data.go",
         "visibility.go",
     ],
     testSrcs: [

@@ -525,7 +525,6 @@ def build_system_ext_prop(args):
 
   build_prop(args, gen_build_info=False, gen_common_build_props=True, variables=variables)
 
-'''
 def build_vendor_prop(args):
   config = args.config
 
@@ -542,7 +541,6 @@ def build_vendor_prop(args):
     ]
 
   build_prop(args, gen_build_info=False, gen_common_build_props=True, variables=variables)
-'''
 
 def build_product_prop(args):
   config = args.config
@@ -609,8 +607,8 @@ def main():
         build_odm_prop(args)
       case "product":
         build_product_prop(args)
-      # case "vendor":  # NOT IMPLEMENTED
-      #  build_vendor_prop(args)
+      case "vendor":
+        build_vendor_prop(args)
       case _:
         sys.exit(f"not supported partition {args.partition}")
 

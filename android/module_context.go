@@ -497,10 +497,6 @@ func (m *moduleContext) skipInstall() bool {
 		return true
 	}
 
-	if m.module.base().commonProperties.HideFromMake {
-		return true
-	}
-
 	// We'll need a solution for choosing which of modules with the same name in different
 	// namespaces to install.  For now, reuse the list of namespaces exported to Make as the
 	// list of namespaces to install in a Soong-only build.
@@ -516,6 +512,10 @@ func (m *moduleContext) skipInstall() bool {
 // not created and this module can only be installed to packaging modules like android_filesystem.
 func (m *moduleContext) requiresFullInstall() bool {
 	if m.skipInstall() {
+		return false
+	}
+
+	if m.module.base().commonProperties.HideFromMake {
 		return false
 	}
 

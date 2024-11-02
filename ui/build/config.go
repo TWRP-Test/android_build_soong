@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"android/soong/finder/fs"
 	"android/soong/shared"
 	"android/soong/ui/metrics"
 
@@ -106,7 +107,9 @@ type configImpl struct {
 	sandboxConfig   *SandboxConfig
 
 	// Autodetected
-	totalRAM uint64
+	totalRAM      uint64
+	systemCpuInfo *metrics.CpuInfo
+	systemMemInfo *metrics.MemInfo
 
 	brokenDupRules       bool
 	brokenUsesNetwork    bool
@@ -237,6 +240,14 @@ func NewConfig(ctx Context, args ...string) Config {
 	ret.keepGoing = 1
 
 	ret.totalRAM = detectTotalRAM(ctx)
+	ret.systemCpuInfo, err = metrics.NewCpuInfo(fs.OsFs)
+	if err != nil {
+		ctx.Fatalln("Failed to get cpuinfo:", err)
+	}
+	ret.systemMemInfo, err = metrics.NewMemInfo(fs.OsFs)
+	if err != nil {
+		ctx.Fatalln("Failed to get meminfo:", err)
+	}
 	ret.parseArgs(ctx, args)
 
 	if ret.ninjaWeightListSource == HINT_FROM_SOONG {
@@ -550,9 +561,23 @@ func storeConfigMetrics(ctx Context, config Config) {
 
 	ctx.Metrics.BuildConfig(buildConfig(config))
 
+	cpuInfo := &smpb.SystemCpuInfo{
+		VendorId:  proto.String(config.systemCpuInfo.VendorId),
+		ModelName: proto.String(config.systemCpuInfo.ModelName),
+		CpuCores:  proto.Int32(config.systemCpuInfo.CpuCores),
+		Flags:     proto.String(config.systemCpuInfo.Flags),
+	}
+	memInfo := &smpb.SystemMemInfo{
+		MemTotal:     proto.Uint64(config.systemMemInfo.MemTotal),
+		MemFree:      proto.Uint64(config.systemMemInfo.MemFree),
+		MemAvailable: proto.Uint64(config.systemMemInfo.MemAvailable),
+	}
+
 	s := &smpb.SystemResourceInfo{
 		TotalPhysicalMemory: proto.Uint64(config.TotalRAM()),
 		AvailableCpus:       proto.Int32(int32(runtime.NumCPU())),
+		CpuInfo:             cpuInfo,
+		MemInfo:             memInfo,
 	}
 	ctx.Metrics.SystemResourceInfo(s)
 }

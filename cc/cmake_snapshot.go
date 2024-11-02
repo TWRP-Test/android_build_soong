@@ -533,6 +533,8 @@ func getModuleType(m *Module) string {
 		return "test"
 	case *benchmarkDecorator:
 		return "test"
+	case *objectLinker:
+		return "object"
 	}
 	panic(fmt.Sprintf("Unexpected module type: %T", m.linker))
 }

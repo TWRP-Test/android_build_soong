@@ -1403,6 +1403,7 @@ func (module *SdkLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext)
 		// Even though the source javalib is not used, we need to hide it to prevent duplicate installation rules.
 		// TODO (b/331665856): Implement a principled solution for this.
 		module.HideFromMake()
+		module.SkipInstall()
 	}
 
 	module.stem = proptools.StringDefault(module.overridableProperties.Stem, ctx.ModuleName())

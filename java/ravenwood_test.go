@@ -162,12 +162,16 @@ func TestRavenwoodTest(t *testing.T) {
 			srcs: ["jni.cpp"],
 			stem: "libpink",
 		}
+		java_defaults {
+			name: "ravenwood-test-defaults",
+			jni_libs: ["jni-lib2"],
+		}
 		android_ravenwood_test {
 			name: "ravenwood-test",
 			srcs: ["Test.java"],
+			defaults: ["ravenwood-test-defaults"],
 			jni_libs: [
 				"jni-lib1",
-				"jni-lib2",
 				"ravenwood-runtime-jni2",
 			],
 			resource_apk: "app2",

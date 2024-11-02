@@ -122,6 +122,10 @@ func (m ModuleProxy) IsHideFromMake() bool {
 	panic("method is not implemented on ModuleProxy")
 }
 
+func (m ModuleProxy) SkipInstall() {
+	panic("method is not implemented on ModuleProxy")
+}
+
 func (m ModuleProxy) IsSkipInstall() bool {
 	panic("method is not implemented on ModuleProxy")
 }

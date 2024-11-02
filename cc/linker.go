@@ -85,7 +85,7 @@ type BaseLinkerProperties struct {
 
 	// list of header libraries to re-export include directories from. Entries must be
 	// present in header_libs.
-	Export_header_lib_headers []string `android:"arch_variant"`
+	Export_header_lib_headers proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`
 
 	// list of generated headers to re-export include directories from. Entries must be
 	// present in generated_headers.
@@ -302,7 +302,7 @@ func (linker *baseLinker) linkerDeps(ctx DepsContext, deps Deps) Deps {
 	deps.SharedLibs = append(deps.SharedLibs, linker.Properties.Shared_libs.GetOrDefault(ctx, nil)...)
 	deps.RuntimeLibs = append(deps.RuntimeLibs, linker.Properties.Runtime_libs...)
 
-	deps.ReexportHeaderLibHeaders = append(deps.ReexportHeaderLibHeaders, linker.Properties.Export_header_lib_headers...)
+	deps.ReexportHeaderLibHeaders = append(deps.ReexportHeaderLibHeaders, linker.Properties.Export_header_lib_headers.GetOrDefault(ctx, nil)...)
 	deps.ReexportStaticLibHeaders = append(deps.ReexportStaticLibHeaders, linker.Properties.Export_static_lib_headers...)
 	deps.ReexportSharedLibHeaders = append(deps.ReexportSharedLibHeaders, linker.Properties.Export_shared_lib_headers...)
 	deps.ReexportGeneratedHeaders = append(deps.ReexportGeneratedHeaders, linker.Properties.Export_generated_headers...)

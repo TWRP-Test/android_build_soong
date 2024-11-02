@@ -185,6 +185,37 @@ message SystemResourceInfo {
 
   // The total of available cores for building
   optional int32 available_cpus = 2;
+
+  // Information about the machine's CPU(s).
+  optional SystemCpuInfo cpu_info = 3;
+
+  // Information about the machine's memory.
+  optional SystemMemInfo mem_info = 4;
+}
+
+message SystemCpuInfo {
+  // The vendor id
+  optional string vendor_id = 1;
+
+  // The model name
+  optional string model_name = 2;
+
+  // The number of CPU cores
+  optional int32 cpu_cores = 3;
+
+  // The CPU flags
+  optional string flags = 4;
+}
+
+message SystemMemInfo {
+  // The total system memory
+  optional uint64 mem_total = 1;
+
+  // The free system memory
+  optional uint64 mem_free = 2;
+
+  // The available system memory
+  optional uint64 mem_available = 3;
 }
 
 message PerfInfo {

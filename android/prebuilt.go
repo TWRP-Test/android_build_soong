@@ -569,6 +569,7 @@ func hideUnflaggedModules(ctx BottomUpMutatorContext, psi PrebuiltSelectionInfoM
 		for _, moduleInFamily := range allModulesInFamily {
 			if moduleInFamily.Name() != selectedModuleInFamily.Name() {
 				moduleInFamily.HideFromMake()
+				moduleInFamily.SkipInstall()
 				// If this is a prebuilt module, unset properties.UsePrebuilt
 				// properties.UsePrebuilt might evaluate to true via soong config var fallback mechanism
 				// Set it to false explicitly so that the following mutator does not replace rdeps to this unselected prebuilt
@@ -639,6 +640,7 @@ func PrebuiltPostDepsMutator(ctx BottomUpMutatorContext) {
 			}
 		} else {
 			m.HideFromMake()
+			m.SkipInstall()
 		}
 	}
 }

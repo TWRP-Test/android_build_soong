@@ -1305,9 +1305,6 @@ func apexModuleTypeRequiresVariant(module ApexInfoMutator) bool {
 // See android.UpdateDirectlyInAnyApex
 // TODO(jiyong): move this to android/apex.go?
 func apexDirectlyInAnyMutator(mctx android.BottomUpMutatorContext) {
-	if !mctx.Module().Enabled(mctx) {
-		return
-	}
 	if am, ok := mctx.Module().(android.ApexModule); ok {
 		android.UpdateDirectlyInAnyApex(mctx, am)
 	}

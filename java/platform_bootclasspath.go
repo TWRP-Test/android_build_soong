@@ -24,7 +24,7 @@ func init() {
 }
 
 func registerPlatformBootclasspathBuildComponents(ctx android.RegistrationContext) {
-	ctx.RegisterParallelSingletonModuleType("platform_bootclasspath", platformBootclasspathFactory)
+	ctx.RegisterModuleType("platform_bootclasspath", platformBootclasspathFactory)
 }
 
 // The tags used for the dependencies between the platform bootclasspath and any configured boot
@@ -37,7 +37,7 @@ var (
 )
 
 type platformBootclasspathModule struct {
-	android.SingletonModuleBase
+	android.ModuleBase
 	ClasspathFragmentBase
 
 	properties platformBootclasspathProperties
@@ -64,7 +64,7 @@ type platformBootclasspathProperties struct {
 	HiddenAPIFlagFileProperties
 }
 
-func platformBootclasspathFactory() android.SingletonModule {
+func platformBootclasspathFactory() android.Module {
 	m := &platformBootclasspathModule{}
 	m.AddProperties(&m.properties)
 	initClasspathFragment(m, BOOTCLASSPATH)
@@ -154,18 +154,6 @@ func addDependenciesOntoBootImageModules(ctx android.BottomUpMutatorContext, mod
 
 		addDependencyOntoApexModulePair(ctx, apex, name, tag)
 	}
-}
-
-// GenerateSingletonBuildActions does nothing and must never do anything.
-//
-// This module only implements android.SingletonModule so that it can implement
-// android.SingletonMakeVarsProvider.
-func (b *platformBootclasspathModule) GenerateSingletonBuildActions(android.SingletonContext) {
-	// Keep empty
-}
-
-func (d *platformBootclasspathModule) MakeVars(ctx android.MakeVarsContext) {
-	d.generateHiddenApiMakeVars(ctx)
 }
 
 func (b *platformBootclasspathModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -427,14 +415,4 @@ func (b *platformBootclasspathModule) buildRuleMergeCSV(ctx android.ModuleContex
 		Inputs(inputPaths)
 
 	rule.Build(desc, desc)
-}
-
-// generateHiddenApiMakeVars generates make variables needed by hidden API related make rules, e.g.
-// veridex and run-appcompat.
-func (b *platformBootclasspathModule) generateHiddenApiMakeVars(ctx android.MakeVarsContext) {
-	if ctx.Config().IsEnvTrue("UNSAFE_DISABLE_HIDDENAPI_FLAGS") {
-		return
-	}
-	// INTERNAL_PLATFORM_HIDDENAPI_FLAGS is used by Make rules in art/ and cts/.
-	ctx.Strict("INTERNAL_PLATFORM_HIDDENAPI_FLAGS", b.hiddenAPIFlagsCSV.String())
 }

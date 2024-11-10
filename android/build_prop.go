@@ -19,8 +19,12 @@ import (
 )
 
 func init() {
-	ctx := InitRegistrationContext
+	registerBuildPropComponents(InitRegistrationContext)
+}
+
+func registerBuildPropComponents(ctx RegistrationContext) {
 	ctx.RegisterModuleType("build_prop", BuildPropFactory)
+	ctx.RegisterModuleType("android_info", AndroidInfoFactory)
 }
 
 type buildPropProperties struct {
@@ -37,6 +41,10 @@ type buildPropProperties struct {
 
 	// Path to a JSON file containing product configs.
 	Product_config *string `android:"path"`
+
+	// Path to android-info.txt file containing board specific info.
+	// This is empty for build.prop of all partitions except vendor.
+	Android_info *string `android:"path"`
 
 	// Optional subdirectory under which this file is installed into
 	Relative_install_path *string
@@ -66,7 +74,10 @@ func (p *buildPropModule) propFiles(ctx ModuleContext) Paths {
 	} else if partition == "odm" {
 		return ctx.Config().OdmPropFiles(ctx)
 	} else if partition == "vendor" {
-		// TODO (b/375500423): Add android-info.txt to prop files
+		if p.properties.Android_info != nil {
+			androidInfo := PathForModuleSrc(ctx, proptools.String(p.properties.Android_info))
+			return append(ctx.Config().VendorPropFiles(ctx), androidInfo)
+		}
 		return ctx.Config().VendorPropFiles(ctx)
 	}
 	return nil
@@ -98,6 +109,12 @@ func (p *buildPropModule) partition(config DeviceConfig) string {
 		return "product"
 	} else if p.SystemExtSpecific() {
 		return "system_ext"
+	} else if p.InstallInSystemDlkm() {
+		return "system_dlkm"
+	} else if p.InstallInVendorDlkm() {
+		return "vendor_dlkm"
+	} else if p.InstallInOdmDlkm() {
+		return "odm_dlkm"
 	}
 	return "system"
 }
@@ -108,15 +125,17 @@ var validPartitions = []string{
 	"product",
 	"odm",
 	"vendor",
+	"system_dlkm",
+	"vendor_dlkm",
+	"odm_dlkm",
 }
 
 func (p *buildPropModule) GenerateAndroidBuildActions(ctx ModuleContext) {
-	p.outputFilePath = PathForModuleOut(ctx, "build.prop").OutputPath
-	if !ctx.Config().KatiEnabled() {
-		WriteFileRule(ctx, p.outputFilePath, "# no build.prop if kati is disabled")
-		ctx.SetOutputFiles(Paths{p.outputFilePath}, "")
-		return
+	if !p.SocSpecific() && p.properties.Android_info != nil {
+		ctx.ModuleErrorf("Android_info cannot be set if build.prop is not installed in vendor partition")
 	}
+
+	p.outputFilePath = PathForModuleOut(ctx, "build.prop").OutputPath
 
 	partition := p.partition(ctx.DeviceConfig())
 	if !InList(partition, validPartitions) {

@@ -36,6 +36,11 @@ func AdbKeysModuleFactory() android.Module {
 
 func (m *AdbKeysModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	productVariables := ctx.Config().ProductVariables()
+
+	if !m.ProductSpecific() {
+		ctx.ModuleErrorf("adb_keys module type must set product_specific to true")
+	}
+
 	if !(android.Bool(productVariables.Debuggable) && len(android.String(productVariables.AdbKeys)) > 0) {
 		m.SkipInstall()
 		return
@@ -48,7 +53,7 @@ func (m *AdbKeysModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		Output: m.outputPath,
 		Input:  input.Path(),
 	})
-	m.installPath = android.PathForModuleInPartitionInstall(ctx, ctx.DeviceConfig().ProductPath(), "etc/security")
+	m.installPath = android.PathForModuleInstall(ctx, "etc/security")
 	ctx.InstallFile(m.installPath, "adb_keys", m.outputPath)
 }
 

@@ -76,6 +76,10 @@ func RegisterPrebuiltEtcBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("prebuilt_res", PrebuiltResFactory)
 	ctx.RegisterModuleType("prebuilt_wlc_upt", PrebuiltWlcUptFactory)
 	ctx.RegisterModuleType("prebuilt_odm", PrebuiltOdmFactory)
+	ctx.RegisterModuleType("prebuilt_vendor_dlkm", PrebuiltVendorDlkmFactory)
+	ctx.RegisterModuleType("prebuilt_bt_firmware", PrebuiltBtFirmwareFactory)
+	ctx.RegisterModuleType("prebuilt_tvservice", PrebuiltTvServiceFactory)
+	ctx.RegisterModuleType("prebuilt_optee", PrebuiltOpteeFactory)
 
 	ctx.RegisterModuleType("prebuilt_defaults", defaultsFactory)
 
@@ -132,6 +136,9 @@ type prebuiltEtcProperties struct {
 
 	// Install symlinks to the installed file.
 	Symlinks []string `android:"arch_variant"`
+
+	// Install to partition oem when set to true.
+	Oem_specific *bool `android:"arch_variant"`
 }
 
 type prebuiltSubdirProperties struct {
@@ -369,6 +376,10 @@ func (p *PrebuiltEtc) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		ctx.PropertyErrorf("sub_dir", "relative_install_path is set. Cannot set sub_dir")
 	}
 	baseInstallDirPath := android.PathForModuleInstall(ctx, p.installBaseDir(ctx), p.SubDir())
+	// TODO(b/377304441)
+	if android.Bool(p.properties.Oem_specific) {
+		baseInstallDirPath = android.PathForModuleInPartitionInstall(ctx, ctx.DeviceConfig().OemPath(), p.installBaseDir(ctx), p.SubDir())
+	}
 
 	filename := proptools.String(p.properties.Filename)
 	filenameFromSrc := proptools.Bool(p.properties.Filename_from_src)
@@ -905,6 +916,46 @@ func PrebuiltWlcUptFactory() android.Module {
 func PrebuiltOdmFactory() android.Module {
 	module := &PrebuiltEtc{}
 	InitPrebuiltEtcModule(module, "odm")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_vendor_dlkm installs files in <partition>/vendor_dlkm directory.
+func PrebuiltVendorDlkmFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "vendor_dlkm")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_bt_firmware installs files in <partition>/bt_firmware directory.
+func PrebuiltBtFirmwareFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "bt_firmware")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_tvservice installs files in <partition>/tvservice directory.
+func PrebuiltTvServiceFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "tvservice")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_optee installs files in <partition>/optee directory.
+func PrebuiltOpteeFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "optee")
 	// This module is device-only
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)

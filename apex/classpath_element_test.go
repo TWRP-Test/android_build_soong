@@ -45,10 +45,7 @@ func TestCreateClasspathElements(t *testing.T) {
 		prepareForTestWithPlatformBootclasspath,
 		prepareForTestWithArtApex,
 		prepareForTestWithMyapex,
-		// For otherapex.
-		android.FixtureMergeMockFs(android.MockFS{
-			"system/sepolicy/apex/otherapex-file_contexts": nil,
-		}),
+		prepareForTestWithOtherapex,
 		java.PrepareForTestWithJavaSdkLibraryFiles,
 		java.FixtureWithLastReleaseApis("foo", "othersdklibrary"),
 		java.FixtureConfigureApexBootJars("myapex:bar"),

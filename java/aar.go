@@ -77,7 +77,7 @@ type aaptProperties struct {
 	// list of directories relative to the Blueprints file containing
 	// Android resources.  Defaults to ["res"] if a directory called res exists.
 	// Set to [] to disable the default.
-	Resource_dirs []string `android:"path"`
+	Resource_dirs proptools.Configurable[[]string] `android:"path"`
 
 	// list of zip files containing Android resources.
 	Resource_zips []string `android:"path"`
@@ -275,7 +275,7 @@ func (a *aapt) aapt2Flags(ctx android.ModuleContext, sdkContext android.SdkConte
 		IncludeDirs: false,
 	})
 	assetDirs := android.PathsWithOptionalDefaultForModuleSrc(ctx, a.aaptProperties.Asset_dirs, "assets")
-	resourceDirs := android.PathsWithOptionalDefaultForModuleSrc(ctx, a.aaptProperties.Resource_dirs, "res")
+	resourceDirs := android.PathsWithOptionalDefaultForModuleSrc(ctx, a.aaptProperties.Resource_dirs.GetOrDefault(ctx, nil), "res")
 	resourceZips := android.PathsForModuleSrc(ctx, a.aaptProperties.Resource_zips)
 
 	// Glob directories into lists of paths

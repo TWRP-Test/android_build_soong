@@ -20,6 +20,7 @@ func init() {
 	gob.Register(extraFilesZip{})
 	gob.Register(InstallPath{})
 	gob.Register(ModuleGenPath{})
+	gob.Register(ModuleObjPath{})
 	gob.Register(ModuleOutPath{})
 	gob.Register(OutputPath{})
 	gob.Register(PhonyPath{})

@@ -575,25 +575,28 @@ func (r *RuleBuilder) build(name string, desc string, ninjaEscapeCommandString b
 		nsjailCmd.WriteString(r.outDir.String())
 		nsjailCmd.WriteString(":nsjail_build_sandbox/out")
 
-		for _, input := range inputs {
+		addBindMount := func(src, dst string) {
 			nsjailCmd.WriteString(" -R $PWD/")
-			nsjailCmd.WriteString(input.String())
+			nsjailCmd.WriteString(src)
 			nsjailCmd.WriteString(":nsjail_build_sandbox/")
-			nsjailCmd.WriteString(r.nsjailPathForInputRel(input))
+			nsjailCmd.WriteString(dst)
+		}
+
+		for _, input := range inputs {
+			addBindMount(input.String(), r.nsjailPathForInputRel(input))
 		}
 		for _, tool := range tools {
-			nsjailCmd.WriteString(" -R $PWD/")
-			nsjailCmd.WriteString(tool.String())
-			nsjailCmd.WriteString(":nsjail_build_sandbox/")
-			nsjailCmd.WriteString(nsjailPathForToolRel(r.ctx, tool))
+			addBindMount(tool.String(), nsjailPathForToolRel(r.ctx, tool))
 		}
 		inputs = append(inputs, tools...)
 		for _, c := range r.commands {
+			for _, directory := range c.implicitDirectories {
+				addBindMount(directory.String(), directory.String())
+				// TODO(b/375551969): Add implicitDirectories to BuildParams, rather than relying on implicits
+				inputs = append(inputs, SourcePath{basePath: directory.base()})
+			}
 			for _, tool := range c.packagedTools {
-				nsjailCmd.WriteString(" -R $PWD/")
-				nsjailCmd.WriteString(tool.srcPath.String())
-				nsjailCmd.WriteString(":nsjail_build_sandbox/")
-				nsjailCmd.WriteString(nsjailPathForPackagedToolRel(tool))
+				addBindMount(tool.srcPath.String(), nsjailPathForPackagedToolRel(tool))
 				inputs = append(inputs, tool.srcPath)
 			}
 		}
@@ -917,16 +920,17 @@ func (r *RuleBuilder) build(name string, desc string, ninjaEscapeCommandString b
 type RuleBuilderCommand struct {
 	rule *RuleBuilder
 
-	buf           strings.Builder
-	inputs        Paths
-	implicits     Paths
-	orderOnlys    Paths
-	validations   Paths
-	outputs       WritablePaths
-	depFiles      WritablePaths
-	tools         Paths
-	packagedTools []PackagingSpec
-	rspFiles      []rspFileAndPaths
+	buf                 strings.Builder
+	inputs              Paths
+	implicits           Paths
+	orderOnlys          Paths
+	validations         Paths
+	outputs             WritablePaths
+	depFiles            WritablePaths
+	tools               Paths
+	packagedTools       []PackagingSpec
+	rspFiles            []rspFileAndPaths
+	implicitDirectories DirectoryPaths
 }
 
 type rspFileAndPaths struct {
@@ -949,6 +953,10 @@ func (c *RuleBuilderCommand) addInput(path Path) string {
 func (c *RuleBuilderCommand) addImplicit(path Path) {
 	checkPathNotNil(path)
 	c.implicits = append(c.implicits, path)
+}
+
+func (c *RuleBuilderCommand) addImplicitDirectory(path DirectoryPath) {
+	c.implicitDirectories = append(c.implicitDirectories, path)
 }
 
 func (c *RuleBuilderCommand) addOrderOnly(path Path) {
@@ -1310,6 +1318,16 @@ func (c *RuleBuilderCommand) Implicits(paths Paths) *RuleBuilderCommand {
 	for _, path := range paths {
 		c.addImplicit(path)
 	}
+	return c
+}
+
+// ImplicitDirectory adds the specified input directory to the dependencies without modifying the
+// command line. Added directories will be bind-mounted for the nsjail.
+func (c *RuleBuilderCommand) ImplicitDirectory(path DirectoryPath) *RuleBuilderCommand {
+	if !c.rule.nsjail {
+		panic("ImplicitDirectory() must be called after Nsjail()")
+	}
+	c.addImplicitDirectory(path)
 	return c
 }
 

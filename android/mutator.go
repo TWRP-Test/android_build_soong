@@ -70,7 +70,7 @@ type RegisterMutatorsContext interface {
 	TopDown(name string, m TopDownMutator) MutatorHandle
 	BottomUp(name string, m BottomUpMutator) MutatorHandle
 	BottomUpBlueprint(name string, m blueprint.BottomUpMutator) MutatorHandle
-	Transition(name string, m TransitionMutator)
+	Transition(name string, m TransitionMutator) TransitionMutatorHandle
 }
 
 type RegisterMutatorFunc func(RegisterMutatorsContext)
@@ -579,7 +579,7 @@ func (a *androidTransitionMutator) Mutate(ctx blueprint.BottomUpMutatorContext, 
 	}
 }
 
-func (x *registerMutatorsContext) Transition(name string, m TransitionMutator) {
+func (x *registerMutatorsContext) Transition(name string, m TransitionMutator) TransitionMutatorHandle {
 	atm := &androidTransitionMutator{
 		finalPhase: x.finalPhase,
 		mutator:    m,
@@ -587,8 +587,10 @@ func (x *registerMutatorsContext) Transition(name string, m TransitionMutator) {
 	}
 	mutator := &mutator{
 		name:              name,
-		transitionMutator: atm}
+		transitionMutator: atm,
+	}
 	x.mutators = append(x.mutators, mutator)
+	return mutator
 }
 
 func (x *registerMutatorsContext) mutatorName(name string) string {
@@ -625,7 +627,10 @@ func (mutator *mutator) register(ctx *Context) {
 	} else if mutator.topDownMutator != nil {
 		handle = blueprintCtx.RegisterTopDownMutator(mutator.name, mutator.topDownMutator)
 	} else if mutator.transitionMutator != nil {
-		blueprintCtx.RegisterTransitionMutator(mutator.name, mutator.transitionMutator)
+		handle := blueprintCtx.RegisterTransitionMutator(mutator.name, mutator.transitionMutator)
+		if mutator.neverFar {
+			handle.NeverFar()
+		}
 	}
 
 	// Forward booleans set on the MutatorHandle to the blueprint.MutatorHandle.
@@ -681,6 +686,14 @@ type MutatorHandle interface {
 	MutatesGlobalState() MutatorHandle
 }
 
+type TransitionMutatorHandle interface {
+	// NeverFar causes the variations created by this mutator to never be ignored when adding
+	// far variation dependencies. Normally, far variation dependencies ignore all the variants
+	// of the source module, and only use the variants explicitly requested by the
+	// AddFarVariationDependencies call.
+	NeverFar() MutatorHandle
+}
+
 func (mutator *mutator) Parallel() MutatorHandle {
 	return mutator
 }
@@ -712,6 +725,11 @@ func (mutator *mutator) MutatesDependencies() MutatorHandle {
 
 func (mutator *mutator) MutatesGlobalState() MutatorHandle {
 	mutator.mutatesGlobalState = true
+	return mutator
+}
+
+func (mutator *mutator) NeverFar() MutatorHandle {
+	mutator.neverFar = true
 	return mutator
 }
 

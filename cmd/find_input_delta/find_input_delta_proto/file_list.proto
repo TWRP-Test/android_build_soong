@@ -1,0 +1,34 @@
+//
+// Copyright (C) 2024 The Android Open-Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+package android.find_input_delta_proto;
+option go_package = "android/soong/find_input_delta/proto";
+
+message FileList {
+  // The name of the file.
+  // In the outermost message, this is the name of the Ninja target.
+  // When used in `changes`, this is the name of the changed file.
+  optional string name = 1;
+
+  // The added files.
+  repeated string additions = 2;
+
+  // The deleted files.
+  repeated string deletions = 3;
+
+  // The changed files.
+  repeated FileList changes = 4;
+}

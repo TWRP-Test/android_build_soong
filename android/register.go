@@ -98,6 +98,7 @@ type mutator struct {
 	usesCreateModule        bool
 	mutatesDependencies     bool
 	mutatesGlobalState      bool
+	neverFar                bool
 }
 
 var _ sortableComponent = &mutator{}

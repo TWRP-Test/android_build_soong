@@ -31,6 +31,7 @@ bootstrap_go_package {
     srcs: [
         "aconfig_providers.go",
         "all_teams.go",
+        "android_info.go",
         "androidmk.go",
         "apex.go",
         "apex_contributions.go",
@@ -121,6 +122,7 @@ bootstrap_go_package {
         "apex_test.go",
         "arch_test.go",
         "blueprint_e2e_test.go",
+        "build_prop_test.go",
         "config_test.go",
         "configured_jars_test.go",
         "csuite_config_test.go",

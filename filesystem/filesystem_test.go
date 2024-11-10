@@ -585,6 +585,35 @@ func TestErofsPartition(t *testing.T) {
 	android.AssertStringDoesContain(t, "erofs fs type sparse", buildImageConfig, "erofs_sparse_flag=-s")
 }
 
+func TestF2fsPartition(t *testing.T) {
+	result := fixture.RunTestWithBp(t, `
+		android_filesystem {
+			name: "f2fs_partition",
+			type: "f2fs",
+		}
+	`)
+
+	partition := result.ModuleForTests("f2fs_partition", "android_common")
+	buildImageConfig := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("prop"))
+	android.AssertStringDoesContain(t, "f2fs fs type", buildImageConfig, "fs_type=f2fs")
+	android.AssertStringDoesContain(t, "f2fs fs type sparse", buildImageConfig, "f2fs_sparse_flag=-S")
+}
+
+func TestFsTypesPropertyError(t *testing.T) {
+	fixture.ExtendWithErrorHandler(android.FixtureExpectsOneErrorPattern(
+		"erofs: erofs is non-empty, but FS type is f2fs\n. Please delete erofs properties if this partition should use f2fs\n")).
+		RunTestWithBp(t, `
+		android_filesystem {
+			name: "f2fs_partition",
+			type: "f2fs",
+			erofs: {
+				compressor: "lz4hc,9",
+				compress_hints: "compress_hints.txt",
+			},
+		}
+	`)
+}
+
 // If a system_ext/ module depends on system/ module, the dependency should *not*
 // be installed in system_ext/
 func TestDoNotPackageCrossPartitionDependencies(t *testing.T) {
@@ -690,4 +719,28 @@ cc_library {
 	linkerConfigCmd := result.ModuleForTests("myfilesystem", "android_common").Rule("build_filesystem_image").RuleParams.Command
 	android.AssertStringDoesContain(t, "Could not find linker.config.json file in cmd", linkerConfigCmd, "conv_linker_config proto --force -s linker.config.json")
 	android.AssertStringDoesContain(t, "Could not find stub in `provideLibs`", linkerConfigCmd, "--key provideLibs --value libfoo_has_stubs.so")
+}
+
+// override_android_* modules implicitly override their base module.
+// If both of these are listed in `deps`, the base module should not be installed.
+func TestOverrideModulesInDeps(t *testing.T) {
+	result := fixture.RunTestWithBp(t, `
+		android_filesystem {
+			name: "myfilesystem",
+			deps: ["myapp", "myoverrideapp"],
+		}
+
+		android_app {
+			name: "myapp",
+			platform_apis: true,
+		}
+		override_android_app {
+			name: "myoverrideapp",
+			base: "myapp",
+		}
+	`)
+
+	partition := result.ModuleForTests("myfilesystem", "android_common")
+	fileList := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("fileList"))
+	android.AssertStringEquals(t, "filesystem with override app", "app/myoverrideapp/myoverrideapp.apk\n", fileList)
 }

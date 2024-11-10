@@ -221,6 +221,7 @@ func (p *prebuiltLibraryLinker) link(ctx ModuleContext,
 				Target:        ctx.Target(),
 
 				TableOfContents: p.tocFile,
+				IsStubs:         p.buildStubs(),
 			})
 
 			return outputFile
@@ -232,6 +233,7 @@ func (p *prebuiltLibraryLinker) link(ctx ModuleContext,
 		android.SetProvider(ctx, SharedLibraryInfoProvider, SharedLibraryInfo{
 			SharedLibrary: latestStub,
 			Target:        ctx.Target(),
+			IsStubs:       true,
 		})
 
 		return latestStub

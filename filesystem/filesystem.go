@@ -147,6 +147,8 @@ type FilesystemProperties struct {
 
 	Erofs ErofsProperties
 
+	F2fs F2fsProperties
+
 	Linkerconfig LinkerConfigProperties
 
 	// Determines if the module is auto-generated from Soong or not. If the module is
@@ -163,6 +165,11 @@ type ErofsProperties struct {
 	// Used as --compress-hints for mkfs.erofs
 	Compress_hints *string `android:"path"`
 
+	Sparse *bool
+}
+
+// Additional properties required to generate f2fs FS partitions.
+type F2fsProperties struct {
 	Sparse *bool
 }
 
@@ -227,6 +234,7 @@ type fsType int
 const (
 	ext4Type fsType = iota
 	erofsType
+	f2fsType
 	compressedCpioType
 	cpioType // uncompressed
 	unknown
@@ -249,6 +257,8 @@ func GetFsTypeFromString(ctx android.EarlyModuleContext, typeStr string) fsType 
 		return ext4Type
 	case "erofs":
 		return erofsType
+	case "f2fs":
+		return f2fsType
 	case "compressed_cpio":
 		return compressedCpioType
 	case "cpio":
@@ -289,7 +299,7 @@ var pctx = android.NewPackageContext("android/soong/filesystem")
 func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	validatePartitionType(ctx, f)
 	switch f.fsType(ctx) {
-	case ext4Type, erofsType:
+	case ext4Type, erofsType, f2fsType:
 		f.output = f.buildImageUsingBuildImage(ctx)
 	case compressedCpioType:
 		f.output = f.buildCpioImage(ctx, true)
@@ -505,6 +515,8 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (propFile android.
 			return "ext4"
 		case erofsType:
 			return "erofs"
+		case f2fsType:
+			return "f2fs"
 		}
 		panic(fmt.Errorf("unsupported fs type %v", t))
 	}
@@ -554,8 +566,11 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (propFile android.
 		addStr("uuid", uuid)
 		addStr("hash_seed", uuid)
 	}
-	// Add erofs properties
-	if f.fsType(ctx) == erofsType {
+
+	fst := f.fsType(ctx)
+	switch fst {
+	case erofsType:
+		// Add erofs properties
 		if compressor := f.properties.Erofs.Compressor; compressor != nil {
 			addStr("erofs_default_compressor", proptools.String(compressor))
 		}
@@ -566,15 +581,37 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (propFile android.
 			// https://source.corp.google.com/h/googleplex-android/platform/build/+/88b1c67239ca545b11580237242774b411f2fed9:core/Makefile;l=2292;bpv=1;bpt=0;drc=ea8f34bc1d6e63656b4ec32f2391e9d54b3ebb6b
 			addStr("erofs_sparse_flag", "-s")
 		}
-	} else if f.properties.Erofs.Compressor != nil || f.properties.Erofs.Compress_hints != nil || f.properties.Erofs.Sparse != nil {
-		// Raise an exception if the propfile contains erofs properties, but the fstype is not erofs
-		fs := fsTypeStr(f.fsType(ctx))
-		ctx.PropertyErrorf("erofs", "erofs is non-empty, but FS type is %s\n. Please delete erofs properties if this partition should use %s\n", fs, fs)
+	case f2fsType:
+		if proptools.BoolDefault(f.properties.F2fs.Sparse, true) {
+			// https://source.corp.google.com/h/googleplex-android/platform/build/+/88b1c67239ca545b11580237242774b411f2fed9:core/Makefile;l=2294;drc=ea8f34bc1d6e63656b4ec32f2391e9d54b3ebb6b;bpv=1;bpt=0
+			addStr("f2fs_sparse_flag", "-S")
+		}
 	}
+	f.checkFsTypePropertyError(ctx, fst, fsTypeStr(fst))
 
 	propFile = android.PathForModuleOut(ctx, "prop").OutputPath
 	android.WriteFileRuleVerbatim(ctx, propFile, propFileString.String())
 	return propFile, deps
+}
+
+// This method checks if there is any property set for the fstype(s) other than
+// the current fstype.
+func (f *filesystem) checkFsTypePropertyError(ctx android.ModuleContext, t fsType, fs string) {
+	raiseError := func(otherFsType, currentFsType string) {
+		errMsg := fmt.Sprintf("%s is non-empty, but FS type is %s\n. Please delete %s properties if this partition should use %s\n", otherFsType, currentFsType, otherFsType, currentFsType)
+		ctx.PropertyErrorf(otherFsType, errMsg)
+	}
+
+	if t != erofsType {
+		if f.properties.Erofs.Compressor != nil || f.properties.Erofs.Compress_hints != nil || f.properties.Erofs.Sparse != nil {
+			raiseError("erofs", fs)
+		}
+	}
+	if t != f2fsType {
+		if f.properties.F2fs.Sparse != nil {
+			raiseError("f2fs", fs)
+		}
+	}
 }
 
 func (f *filesystem) buildCpioImage(ctx android.ModuleContext, compressed bool) android.OutputPath {

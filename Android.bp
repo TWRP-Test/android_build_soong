@@ -206,3 +206,30 @@ build_prop {
     relative_install_path: "etc", // odm/etc/build.prop
     visibility: ["//visibility:private"],
 }
+
+build_prop {
+    name: "system_dlkm-build.prop",
+    stem: "build.prop",
+    system_dlkm_specific: true,
+    product_config: ":product_config",
+    relative_install_path: "etc", // system_dlkm/etc/build.prop
+    visibility: ["//visibility:private"],
+}
+
+build_prop {
+    name: "vendor_dlkm-build.prop",
+    stem: "build.prop",
+    vendor_dlkm_specific: true,
+    product_config: ":product_config",
+    relative_install_path: "etc", // vendor_dlkm/etc/build.prop
+    visibility: ["//visibility:private"],
+}
+
+build_prop {
+    name: "odm_dlkm-build.prop",
+    stem: "build.prop",
+    odm_dlkm_specific: true,
+    product_config: ":product_config",
+    relative_install_path: "etc", // odm_dlkm/etc/build.prop
+    visibility: ["//visibility:private"],
+}

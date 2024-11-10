@@ -122,3 +122,31 @@ bootstrap_go_package {
     // Used by plugins
     visibility: ["//visibility:public"],
 }
+
+phony {
+    name: "llndk_libs",
+    required: [
+        "libEGL",
+        "libGLESv1_CM",
+        "libGLESv2",
+        "libGLESv3",
+        "libRS",
+        "libandroid_net",
+        "libapexsupport",
+        "libbinder_ndk",
+        "libc",
+        "libcgrouprc",
+        "libclang_rt.asan",
+        "libdl",
+        "libft2",
+        "liblog",
+        "libm",
+        "libmediandk",
+        "libnativewindow",
+        "libselinux",
+        "libsync",
+        "libvendorsupport",
+        "libvndksupport",
+        "libvulkan",
+    ],
+}

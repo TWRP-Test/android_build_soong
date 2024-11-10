@@ -78,11 +78,11 @@ type BaseCompilerProperties struct {
 	// If possible, don't use this.  If adding paths from the current directory use
 	// local_include_dirs, if adding paths from other modules use export_include_dirs in
 	// that module.
-	Include_dirs []string `android:"arch_variant,variant_prepend"`
+	Include_dirs proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`
 
 	// list of directories relative to the Blueprints file that will
 	// be added to the include path using -I
-	Local_include_dirs []string `android:"arch_variant,variant_prepend"`
+	Local_include_dirs proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`
 
 	// Add the directory containing the Android.bp file to the list of include
 	// directories. Defaults to true.
@@ -411,13 +411,13 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
 	}
 
 	// Include dir cflags
-	localIncludeDirs := android.PathsForModuleSrc(ctx, compiler.Properties.Local_include_dirs)
+	localIncludeDirs := android.PathsForModuleSrc(ctx, compiler.Properties.Local_include_dirs.GetOrDefault(ctx, nil))
 	if len(localIncludeDirs) > 0 {
 		f := includeDirsToFlags(localIncludeDirs)
 		flags.Local.CommonFlags = append(flags.Local.CommonFlags, f)
 		flags.Local.YasmFlags = append(flags.Local.YasmFlags, f)
 	}
-	rootIncludeDirs := android.PathsForSource(ctx, compiler.Properties.Include_dirs)
+	rootIncludeDirs := android.PathsForSource(ctx, compiler.Properties.Include_dirs.GetOrDefault(ctx, nil))
 	if len(rootIncludeDirs) > 0 {
 		f := includeDirsToFlags(rootIncludeDirs)
 		flags.Local.CommonFlags = append(flags.Local.CommonFlags, f)
@@ -685,10 +685,10 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
 	if len(srcs) > 0 {
 		module := ctx.ModuleDir() + "/Android.bp:" + ctx.ModuleName()
 		if inList("-Wno-error", flags.Local.CFlags) || inList("-Wno-error", flags.Local.CppFlags) {
-			addToModuleList(ctx, modulesUsingWnoErrorKey, module)
+			ctx.getOrCreateMakeVarsInfo().UsingWnoError = module
 		} else if !inList("-Werror", flags.Local.CFlags) && !inList("-Werror", flags.Local.CppFlags) {
 			if warningsAreAllowed(ctx.ModuleDir()) {
-				addToModuleList(ctx, modulesWarningsAllowedKey, module)
+				ctx.getOrCreateMakeVarsInfo().WarningsAllowed = module
 			} else {
 				flags.Local.CFlags = append([]string{"-Werror"}, flags.Local.CFlags...)
 			}
@@ -807,7 +807,7 @@ func compileObjs(ctx ModuleContext, flags builderFlags, subdir string,
 type RustBindgenClangProperties struct {
 	// list of directories relative to the Blueprints file that will
 	// be added to the include path using -I
-	Local_include_dirs []string `android:"arch_variant,variant_prepend"`
+	Local_include_dirs proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`
 
 	// list of static libraries that provide headers for this binding.
 	Static_libs proptools.Configurable[[]string] `android:"arch_variant,variant_prepend"`

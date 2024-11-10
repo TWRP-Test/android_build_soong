@@ -39,8 +39,7 @@ type dirGroup struct {
 }
 
 type DirInfo struct {
-	// TODO(b/358302178): Use DirectoryPaths instead of Paths
-	Dirs Paths
+	Dirs DirectoryPaths
 }
 
 var DirProvider = blueprint.NewProvider[DirInfo]()

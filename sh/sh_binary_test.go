@@ -176,6 +176,22 @@ func TestShTestHost(t *testing.T) {
 	android.AssertBoolEquals(t, "LOCAL_IS_UNIT_TEST", true, actualData)
 }
 
+func TestShTestExtraTestConfig(t *testing.T) {
+	result, _ := testShBinary(t, `
+		sh_test {
+			name: "foo",
+			src: "test.sh",
+			filename: "test.sh",
+                        extra_test_configs: ["config1.xml", "config2.xml"],
+		}
+	`)
+
+	mod := result.ModuleForTests("foo", "android_arm64_armv8-a").Module().(*ShTest)
+	entries := android.AndroidMkEntriesForTest(t, result, mod)[0]
+	actualData := entries.EntryMap["LOCAL_EXTRA_FULL_TEST_CONFIGS"]
+	android.AssertStringPathsRelativeToTopEquals(t, "extra_configs", result.Config(), []string{"config1.xml", "config2.xml"}, actualData)
+}
+
 func TestShTestHost_dataDeviceModules(t *testing.T) {
 	ctx, config := testShBinary(t, `
 		sh_test_host {

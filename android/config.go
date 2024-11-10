@@ -867,7 +867,7 @@ func (c *config) IsEnvFalse(key string) bool {
 }
 
 func (c *config) TargetsJava21() bool {
-	return c.IsEnvTrue("EXPERIMENTAL_TARGET_JAVA_VERSION_21")
+	return c.productVariables.GetBuildFlagBool("RELEASE_TARGET_JAVA_21")
 }
 
 // EnvDeps returns the environment variables this build depends on. The first
@@ -1522,6 +1522,13 @@ func (c *deviceConfig) VendorPath() string {
 	return "vendor"
 }
 
+func (c *deviceConfig) VendorDlkmPath() string {
+	if c.config.productVariables.VendorDlkmPath != nil {
+		return *c.config.productVariables.VendorDlkmPath
+	}
+	return "vendor_dlkm"
+}
+
 func (c *deviceConfig) BuildingVendorImage() bool {
 	return proptools.Bool(c.config.productVariables.BuildingVendorImage)
 }
@@ -1553,6 +1560,13 @@ func (c *deviceConfig) BuildingOdmImage() bool {
 	return proptools.Bool(c.config.productVariables.BuildingOdmImage)
 }
 
+func (c *deviceConfig) OdmDlkmPath() string {
+	if c.config.productVariables.OdmDlkmPath != nil {
+		return *c.config.productVariables.OdmDlkmPath
+	}
+	return "odm_dlkm"
+}
+
 func (c *deviceConfig) ProductPath() string {
 	if c.config.productVariables.ProductPath != nil {
 		return *c.config.productVariables.ProductPath
@@ -1569,6 +1583,31 @@ func (c *deviceConfig) SystemExtPath() string {
 		return *c.config.productVariables.SystemExtPath
 	}
 	return "system_ext"
+}
+
+func (c *deviceConfig) SystemDlkmPath() string {
+	if c.config.productVariables.SystemDlkmPath != nil {
+		return *c.config.productVariables.SystemDlkmPath
+	}
+	return "system_dlkm"
+}
+
+func (c *deviceConfig) OemPath() string {
+	if c.config.productVariables.OemPath != nil {
+		return *c.config.productVariables.OemPath
+	}
+	return "oem"
+}
+
+func (c *deviceConfig) UserdataPath() string {
+	if c.config.productVariables.UserdataPath != nil {
+		return *c.config.productVariables.UserdataPath
+	}
+	return "data"
+}
+
+func (c *deviceConfig) BuildingUserdataImage() bool {
+	return proptools.Bool(c.config.productVariables.BuildingUserdataImage)
 }
 
 func (c *deviceConfig) BtConfigIncludeDir() string {
@@ -1793,10 +1832,6 @@ func (c *config) ForceApexSymlinkOptimization() bool {
 
 func (c *config) ApexCompressionEnabled() bool {
 	return Bool(c.productVariables.CompressedApex) && !c.UnbundledBuildApps()
-}
-
-func (c *config) ApexTrimEnabled() bool {
-	return Bool(c.productVariables.TrimmedApex)
 }
 
 func (c *config) UseSoongSystemImage() bool {

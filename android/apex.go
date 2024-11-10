@@ -160,14 +160,6 @@ func (i ApexInfo) Equal(other any) bool {
 		reflect.DeepEqual(i.InApexModules, otherApexInfo.InApexModules)
 }
 
-// ApexTestForInfo stores the contents of APEXes for which this module is a test - although this
-// module is not part of the APEX - and thus has access to APEX internals.
-type ApexTestForInfo struct {
-	ApexContents []*ApexContents
-}
-
-var ApexTestForInfoProvider = blueprint.NewMutatorProvider[ApexTestForInfo]("apex_test_for")
-
 // ApexBundleInfo contains information about the dependencies of an apex
 type ApexBundleInfo struct {
 	Contents *ApexContents
@@ -268,12 +260,6 @@ type ApexModule interface {
 	// Marks that this module is not available to platform. Set by the
 	// check-platform-availability mutator in the apex package.
 	SetNotAvailableForPlatform()
-
-	// Returns the list of APEXes that this module is a test for. The module has access to the
-	// private part of the listed APEXes even when it is not included in the APEXes. This by
-	// default returns nil. A module type should override the default implementation. For
-	// example, cc_test module type returns the value of test_for here.
-	TestFor() []string
 
 	// Returns nil (success) if this module should support the given sdk version. Returns an
 	// error if not. No default implementation is provided for this method. A module type
@@ -455,13 +441,6 @@ func (m *ApexModuleBase) IsInstallableToApex() bool {
 	// If needed, this will bel overridden by concrete types inheriting
 	// ApexModuleBase
 	return false
-}
-
-// Implements ApexModule
-func (m *ApexModuleBase) TestFor() []string {
-	// If needed, this will be overridden by concrete types inheriting
-	// ApexModuleBase
-	return nil
 }
 
 // Returns the test apexes that this module is included in.
@@ -833,7 +812,7 @@ func UpdateDirectlyInAnyApex(mctx BottomUpMutatorContext, am ApexModule) {
 
 	// If this is the FinalModule (last visited module) copy
 	// AnyVariantDirectlyInAnyApex to all the other variants
-	if am == mctx.FinalModule().(ApexModule) {
+	if mctx.IsFinalModule(am) {
 		mctx.VisitAllModuleVariants(func(variant Module) {
 			variant.(ApexModule).apexModuleBase().ApexProperties.AnyVariantDirectlyInAnyApex =
 				base.ApexProperties.AnyVariantDirectlyInAnyApex
@@ -1060,12 +1039,6 @@ func MinSdkVersionFromValue(ctx EarlyModuleContext, value string) ApiLevel {
 		return NoneApiLevel
 	}
 	return apiLevel
-}
-
-// Implemented by apexBundle.
-type ApexTestInterface interface {
-	// Return true if the apex bundle is an apex_test
-	IsTestApex() bool
 }
 
 var ApexExportsInfoProvider = blueprint.NewProvider[ApexExportsInfo]()

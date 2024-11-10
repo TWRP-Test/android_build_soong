@@ -113,6 +113,7 @@ def generate_common_build_props(args):
   print("####################################")
 
   config = args.config
+  build_flags = config["BuildFlags"]
   partition = args.partition
 
   if partition == "system":
@@ -164,6 +165,7 @@ def generate_common_build_props(args):
   print(f"ro.{partition}.build.version.release={config['Platform_version_last_stable']}")
   print(f"ro.{partition}.build.version.release_or_codename={config['Platform_version_name']}")
   print(f"ro.{partition}.build.version.sdk={config['Platform_sdk_version']}")
+  print(f"ro.{partition}.build.version.sdk_minor={build_flags['RELEASE_PLATFORM_SDK_MINOR_VERSION']}")
 
 def generate_build_info(args):
   print()
@@ -609,6 +611,8 @@ def main():
         build_product_prop(args)
       case "vendor":
         build_vendor_prop(args)
+      case "system_dlkm" | "vendor_dlkm" | "odm_dlkm":
+        build_prop(args, gen_build_info=False, gen_common_build_props=True, variables=[])
       case _:
         sys.exit(f"not supported partition {args.partition}")
 

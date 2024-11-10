@@ -339,13 +339,19 @@ type ProductVariables struct {
 	HWASanIncludePaths []string `json:",omitempty"`
 	HWASanExcludePaths []string `json:",omitempty"`
 
-	VendorPath           *string `json:",omitempty"`
-	BuildingVendorImage  *bool   `json:",omitempty"`
-	OdmPath              *string `json:",omitempty"`
-	BuildingOdmImage     *bool   `json:",omitempty"`
-	ProductPath          *string `json:",omitempty"`
-	BuildingProductImage *bool   `json:",omitempty"`
-	SystemExtPath        *string `json:",omitempty"`
+	VendorPath            *string `json:",omitempty"`
+	VendorDlkmPath        *string `json:",omitempty"`
+	BuildingVendorImage   *bool   `json:",omitempty"`
+	OdmPath               *string `json:",omitempty"`
+	BuildingOdmImage      *bool   `json:",omitempty"`
+	OdmDlkmPath           *string `json:",omitempty"`
+	ProductPath           *string `json:",omitempty"`
+	BuildingProductImage  *bool   `json:",omitempty"`
+	SystemExtPath         *string `json:",omitempty"`
+	SystemDlkmPath        *string `json:",omitempty"`
+	OemPath               *string `json:",omitempty"`
+	UserdataPath          *string `json:",omitempty"`
+	BuildingUserdataImage *bool   `json:",omitempty"`
 
 	ClangTidy  *bool   `json:",omitempty"`
 	TidyChecks *string `json:",omitempty"`
@@ -403,7 +409,6 @@ type ProductVariables struct {
 
 	Ndk_abis *bool `json:",omitempty"`
 
-	TrimmedApex                  *bool `json:",omitempty"`
 	ForceApexSymlinkOptimization *bool `json:",omitempty"`
 	CompressedApex               *bool `json:",omitempty"`
 	Aml_abis                     *bool `json:",omitempty"`
@@ -574,6 +579,14 @@ type PartitionQualifiedVariablesType struct {
 	BoardAvbRollbackIndexLocation string `json:",omitempty"`
 }
 
+type ChainedAvbPartitionProps struct {
+	Partitions            []string `json:",omitempty"`
+	Key                   string   `json:",omitempty"`
+	Algorithm             string   `json:",omitempty"`
+	RollbackIndex         string   `json:",omitempty"`
+	RollbackIndexLocation string   `json:",omitempty"`
+}
+
 type PartitionVariables struct {
 	ProductDirectory            string `json:",omitempty"`
 	PartitionQualifiedVariables map[string]PartitionQualifiedVariablesType
@@ -598,14 +611,25 @@ type PartitionVariables struct {
 	ProductUseDynamicPartitionSize bool   `json:",omitempty"`
 	CopyImagesForTargetFilesZip    bool   `json:",omitempty"`
 
-	BoardAvbEnable bool `json:",omitempty"`
+	BoardAvbEnable          bool                                `json:",omitempty"`
+	BoardAvbAlgorithm       string                              `json:",omitempty"`
+	BoardAvbKeyPath         string                              `json:",omitempty"`
+	BoardAvbRollbackIndex   string                              `json:",omitempty"`
+	BuildingVbmetaImage     bool                                `json:",omitempty"`
+	ChainedVbmetaPartitions map[string]ChainedAvbPartitionProps `json:",omitempty"`
 
 	ProductPackages         []string `json:",omitempty"`
 	ProductPackagesDebug    []string `json:",omitempty"`
 	VendorLinkerConfigSrcs  []string `json:",omitempty"`
 	ProductLinkerConfigSrcs []string `json:",omitempty"`
 
+	BoardInfoFiles      []string `json:",omitempty"`
+	BootLoaderBoardName string   `json:",omitempty"`
+
 	ProductCopyFiles map[string]string `json:",omitempty"`
+
+	BuildingSystemDlkmImage bool     `json:",omitempty"`
+	SystemKernelModules     []string `json:",omitempty"`
 }
 
 func boolPtr(v bool) *bool {
@@ -656,7 +680,6 @@ func (v *ProductVariables) SetDefaultConfig() {
 		Malloc_zero_contents:         boolPtr(true),
 		Malloc_pattern_fill_contents: boolPtr(false),
 		Safestack:                    boolPtr(false),
-		TrimmedApex:                  boolPtr(false),
 		Build_from_text_stub:         boolPtr(false),
 
 		BootJars:     ConfiguredJarList{apexes: []string{}, jars: []string{}},

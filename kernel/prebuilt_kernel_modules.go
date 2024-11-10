@@ -32,7 +32,7 @@ func init() {
 }
 
 func registerKernelBuildComponents(ctx android.RegistrationContext) {
-	ctx.RegisterModuleType("prebuilt_kernel_modules", prebuiltKernelModulesFactory)
+	ctx.RegisterModuleType("prebuilt_kernel_modules", PrebuiltKernelModulesFactory)
 }
 
 type prebuiltKernelModules struct {
@@ -47,6 +47,15 @@ type prebuiltKernelModulesProperties struct {
 	// List or filegroup of prebuilt kernel module files. Should have .ko suffix.
 	Srcs []string `android:"path,arch_variant"`
 
+	// List of system_dlkm kernel modules that the local kernel modules depend on.
+	// The deps will be assembled into intermediates directory for running depmod
+	// but will not be added to the current module's installed files.
+	System_deps []string `android:"path,arch_variant"`
+
+	// If false, then srcs will not be included in modules.load.
+	// This feature is used by system_dlkm
+	Load_by_default *bool
+
 	// Kernel version that these modules are for. Kernel modules are installed to
 	// /lib/modules/<kernel_version> directory in the corresponding partition. Default is "".
 	Kernel_version *string
@@ -58,7 +67,7 @@ type prebuiltKernelModulesProperties struct {
 // prebuilt_kernel_modules installs a set of prebuilt kernel module files to the correct directory.
 // In addition, this module builds modules.load, modules.dep, modules.softdep and modules.alias
 // using depmod and installs them as well.
-func prebuiltKernelModulesFactory() android.Module {
+func PrebuiltKernelModulesFactory() android.Module {
 	module := &prebuiltKernelModules{}
 	module.AddProperties(&module.properties)
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibFirst)
@@ -81,9 +90,11 @@ func (pkm *prebuiltKernelModules) GenerateAndroidBuildActions(ctx android.Module
 	if !pkm.installable() {
 		pkm.SkipInstall()
 	}
-	modules := android.PathsForModuleSrc(ctx, pkm.properties.Srcs)
 
-	depmodOut := runDepmod(ctx, modules)
+	modules := android.PathsForModuleSrc(ctx, pkm.properties.Srcs)
+	systemModules := android.PathsForModuleSrc(ctx, pkm.properties.System_deps)
+
+	depmodOut := pkm.runDepmod(ctx, modules, systemModules)
 	strippedModules := stripDebugSymbols(ctx, modules)
 
 	installDir := android.PathForModuleInstall(ctx, "lib", "modules")
@@ -98,6 +109,8 @@ func (pkm *prebuiltKernelModules) GenerateAndroidBuildActions(ctx android.Module
 	ctx.InstallFile(installDir, "modules.dep", depmodOut.modulesDep)
 	ctx.InstallFile(installDir, "modules.softdep", depmodOut.modulesSoftdep)
 	ctx.InstallFile(installDir, "modules.alias", depmodOut.modulesAlias)
+
+	ctx.SetOutputFiles(modules, ".modules")
 }
 
 var (
@@ -137,35 +150,80 @@ type depmodOutputs struct {
 	modulesAlias   android.OutputPath
 }
 
-func runDepmod(ctx android.ModuleContext, modules android.Paths) depmodOutputs {
+var (
+	// system/lib/modules/foo.ko: system/lib/modules/bar.ko
+	// will be converted to
+	// /system/lib/modules/foo.ko: /system/lib/modules/bar.ko
+	addLeadingSlashToPaths = pctx.AndroidStaticRule("add_leading_slash",
+		blueprint.RuleParams{
+			Command: `sed -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' $in > $out`,
+		},
+	)
+)
+
+// This is the path in soong intermediates where the .ko files will be copied.
+// The layout should match the layout on device so that depmod can create meaningful modules.* files.
+func modulesDirForAndroidDlkm(ctx android.ModuleContext, modulesDir android.OutputPath, system bool) android.OutputPath {
+	if ctx.InstallInSystemDlkm() || system {
+		// The first component can be either system or system_dlkm
+		// system works because /system/lib/modules is a symlink to /system_dlkm/lib/modules.
+		// system was chosen to match the contents of the kati built modules.dep
+		return modulesDir.Join(ctx, "system", "lib", "modules")
+	} else if ctx.InstallInVendorDlkm() {
+		return modulesDir.Join(ctx, "vendor", "lib", "modules")
+	} else if ctx.InstallInOdmDlkm() {
+		return modulesDir.Join(ctx, "odm", "lib", "modules")
+	} else {
+		// not an android dlkm module.
+		return modulesDir
+	}
+}
+
+func (pkm *prebuiltKernelModules) runDepmod(ctx android.ModuleContext, modules android.Paths, systemModules android.Paths) depmodOutputs {
 	baseDir := android.PathForModuleOut(ctx, "depmod").OutputPath
 	fakeVer := "0.0" // depmod demands this anyway
 	modulesDir := baseDir.Join(ctx, "lib", "modules", fakeVer)
+	modulesCpDir := modulesDirForAndroidDlkm(ctx, modulesDir, false)
 
 	builder := android.NewRuleBuilder(pctx, ctx)
 
 	// Copy the module files to a temporary dir
-	builder.Command().Text("rm").Flag("-rf").Text(modulesDir.String())
-	builder.Command().Text("mkdir").Flag("-p").Text(modulesDir.String())
+	builder.Command().Text("rm").Flag("-rf").Text(modulesCpDir.String())
+	builder.Command().Text("mkdir").Flag("-p").Text(modulesCpDir.String())
 	for _, m := range modules {
-		builder.Command().Text("cp").Input(m).Text(modulesDir.String())
+		builder.Command().Text("cp").Input(m).Text(modulesCpDir.String())
+	}
+
+	modulesDirForSystemDlkm := modulesDirForAndroidDlkm(ctx, modulesDir, true)
+	if len(systemModules) > 0 {
+		builder.Command().Text("mkdir").Flag("-p").Text(modulesDirForSystemDlkm.String())
+	}
+	for _, m := range systemModules {
+		builder.Command().Text("cp").Input(m).Text(modulesDirForSystemDlkm.String())
 	}
 
 	// Enumerate modules to load
 	modulesLoad := modulesDir.Join(ctx, "modules.load")
-	var basenames []string
-	for _, m := range modules {
-		basenames = append(basenames, filepath.Base(m.String()))
+	// If Load_by_default is set to false explicitly, create an empty modules.load
+	if pkm.properties.Load_by_default != nil && !*pkm.properties.Load_by_default {
+		builder.Command().Text("rm").Flag("-rf").Text(modulesLoad.String())
+		builder.Command().Text("touch").Output(modulesLoad)
+	} else {
+		var basenames []string
+		for _, m := range modules {
+			basenames = append(basenames, filepath.Base(m.String()))
+		}
+		builder.Command().
+			Text("echo").Flag("\"" + strings.Join(basenames, " ") + "\"").
+			Text("|").Text("tr").Flag("\" \"").Flag("\"\\n\"").
+			Text(">").Output(modulesLoad)
 	}
-	builder.Command().
-		Text("echo").Flag("\"" + strings.Join(basenames, " ") + "\"").
-		Text("|").Text("tr").Flag("\" \"").Flag("\"\\n\"").
-		Text(">").Output(modulesLoad)
 
 	// Run depmod to build modules.dep/softdep/alias files
 	modulesDep := modulesDir.Join(ctx, "modules.dep")
 	modulesSoftdep := modulesDir.Join(ctx, "modules.softdep")
 	modulesAlias := modulesDir.Join(ctx, "modules.alias")
+	builder.Command().Text("mkdir").Flag("-p").Text(modulesDir.String())
 	builder.Command().
 		BuiltTool("depmod").
 		FlagWithArg("-b ", baseDir.String()).
@@ -176,5 +234,16 @@ func runDepmod(ctx android.ModuleContext, modules android.Paths) depmodOutputs {
 
 	builder.Build("depmod", fmt.Sprintf("depmod %s", ctx.ModuleName()))
 
-	return depmodOutputs{modulesLoad, modulesDep, modulesSoftdep, modulesAlias}
+	finalModulesDep := modulesDep
+	// Add a leading slash to paths in modules.dep of android dlkm
+	if ctx.InstallInSystemDlkm() || ctx.InstallInVendorDlkm() || ctx.InstallInOdmDlkm() {
+		finalModulesDep := modulesDep.ReplaceExtension(ctx, "intermediates")
+		ctx.Build(pctx, android.BuildParams{
+			Rule:   addLeadingSlashToPaths,
+			Input:  modulesDep,
+			Output: finalModulesDep,
+		})
+	}
+
+	return depmodOutputs{modulesLoad, finalModulesDep, modulesSoftdep, modulesAlias}
 }

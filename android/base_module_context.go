@@ -17,6 +17,7 @@ package android
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/google/blueprint"
@@ -197,9 +198,15 @@ type BaseModuleContext interface {
 	// singleton actions that are only done once for all variants of a module.
 	FinalModule() Module
 
+	// IsFinalModule returns if the current module is the last variant.  Variants of a module are always visited in
+	// order by mutators and GenerateBuildActions, so the data created by the current mutator can be read from all
+	// variants using VisitAllModuleVariants if the current module is the last one. This can be used to perform
+	// singleton actions that are only done once for all variants of a module.
+	IsFinalModule(module Module) bool
+
 	// VisitAllModuleVariants calls visit for each variant of the current module.  Variants of a module are always
 	// visited in order by mutators and GenerateBuildActions, so the data created by the current mutator can be read
-	// from all variants if the current module == FinalModule().  Otherwise, care must be taken to not access any
+	// from all variants if the current module is the last one. Otherwise, care must be taken to not access any
 	// data modified by the current mutator.
 	VisitAllModuleVariants(visit func(Module))
 
@@ -570,7 +577,7 @@ func (b *baseModuleContext) WalkDepsProxy(visit func(ModuleProxy, ModuleProxy) b
 }
 
 func (b *baseModuleContext) GetWalkPath() []Module {
-	return b.walkPath
+	return slices.Clone(b.walkPath)
 }
 
 func (b *baseModuleContext) GetTagPath() []blueprint.DependencyTag {
@@ -589,6 +596,10 @@ func (b *baseModuleContext) PrimaryModule() Module {
 
 func (b *baseModuleContext) FinalModule() Module {
 	return b.bp.FinalModule().(Module)
+}
+
+func (b *baseModuleContext) IsFinalModule(module Module) bool {
+	return b.bp.IsFinalModule(module)
 }
 
 // IsMetaDependencyTag returns true for cross-cutting metadata dependencies.

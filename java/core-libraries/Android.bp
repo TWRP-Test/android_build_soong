@@ -132,10 +132,10 @@ java_library {
 // prebuilts/sdk/update_prebuilts.py script to update the prebuilts/sdk
 // directory.
 java_library {
-    name: "core-current-stubs-for-system-modules",
+    name: "core-current-stubs-for-system-modules-exportable",
     visibility: ["//development/sdk"],
     static_libs: [
-        "core.current.stubs",
+        "core.current.stubs.exportable",
         // This one is not on device but it's needed when javac compiles code
         // containing lambdas.
         "core-lambda-stubs-for-system-modules",
@@ -153,6 +153,19 @@ java_library {
             targets: dist_targets,
         },
     ],
+}
+
+java_library {
+    name: "core-current-stubs-for-system-modules",
+    visibility: ["//development/sdk"],
+    static_libs: [
+        "core.current.stubs",
+        // This one is not on device but it's needed when javac compiles code
+        // containing lambdas.
+        "core-lambda-stubs-for-system-modules",
+    ],
+    sdk_version: "none",
+    system_modules: "none",
 }
 
 // Defaults module to strip out android annotations

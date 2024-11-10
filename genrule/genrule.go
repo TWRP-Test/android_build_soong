@@ -231,7 +231,7 @@ type generateTask struct {
 
 	// For nsjail tasks
 	useNsjail bool
-	dirSrcs   android.Paths
+	dirSrcs   android.DirectoryPaths
 }
 
 func (g *Module) GeneratedSourceFiles() android.Paths {
@@ -604,7 +604,8 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 
 		if task.useNsjail {
 			for _, input := range task.dirSrcs {
-				cmd.Implicit(input)
+				cmd.ImplicitDirectory(input)
+				// TODO(b/375551969): remove glob
 				if paths, err := ctx.GlobWithDeps(filepath.Join(input.String(), "**/*"), nil); err == nil {
 					rule.NsjailImplicits(android.PathsForSource(ctx, paths))
 				} else {

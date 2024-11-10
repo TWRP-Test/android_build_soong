@@ -520,7 +520,7 @@ func (b *BootclasspathFragmentModule) GenerateAndroidBuildActions(ctx android.Mo
 	// be output to Make but it does not really matter which variant is output. The default/platform
 	// variant is the first (ctx.PrimaryModule()) and is usually hidden from make so this just picks
 	// the last variant (ctx.FinalModule()).
-	if ctx.Module() != ctx.FinalModule() {
+	if !ctx.IsFinalModule(ctx.Module()) {
 		b.HideFromMake()
 	}
 }

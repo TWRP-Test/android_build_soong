@@ -317,7 +317,9 @@ type SharedLibraryInfo struct {
 	SharedLibrary android.Path
 	Target        android.Target
 
-	TableOfContents android.OptionalPath
+	TableOfContents    android.OptionalPath
+	IsStubs            bool
+	ImplementationDeps depset.DepSet[string]
 
 	// should be obtained from static analogue
 	TransitiveStaticLibrariesForOrdering depset.DepSet[android.Path]
@@ -386,3 +388,9 @@ type FlagExporterInfo struct {
 }
 
 var FlagExporterInfoProvider = blueprint.NewProvider[FlagExporterInfo]()
+
+var ImplementationDepInfoProvider = blueprint.NewProvider[*ImplementationDepInfo]()
+
+type ImplementationDepInfo struct {
+	ImplementationDeps depset.DepSet[android.Path]
+}

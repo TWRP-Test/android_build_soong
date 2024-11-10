@@ -617,6 +617,9 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 			TableOfContents: android.OptionalPathForPath(tocFile),
 			SharedLibrary:   outputFile,
 			Target:          ctx.Target(),
+			// TODO: when rust supports stubs uses the stubs state rather than inferring it from
+			//  apex_exclude.
+			IsStubs: Bool(library.Properties.Apex_exclude),
 		})
 	}
 

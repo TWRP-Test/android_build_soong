@@ -433,13 +433,13 @@ func checkEnvironmentFile(ctx Context, currentEnv *Environment, envFile string) 
 	}
 }
 
-func updateSymlinks(ctx Context, dir, prevCWD, cwd string) error {
+func updateSymlinks(ctx Context, dir, prevCWD, cwd string, updateSemaphore chan struct{}) error {
 	defer symlinkWg.Done()
 
 	visit := func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() && path != dir {
 			symlinkWg.Add(1)
-			go updateSymlinks(ctx, path, prevCWD, cwd)
+			go updateSymlinks(ctx, path, prevCWD, cwd, updateSemaphore)
 			return filepath.SkipDir
 		}
 		f, err := d.Info()
@@ -470,10 +470,25 @@ func updateSymlinks(ctx Context, dir, prevCWD, cwd string) error {
 		return nil
 	}
 
+	<-updateSemaphore
+	defer func() { updateSemaphore <- struct{}{} }()
 	if err := filepath.WalkDir(dir, visit); err != nil {
 		return err
 	}
 	return nil
+}
+
+// b/376466642: If the concurrency of updateSymlinks is unbounded, Go's runtime spawns a
+// theoretically unbounded number of threads to handle blocking syscalls. This causes the runtime to
+// panic due to hitting thread limits in rare cases. Limiting to GOMAXPROCS concurrent symlink
+// updates should make this a non-issue.
+func newUpdateSemaphore() chan struct{} {
+	numPermits := runtime.GOMAXPROCS(0)
+	c := make(chan struct{}, numPermits)
+	for i := 0; i < numPermits; i++ {
+		c <- struct{}{}
+	}
+	return c
 }
 
 func fixOutDirSymlinks(ctx Context, config Config, outDir string) error {
@@ -508,7 +523,7 @@ func fixOutDirSymlinks(ctx Context, config Config, outDir string) error {
 	}
 
 	symlinkWg.Add(1)
-	if err := updateSymlinks(ctx, outDir, prevCWD, cwd); err != nil {
+	if err := updateSymlinks(ctx, outDir, prevCWD, cwd, newUpdateSemaphore()); err != nil {
 		return err
 	}
 	symlinkWg.Wait()

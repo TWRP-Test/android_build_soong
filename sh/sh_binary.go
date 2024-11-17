@@ -204,7 +204,7 @@ func (s *ShBinary) HostToolPath() android.OptionalPath {
 func (s *ShBinary) DepsMutator(ctx android.BottomUpMutatorContext) {
 }
 
-func (s *ShBinary) OutputFile() android.OutputPath {
+func (s *ShBinary) OutputFile() android.Path {
 	return s.outputFilePath
 }
 

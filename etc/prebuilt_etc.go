@@ -80,6 +80,7 @@ func RegisterPrebuiltEtcBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("prebuilt_bt_firmware", PrebuiltBtFirmwareFactory)
 	ctx.RegisterModuleType("prebuilt_tvservice", PrebuiltTvServiceFactory)
 	ctx.RegisterModuleType("prebuilt_optee", PrebuiltOpteeFactory)
+	ctx.RegisterModuleType("prebuilt_tvconfig", PrebuiltTvConfigFactory)
 
 	ctx.RegisterModuleType("prebuilt_defaults", defaultsFactory)
 
@@ -87,7 +88,7 @@ func RegisterPrebuiltEtcBuildComponents(ctx android.RegistrationContext) {
 
 var PrepareForTestWithPrebuiltEtc = android.FixtureRegisterWithContext(RegisterPrebuiltEtcBuildComponents)
 
-type prebuiltEtcProperties struct {
+type PrebuiltEtcProperties struct {
 	// Source file of this prebuilt. Can reference a genrule type module with the ":module" syntax.
 	// Mutually exclusive with srcs.
 	Src proptools.Configurable[string] `android:"path,arch_variant,replace_instead_of_append"`
@@ -174,7 +175,7 @@ type PrebuiltEtc struct {
 	android.ModuleBase
 	android.DefaultableModuleBase
 
-	properties prebuiltEtcProperties
+	properties PrebuiltEtcProperties
 
 	// rootProperties is used to return the value of the InstallInRoot() method. Currently, only
 	// prebuilt_avb and prebuilt_root modules use this.
@@ -183,7 +184,7 @@ type PrebuiltEtc struct {
 	subdirProperties prebuiltSubdirProperties
 
 	sourceFilePaths android.Paths
-	outputFilePaths android.OutputPaths
+	outputFilePaths android.WritablePaths
 	// The base install location, e.g. "etc" for prebuilt_etc, "usr/share" for prebuilt_usr_share.
 	installDirBase               string
 	installDirBase64             string
@@ -316,7 +317,7 @@ func (p *PrebuiltEtc) SetAdditionalDependencies(paths android.Paths) {
 	p.additionalDependencies = &paths
 }
 
-func (p *PrebuiltEtc) OutputFile() android.OutputPath {
+func (p *PrebuiltEtc) OutputFile() android.Path {
 	if p.usedSrcsProperty {
 		panic(fmt.Errorf("OutputFile not available on multi-source prebuilt %q", p.Name()))
 	}
@@ -409,7 +410,7 @@ func (p *PrebuiltEtc) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 			ctx.PropertyErrorf("filename", "filename cannot contain separator '/'")
 			return
 		}
-		p.outputFilePaths = android.OutputPaths{android.PathForModuleOut(ctx, filename).OutputPath}
+		p.outputFilePaths = android.WritablePaths{android.PathForModuleOut(ctx, filename)}
 
 		ip := installProperties{
 			filename:       filename,
@@ -452,7 +453,7 @@ func (p *PrebuiltEtc) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 				filename = src.Base()
 				installDirPath = baseInstallDirPath
 			}
-			output := android.PathForModuleOut(ctx, filename).OutputPath
+			output := android.PathForModuleOut(ctx, filename)
 			ip := installProperties{
 				filename:       filename,
 				sourceFilePath: src,
@@ -472,7 +473,7 @@ func (p *PrebuiltEtc) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		if filename == "" {
 			filename = ctx.ModuleName()
 		}
-		p.outputFilePaths = android.OutputPaths{android.PathForModuleOut(ctx, filename).OutputPath}
+		p.outputFilePaths = android.WritablePaths{android.PathForModuleOut(ctx, filename)}
 		ip := installProperties{
 			filename:       filename,
 			sourceFilePath: p.sourceFilePaths[0],
@@ -500,7 +501,7 @@ func (p *PrebuiltEtc) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 type installProperties struct {
 	filename       string
 	sourceFilePath android.Path
-	outputFilePath android.OutputPath
+	outputFilePath android.WritablePath
 	installDirPath android.InstallPath
 	symlinks       []string
 }
@@ -606,7 +607,7 @@ func DefaultsFactory(props ...interface{}) android.Module {
 
 	module.AddProperties(props...)
 	module.AddProperties(
-		&prebuiltEtcProperties{},
+		&PrebuiltEtcProperties{},
 		&prebuiltSubdirProperties{},
 	)
 
@@ -956,6 +957,16 @@ func PrebuiltTvServiceFactory() android.Module {
 func PrebuiltOpteeFactory() android.Module {
 	module := &PrebuiltEtc{}
 	InitPrebuiltEtcModule(module, "optee")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_tvconfig installs files in <partition>/tvconfig directory.
+func PrebuiltTvConfigFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "tvconfig")
 	// This module is device-only
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)

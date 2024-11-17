@@ -18,9 +18,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"regexp"
 	"slices"
 
 	fid_proto "android/soong/cmd/find_input_delta/find_input_delta_proto_internal"
+	"android/soong/third_party/zip"
 	"github.com/google/blueprint/pathtools"
 	"google.golang.org/protobuf/proto"
 )
@@ -57,6 +59,7 @@ func CreateState(inputs []string, inspect_contents bool, fsys StatReadFileFS) (*
 			// If we ever have an easy hash, assign it here.
 		}
 		if inspect_contents {
+			// NOTE: When we find it useful, we can parallelize the file inspection for speed.
 			contents, err := InspectFileContents(input)
 			if err != nil {
 				return ret, err
@@ -70,12 +73,34 @@ func CreateState(inputs []string, inspect_contents bool, fsys StatReadFileFS) (*
 	return ret, nil
 }
 
+// We ignore any suffix digit caused by sharding.
+var InspectExtsZipRegexp = regexp.MustCompile("\\.(jar|apex|apk)[0-9]*$")
+
 // Inspect the file and extract the state of the elements in the archive.
 // If this is not an archive of some sort, nil is returned.
 func InspectFileContents(name string) ([]*fid_proto.PartialCompileInput, error) {
-	// TODO: Actually inspect the contents.
-	fmt.Printf("inspecting contents for %s\n", name)
+	if InspectExtsZipRegexp.Match([]byte(name)) {
+		return inspectZipFileContents(name)
+	}
 	return nil, nil
+}
+
+func inspectZipFileContents(name string) ([]*fid_proto.PartialCompileInput, error) {
+	rc, err := zip.OpenReader(name)
+	if err != nil {
+		return nil, err
+	}
+	ret := []*fid_proto.PartialCompileInput{}
+	for _, v := range rc.File {
+		pci := &fid_proto.PartialCompileInput{
+			Name:      proto.String(v.Name),
+			MtimeNsec: proto.Int64(v.ModTime().UnixNano()),
+			Hash:      proto.String(fmt.Sprintf("%08x", v.CRC32)),
+		}
+		ret = append(ret, pci)
+		// We do not support nested inspection.
+	}
+	return ret, nil
 }
 
 func WriteState(s *fid_proto.PartialCompileInputs, path string) error {
@@ -91,9 +116,7 @@ func CompareInternalState(prior, other *fid_proto.PartialCompileInputs, target s
 }
 
 func CompareInputFiles(prior, other []*fid_proto.PartialCompileInput, name string) *FileList {
-	fl := &FileList{
-		Name: name,
-	}
+	fl := FileListFactory(name)
 	PriorMap := make(map[string]*fid_proto.PartialCompileInput, len(prior))
 	// We know that the lists are properly sorted, so we can simply compare them.
 	for _, v := range prior {
@@ -105,17 +128,17 @@ func CompareInputFiles(prior, other []*fid_proto.PartialCompileInput, name strin
 		otherMap[name] = v
 		if _, ok := PriorMap[name]; !ok {
 			// Added file
-			fl.Additions = append(fl.Additions, name)
+			fl.addFile(name)
 		} else if !proto.Equal(PriorMap[name], v) {
 			// Changed file
-			fl.Changes = append(fl.Changes, *CompareInputFiles(PriorMap[name].GetContents(), v.GetContents(), name))
+			fl.changeFile(name, CompareInputFiles(PriorMap[name].GetContents(), v.GetContents(), name))
 		}
 	}
 	for _, v := range prior {
 		name := v.GetName()
 		if _, ok := otherMap[name]; !ok {
 			// Deleted file
-			fl.Deletions = append(fl.Deletions, name)
+			fl.deleteFile(name)
 		}
 	}
 	return fl

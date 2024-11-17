@@ -156,11 +156,15 @@ func TestFileSystemFillsLinkerConfigWithStubLibs(t *testing.T) {
 	result := fixture.RunTestWithBp(t, `
 		android_system_image {
 			name: "myfilesystem",
+			base_dir: "system",
 			deps: [
 				"libfoo",
 				"libbar",
 			],
-			linker_config_src: "linker.config.json",
+			linker_config: {
+				gen_linker_config: true,
+				linker_config_srcs: ["linker.config.json"],
+			},
 		}
 
 		cc_library {
@@ -176,7 +180,7 @@ func TestFileSystemFillsLinkerConfigWithStubLibs(t *testing.T) {
 	`)
 
 	module := result.ModuleForTests("myfilesystem", "android_common")
-	output := module.Output("system/etc/linker.config.pb")
+	output := module.Output("out/soong/.intermediates/myfilesystem/android_common/root/system/etc/linker.config.pb")
 
 	android.AssertStringDoesContain(t, "linker.config.pb should have libfoo",
 		output.RuleParams.Command, "libfoo.so")
@@ -223,7 +227,10 @@ func TestFileSystemGathersItemsOnlyInSystemPartition(t *testing.T) {
 					deps: ["foo"],
 				},
 			},
-			linker_config_src: "linker.config.json",
+			linker_config: {
+				gen_linker_config: true,
+				linker_config_srcs: ["linker.config.json"],
+			},
 		}
 		component {
 			name: "foo",
@@ -318,7 +325,10 @@ func TestFileSystemWithCoverageVariants(t *testing.T) {
 			deps: [
 				"libfoo",
 			],
-			linker_config_src: "linker.config.json",
+			linker_config: {
+				gen_linker_config: true,
+				linker_config_srcs: ["linker.config.json"],
+			},
 		}
 
 		cc_library {
@@ -656,7 +666,9 @@ func TestUseSharedVariationOfNativeLib(t *testing.T) {
 
 	partition := result.ModuleForTests("myfilesystem", "android_common")
 	fileList := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("fileList"))
-	android.AssertDeepEquals(t, "cc_library listed in deps", "lib64/libc++.so\nlib64/libc.so\nlib64/libdl.so\nlib64/libfoo.so\nlib64/libm.so\n", fileList)
+	android.AssertDeepEquals(t, "cc_library listed in deps",
+		"lib64/bootstrap/libc.so\nlib64/bootstrap/libdl.so\nlib64/bootstrap/libm.so\nlib64/libc++.so\nlib64/libc.so\nlib64/libdl.so\nlib64/libfoo.so\nlib64/libm.so\n",
+		fileList)
 }
 
 // binfoo1 overrides binbar. transitive deps of binbar should not be installed.
@@ -691,7 +703,9 @@ cc_library {
 
 	partition := result.ModuleForTests("myfilesystem", "android_common")
 	fileList := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("fileList"))
-	android.AssertDeepEquals(t, "Shared library dep of overridden binary should not be installed", fileList, "bin/binfoo1\nlib64/libc++.so\nlib64/libc.so\nlib64/libdl.so\nlib64/libfoo2.so\nlib64/libm.so\n")
+	android.AssertDeepEquals(t, "Shared library dep of overridden binary should not be installed",
+		"bin/binfoo1\nlib64/bootstrap/libc.so\nlib64/bootstrap/libdl.so\nlib64/bootstrap/libm.so\nlib64/libc++.so\nlib64/libc.so\nlib64/libdl.so\nlib64/libfoo2.so\nlib64/libm.so\n",
+		fileList)
 }
 
 func TestInstallLinkerConfigFile(t *testing.T) {
@@ -699,9 +713,9 @@ func TestInstallLinkerConfigFile(t *testing.T) {
 android_filesystem {
     name: "myfilesystem",
     deps: ["libfoo_has_no_stubs", "libfoo_has_stubs"],
-    linkerconfig: {
-	    gen_linker_config: true,
-	    linker_config_srcs: ["linker.config.json"],
+    linker_config: {
+        gen_linker_config: true,
+        linker_config_srcs: ["linker.config.json"],
     },
     partition_type: "vendor",
 }

@@ -997,12 +997,13 @@ func (d *Droidstubs) everythingOptionalCmd(ctx android.ModuleContext, cmd *andro
 		msg := `$'` + // Enclose with $' ... '
 			`************************************************************\n` +
 			`Your API changes are triggering API Lint warnings or errors.\n` +
-			`To make these errors go away, fix the code according to the\n` +
-			`error and/or warning messages above.\n` +
 			`\n` +
-			`If it is not possible to do so, there are workarounds:\n` +
+			`To make the failures go away:\n` +
 			`\n` +
-			`1. You can suppress the errors with @SuppressLint("<id>")\n` +
+			`1. REQUIRED: Read the messages carefully and address them by` +
+			`   fixing the API if appropriate.\n` +
+			`2. If the failure is a false positive, you can suppress it with:\n` +
+			`        @SuppressLint("<id>")\n` +
 			`   where the <id> is given in brackets in the error message above.\n`
 
 		if baselineFile.Valid() {
@@ -1010,8 +1011,8 @@ func (d *Droidstubs) everythingOptionalCmd(ctx android.ModuleContext, cmd *andro
 			cmd.FlagWithOutput("--update-baseline:api-lint ", updatedBaselineOutput)
 
 			msg += fmt.Sprintf(``+
-				`2. You can update the baseline by executing the following\n`+
-				`   command:\n`+
+				`3. FOR LSC ONLY: You can update the baseline by executing\n`+
+				`   the following command:\n`+
 				`       (cd $ANDROID_BUILD_TOP && cp \\\n`+
 				`       "%s" \\\n`+
 				`       "%s")\n`+
@@ -1019,7 +1020,7 @@ func (d *Droidstubs) everythingOptionalCmd(ctx android.ModuleContext, cmd *andro
 				`   repository, you will need approval.\n`, updatedBaselineOutput, baselineFile.Path())
 		} else {
 			msg += fmt.Sprintf(``+
-				`2. You can add a baseline file of existing lint failures\n`+
+				`3. FOR LSC ONLY: You can add a baseline file of existing lint failures\n`+
 				`   to the build rule of %s.\n`, d.Name())
 		}
 		// Note the message ends with a ' (single quote), to close the $' ... ' .
@@ -1373,7 +1374,7 @@ func (d *Droidstubs) setOutputFiles(ctx android.ModuleContext) {
 		for _, stubType := range android.SortedKeys(stubsTypeToPrefix) {
 			tagWithPrefix := stubsTypeToPrefix[stubType] + tag
 			outputFile, err := tagToOutputFileFunc[tag](stubType)
-			if err == nil {
+			if err == nil && outputFile != nil {
 				ctx.SetOutputFiles(android.Paths{outputFile}, tagWithPrefix)
 			}
 		}

@@ -53,6 +53,13 @@ type CcObjectInfo struct {
 
 var CcObjectInfoProvider = blueprint.NewProvider[CcObjectInfo]()
 
+type LinkableInfo struct {
+	// StaticExecutable returns true if this is a binary module with "static_executable: true".
+	StaticExecutable bool
+}
+
+var LinkableInfoKey = blueprint.NewProvider[LinkableInfo]()
+
 func init() {
 	RegisterCCBuildComponents(android.InitRegistrationContext)
 
@@ -541,7 +548,6 @@ type ModuleContextIntf interface {
 	apexSdkVersion() android.ApiLevel
 	bootstrap() bool
 	nativeCoverage() bool
-	directlyInAnyApex() bool
 	isPreventInstall() bool
 	isCfiAssemblySupportEnabled() bool
 	getSharedFlags() *SharedFlags
@@ -1560,12 +1566,11 @@ func (ctx *moduleContextImpl) minSdkVersion() string {
 	}
 
 	if ctx.ctx.Device() {
-		config := ctx.ctx.Config()
-		if ctx.inVendor() {
-			// If building for vendor with final API, then use the latest _stable_ API as "current".
-			if config.VendorApiLevelFrozen() && (ver == "" || ver == "current") {
-				ver = config.PlatformSdkVersion().String()
-			}
+		// When building for vendor/product, use the latest _stable_ API as "current".
+		// This is passed to clang/aidl compilers so that compiled/generated code works
+		// with the system.
+		if (ctx.inVendor() || ctx.inProduct()) && (ver == "" || ver == "current") {
+			ver = ctx.ctx.Config().PlatformSdkVersion().String()
 		}
 	}
 
@@ -1684,10 +1689,6 @@ func (ctx *moduleContextImpl) bootstrap() bool {
 
 func (ctx *moduleContextImpl) nativeCoverage() bool {
 	return ctx.mod.nativeCoverage()
-}
-
-func (ctx *moduleContextImpl) directlyInAnyApex() bool {
-	return ctx.mod.DirectlyInAnyApex()
 }
 
 func (ctx *moduleContextImpl) isPreventInstall() bool {
@@ -2119,6 +2120,10 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 	if len(ccObjectInfo.kytheFiles)+len(ccObjectInfo.objFiles)+len(ccObjectInfo.tidyFiles) > 0 {
 		android.SetProvider(ctx, CcObjectInfoProvider, ccObjectInfo)
 	}
+
+	android.SetProvider(ctx, LinkableInfoKey, LinkableInfo{
+		StaticExecutable: c.StaticExecutable(),
+	})
 
 	c.setOutputFiles(ctx)
 
@@ -3354,8 +3359,6 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 }
 
 func ShouldUseStubForApex(ctx android.ModuleContext, dep android.Module) bool {
-	depName := ctx.OtherModuleName(dep)
-
 	inVendorOrProduct := false
 	bootstrap := false
 	if linkable, ok := ctx.Module().(LinkableInterface); !ok {
@@ -3385,9 +3388,8 @@ func ShouldUseStubForApex(ctx android.ModuleContext, dep android.Module) bool {
 
 		useStubs = isNotInPlatform && !bootstrap
 	} else {
-		// If building for APEX, use stubs when the parent is in any APEX that
-		// the child is not in.
-		useStubs = !android.DirectlyInAllApexes(apexInfo, depName)
+		// If building for APEX, always use stubs (can be bypassed by depending on <dep>#impl)
+		useStubs = true
 	}
 
 	return useStubs

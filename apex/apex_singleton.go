@@ -64,12 +64,14 @@ var (
 			if grep -v -h '^#' ${allowed_deps_list} | sort -u -f| diff -B -u - ${new_allowed_deps}; then
 			   touch ${out};
 			else
-				echo -e "\n******************************";
+				echo;
+				echo "******************************";
 				echo "ERROR: go/apex-allowed-deps-error contains more information";
 				echo "******************************";
 				echo "Detected changes to allowed dependencies in updatable modules.";
 				echo "To fix and update packages/modules/common/build/allowed_deps.txt, please run:";
-				echo -e "$$ (croot && packages/modules/common/build/update-apex-allowed-deps.sh)\n";
+				echo "$$ (croot && packages/modules/common/build/update-apex-allowed-deps.sh)";
+				echo;
 				echo "When submitting the generated CL, you must include the following information";
 				echo "in the commit message if you are adding a new dependency:";
 				echo "Apex-Size-Increase: Expected binary size increase for affected APEXes (or the size of the .jar / .so file of the new library)";
@@ -78,7 +80,8 @@ var (
 				echo "Test-Info: What’s the testing strategy for the new dependency? Does it have its own tests, and are you adding integration tests? How/when are the tests run?";
 				echo "You do not need OWNERS approval to submit the change, but mainline-modularization@";
 				echo "will periodically review additions and may require changes.";
-				echo -e "******************************\n";
+				echo "******************************";
+				echo;
 				exit 1;
 			fi;
 		`,

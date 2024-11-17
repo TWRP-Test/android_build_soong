@@ -295,7 +295,7 @@ func (d *dexer) d8Flags(ctx android.ModuleContext, dexParams *compileDexParams) 
 	return d8Flags, d8Deps, artProfileOutput
 }
 
-func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams) (r8Flags []string, r8Deps android.Paths, artProfileOutput *android.OutputPath) {
+func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams, debugMode bool) (r8Flags []string, r8Deps android.Paths, artProfileOutput *android.OutputPath) {
 	flags := dexParams.flags
 	opt := d.dexProperties.Optimize
 
@@ -363,7 +363,9 @@ func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams) 
 		r8Flags = append(r8Flags, "--force-proguard-compatibility")
 	}
 
-	if Bool(opt.Optimize) || Bool(opt.Obfuscate) {
+	// Avoid unnecessary stack frame noise by only injecting source map ids for non-debug
+	// optimized or obfuscated targets.
+	if (Bool(opt.Optimize) || Bool(opt.Obfuscate)) && !debugMode {
 		// TODO(b/213833843): Allow configuration of the prefix via a build variable.
 		var sourceFilePrefix = "go/retraceme "
 		var sourceFileTemplate = "\"" + sourceFilePrefix + "%MAP_ID\""
@@ -428,17 +430,18 @@ type compileDexParams struct {
 // Adds --art-profile to r8/d8 command.
 // r8/d8 will output a generated profile file to match the optimized dex code.
 func (d *dexer) addArtProfile(ctx android.ModuleContext, dexParams *compileDexParams) (flags []string, deps android.Paths, artProfileOutputPath *android.OutputPath) {
-	if dexParams.artProfileInput != nil {
-		artProfileInputPath := android.PathForModuleSrc(ctx, *dexParams.artProfileInput)
-		artProfileOutputPathValue := android.PathForModuleOut(ctx, "profile.prof.txt").OutputPath
-		artProfileOutputPath = &artProfileOutputPathValue
-		flags = []string{
-			"--art-profile",
-			artProfileInputPath.String(),
-			artProfileOutputPath.String(),
-		}
-		deps = append(deps, artProfileInputPath)
+	if dexParams.artProfileInput == nil {
+		return nil, nil, nil
 	}
+	artProfileInputPath := android.PathForModuleSrc(ctx, *dexParams.artProfileInput)
+	artProfileOutputPathValue := android.PathForModuleOut(ctx, "profile.prof.txt").OutputPath
+	artProfileOutputPath = &artProfileOutputPathValue
+	flags = []string{
+		"--art-profile",
+		artProfileInputPath.String(),
+		artProfileOutputPath.String(),
+	}
+	deps = append(deps, artProfileInputPath)
 	return flags, deps, artProfileOutputPath
 
 }
@@ -482,7 +485,8 @@ func (d *dexer) compileDex(ctx android.ModuleContext, dexParams *compileDexParam
 			proguardUsageZip,
 			proguardConfiguration,
 		}
-		r8Flags, r8Deps, r8ArtProfileOutputPath := d.r8Flags(ctx, dexParams)
+		debugMode := android.InList("--debug", commonFlags)
+		r8Flags, r8Deps, r8ArtProfileOutputPath := d.r8Flags(ctx, dexParams, debugMode)
 		rule := r8
 		args := map[string]string{
 			"r8Flags":        strings.Join(append(commonFlags, r8Flags...), " "),

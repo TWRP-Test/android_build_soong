@@ -24,7 +24,7 @@ func init() {
 
 type AdbKeysModule struct {
 	android.ModuleBase
-	outputPath  android.OutputPath
+	outputPath  android.Path
 	installPath android.InstallPath
 }
 
@@ -46,15 +46,16 @@ func (m *AdbKeysModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		return
 	}
 
-	m.outputPath = android.PathForModuleOut(ctx, "adb_keys").OutputPath
+	outputPath := android.PathForModuleOut(ctx, "adb_keys")
 	input := android.ExistentPathForSource(ctx, android.String(productVariables.AdbKeys))
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   android.Cp,
-		Output: m.outputPath,
+		Output: outputPath,
 		Input:  input.Path(),
 	})
 	m.installPath = android.PathForModuleInstall(ctx, "etc/security")
-	ctx.InstallFile(m.installPath, "adb_keys", m.outputPath)
+	ctx.InstallFile(m.installPath, "adb_keys", outputPath)
+	m.outputPath = outputPath
 }
 
 func (m *AdbKeysModule) AndroidMkEntries() []android.AndroidMkEntries {

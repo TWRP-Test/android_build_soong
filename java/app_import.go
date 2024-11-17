@@ -88,7 +88,7 @@ type AndroidAppImport struct {
 
 	hideApexVariantFromMake bool
 
-	provenanceMetaDataFile android.OutputPath
+	provenanceMetaDataFile android.Path
 }
 
 type AndroidAppImportProperties struct {
@@ -259,7 +259,7 @@ func (a *AndroidAppImport) DepsMutator(ctx android.BottomUpMutatorContext) {
 }
 
 func (a *AndroidAppImport) uncompressEmbeddedJniLibs(
-	ctx android.ModuleContext, inputPath android.Path, outputPath android.OutputPath) {
+	ctx android.ModuleContext, inputPath android.Path, outputPath android.WritablePath) {
 	// Test apps don't need their JNI libraries stored uncompressed. As a matter of fact, messing
 	// with them may invalidate pre-existing signature data.
 	if ctx.InstallInTestcases() && (Bool(a.properties.Presigned) || Bool(a.properties.Preprocessed)) {
@@ -345,7 +345,7 @@ func (a *AndroidAppImport) generateAndroidBuildActions(ctx android.ModuleContext
 
 	// Uncompress JNI libraries in the apk
 	jnisUncompressed := android.PathForModuleOut(ctx, "jnis-uncompressed", ctx.ModuleName()+".apk")
-	a.uncompressEmbeddedJniLibs(ctx, srcApk, jnisUncompressed.OutputPath)
+	a.uncompressEmbeddedJniLibs(ctx, srcApk, jnisUncompressed)
 
 	var pathFragments []string
 	relInstallPath := String(a.properties.Relative_install_path)
@@ -493,7 +493,7 @@ func (a *AndroidAppImport) Certificate() Certificate {
 	return a.certificate
 }
 
-func (a *AndroidAppImport) ProvenanceMetaDataFile() android.OutputPath {
+func (a *AndroidAppImport) ProvenanceMetaDataFile() android.Path {
 	return a.provenanceMetaDataFile
 }
 

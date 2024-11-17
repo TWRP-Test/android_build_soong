@@ -19,6 +19,7 @@ import (
 	"android/soong/filesystem"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/google/blueprint/proptools"
 )
@@ -51,9 +52,10 @@ func createVbmetaPartitions(ctx android.LoadHookContext, generatedPartitionTypes
 
 	var result []vbmetaModuleInfo
 
-	var chainedPartitions []filesystem.ChainedPartitionProperties
+	var chainedPartitions []string
 	var partitionTypesHandledByChainedPartitions []string
-	for chainedName, props := range partitionVars.ChainedVbmetaPartitions {
+	for _, chainedName := range android.SortedKeys(partitionVars.ChainedVbmetaPartitions) {
+		props := partitionVars.ChainedVbmetaPartitions[chainedName]
 		chainedName = "vbmeta_" + chainedName
 		if len(props.Partitions) == 0 {
 			continue
@@ -117,11 +119,7 @@ func createVbmetaPartitions(ctx android.LoadHookContext, generatedPartitionTypes
 			},
 		).HideFromMake()
 
-		chainedPartitions = append(chainedPartitions, filesystem.ChainedPartitionProperties{
-			Name:                    &chainedName,
-			Rollback_index_location: &ril,
-			Private_key:             &props.Key,
-		})
+		chainedPartitions = append(chainedPartitions, name)
 
 		result = append(result, vbmetaModuleInfo{
 			moduleName:    name,
@@ -154,6 +152,12 @@ func createVbmetaPartitions(ctx android.LoadHookContext, generatedPartitionTypes
 	for _, partitionType := range generatedPartitionTypes {
 		if slices.Contains(partitionTypesHandledByChainedPartitions, partitionType) {
 			// Already handled by a chained vbmeta partition
+			continue
+		}
+		if strings.Contains(partitionType, "ramdisk") || strings.Contains(partitionType, "boot") {
+			// ramdisk is never signed with avb information
+			// boot partitions just have the avb footer, and don't have a corresponding vbmeta
+			// partition.
 			continue
 		}
 		partitionModules = append(partitionModules, generatedModuleNameForPartition(ctx.Config(), partitionType))

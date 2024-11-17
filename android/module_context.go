@@ -16,13 +16,13 @@ package android
 
 import (
 	"fmt"
-	"github.com/google/blueprint/depset"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/google/blueprint"
+	"github.com/google/blueprint/depset"
 	"github.com/google/blueprint/proptools"
 )
 
@@ -439,9 +439,11 @@ func (m *moduleContext) GetMissingDependencies() []string {
 	return missingDeps
 }
 
-func (m *moduleContext) GetDirectDepWithTag(name string, tag blueprint.DependencyTag) blueprint.Module {
-	module, _ := m.getDirectDepInternal(name, tag)
-	return module
+func (m *moduleContext) GetDirectDepWithTag(name string, tag blueprint.DependencyTag) Module {
+	if module, _ := m.getDirectDepInternal(name, tag); module != nil {
+		return module.(Module)
+	}
+	return nil
 }
 
 func (m *moduleContext) ModuleSubDir() string {
@@ -829,6 +831,11 @@ func (m *moduleContext) ModuleInfoJSON() *ModuleInfoJSON {
 }
 
 func (m *moduleContext) SetOutputFiles(outputFiles Paths, tag string) {
+	for _, outputFile := range outputFiles {
+		if outputFile == nil {
+			panic("outputfiles cannot be nil")
+		}
+	}
 	if tag == "" {
 		if len(m.outputFiles.DefaultOutputFiles) > 0 {
 			m.ModuleErrorf("Module %s default OutputFiles cannot be overwritten", m.ModuleName())

@@ -26,19 +26,19 @@ import (
 )
 
 func init() {
-	android.RegisterModuleType("bootimg", bootimgFactory)
+	android.RegisterModuleType("bootimg", BootimgFactory)
 }
 
 type bootimg struct {
 	android.ModuleBase
 
-	properties bootimgProperties
+	properties BootimgProperties
 
-	output     android.OutputPath
+	output     android.Path
 	installDir android.InstallPath
 }
 
-type bootimgProperties struct {
+type BootimgProperties struct {
 	// Set the name of the output. Defaults to <module_name>.img.
 	Stem *string
 
@@ -82,7 +82,7 @@ type bootimgProperties struct {
 }
 
 // bootimg is the image for the boot partition. It consists of header, kernel, ramdisk, and dtb.
-func bootimgFactory() android.Module {
+func BootimgFactory() android.Module {
 	module := &bootimg{}
 	module.AddProperties(&module.properties)
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibFirst)
@@ -115,20 +115,20 @@ func (b *bootimg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	vendor := proptools.Bool(b.properties.Vendor_boot)
 	unsignedOutput := b.buildBootImage(ctx, vendor)
 
+	output := unsignedOutput
 	if proptools.Bool(b.properties.Use_avb) {
-		b.output = b.signImage(ctx, unsignedOutput)
-	} else {
-		b.output = unsignedOutput
+		output = b.signImage(ctx, unsignedOutput)
 	}
 
 	b.installDir = android.PathForModuleInstall(ctx, "etc")
-	ctx.InstallFile(b.installDir, b.installFileName(), b.output)
+	ctx.InstallFile(b.installDir, b.installFileName(), output)
 
-	ctx.SetOutputFiles([]android.Path{b.output}, "")
+	ctx.SetOutputFiles([]android.Path{output}, "")
+	b.output = output
 }
 
-func (b *bootimg) buildBootImage(ctx android.ModuleContext, vendor bool) android.OutputPath {
-	output := android.PathForModuleOut(ctx, "unsigned", b.installFileName()).OutputPath
+func (b *bootimg) buildBootImage(ctx android.ModuleContext, vendor bool) android.Path {
+	output := android.PathForModuleOut(ctx, "unsigned", b.installFileName())
 
 	builder := android.NewRuleBuilder(pctx, ctx)
 	cmd := builder.Command().BuiltTool("mkbootimg")
@@ -215,10 +215,10 @@ func (b *bootimg) buildBootImage(ctx android.ModuleContext, vendor bool) android
 	return output
 }
 
-func (b *bootimg) signImage(ctx android.ModuleContext, unsignedImage android.OutputPath) android.OutputPath {
+func (b *bootimg) signImage(ctx android.ModuleContext, unsignedImage android.Path) android.Path {
 	propFile, toolDeps := b.buildPropFile(ctx)
 
-	output := android.PathForModuleOut(ctx, b.installFileName()).OutputPath
+	output := android.PathForModuleOut(ctx, b.installFileName())
 	builder := android.NewRuleBuilder(pctx, ctx)
 	builder.Command().Text("cp").Input(unsignedImage).Output(output)
 	builder.Command().BuiltTool("verity_utils").
@@ -239,7 +239,7 @@ func (b *bootimg) salt() string {
 	return sha1sum(input)
 }
 
-func (b *bootimg) buildPropFile(ctx android.ModuleContext) (propFile android.OutputPath, toolDeps android.Paths) {
+func (b *bootimg) buildPropFile(ctx android.ModuleContext) (android.Path, android.Paths) {
 	var sb strings.Builder
 	var deps android.Paths
 	addStr := func(name string, value string) {
@@ -261,7 +261,7 @@ func (b *bootimg) buildPropFile(ctx android.ModuleContext) (propFile android.Out
 	addStr("partition_name", partitionName)
 	addStr("avb_salt", b.salt())
 
-	propFile = android.PathForModuleOut(ctx, "prop").OutputPath
+	propFile := android.PathForModuleOut(ctx, "prop")
 	android.WriteFileRule(ctx, propFile, sb.String())
 	return propFile, deps
 }

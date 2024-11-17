@@ -929,7 +929,7 @@ func TestApexWithStubs(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["mylib2", "mylib3", "my_prebuilt_platform_lib", "my_prebuilt_platform_stub_only_lib"],
+			shared_libs: ["mylib2", "mylib3#impl", "my_prebuilt_platform_lib", "my_prebuilt_platform_stub_only_lib"],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [ "myapex" ],
@@ -1025,7 +1025,7 @@ func TestApexWithStubs(t *testing.T) {
 	// ... and not linking to the non-stub (impl) variant of mylib2
 	ensureNotContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared/mylib2.so")
 
-	// Ensure that mylib is linking with the non-stub (impl) of mylib3 (because mylib3 is in the same apex)
+	// Ensure that mylib is linking with the non-stub (impl) of mylib3 (because the dependency is added with mylib3#impl)
 	ensureContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_apex10000/mylib3.so")
 	// .. and not linking to the stubs variant of mylib3
 	ensureNotContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_12/mylib3.so")
@@ -1201,7 +1201,7 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["mylib2", "mylib3"],
+			shared_libs: ["mylib2", "mylib3#impl"],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [ "myapex" ],
@@ -1264,7 +1264,7 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 	// ... and not linking to the non-stub (impl) variant of mylib2
 	ensureNotContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared/mylib2.so")
 
-	// Ensure that mylib is linking with the non-stub (impl) of mylib3 (because mylib3 is in the same apex)
+	// Ensure that mylib is linking with the non-stub (impl) of mylib3 (because the dependency is added with mylib3#impl)
 	ensureContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_apex29/mylib3.so")
 	// .. and not linking to the stubs variant of mylib3
 	ensureNotContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_29/mylib3.so")
@@ -1797,8 +1797,8 @@ func TestApexWithSystemLibsStubs(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			system_shared_libs: ["libc", "libm"],
-			shared_libs: ["libdl#27"],
+			system_shared_libs: ["libc"],
+			shared_libs: ["libdl#27", "libm#impl"],
 			stl: "none",
 			apex_available: [ "myapex" ],
 		}
@@ -2962,8 +2962,7 @@ func TestApexMinSdkVersion_OkayEvenWhenDepIsNewer_IfItSatisfiesApexMinSdkVersion
 			private_key: "testkey.pem",
 		}
 
-		// mylib in myapex will link to mylib2#current
-		// mylib in otherapex will link to mylib2(non-stub) in otherapex as well
+		// mylib will link to mylib2#current
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
@@ -2997,7 +2996,7 @@ func TestApexMinSdkVersion_OkayEvenWhenDepIsNewer_IfItSatisfiesApexMinSdkVersion
 		ensureContains(t, libFlags, "android_arm64_armv8-a_"+to_variant+"/"+to+".so")
 	}
 	expectLink("mylib", "shared_apex29", "mylib2", "shared_current")
-	expectLink("mylib", "shared_apex30", "mylib2", "shared_apex30")
+	expectLink("mylib", "shared_apex30", "mylib2", "shared_current")
 }
 
 func TestApexMinSdkVersion_WorksWithSdkCodename(t *testing.T) {
@@ -10186,7 +10185,10 @@ func TestFileSystemShouldSkipApexLibraries(t *testing.T) {
 			deps: [
 				"libfoo",
 			],
-			linker_config_src: "linker.config.json",
+			linker_config: {
+				gen_linker_config: true,
+				linker_config_srcs: ["linker.config.json"],
+			},
 		}
 
 		cc_library {

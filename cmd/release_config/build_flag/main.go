@@ -90,6 +90,9 @@ func MarshalFlagValue(config *rc_lib.ReleaseConfig, name string) (ret string, er
 	if !ok {
 		return "", fmt.Errorf("%s not found in %s", name, config.Name)
 	}
+	if fa.Redacted {
+		return "==REDACTED==", nil
+	}
 	return rc_lib.MarshalValue(fa.Value), nil
 }
 

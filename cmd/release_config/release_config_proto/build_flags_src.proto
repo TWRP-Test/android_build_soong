@@ -67,8 +67,8 @@ message FlagDeclaration {
   // Text description of the flag's purpose.
   optional string description = 3;
 
-  // reserve this for bug, if needed.
-  reserved 4;
+  // The bug number associated with the flag.
+  repeated string bugs = 4;
 
   // Value for the flag
   optional Value value = 201;

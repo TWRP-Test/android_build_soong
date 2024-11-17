@@ -33,7 +33,7 @@ type fsverityProperties struct {
 	Libs []string `android:"path"`
 }
 
-func (f *filesystem) writeManifestGeneratorListFile(ctx android.ModuleContext, outputPath android.OutputPath, matchedSpecs []android.PackagingSpec, rebasedDir android.OutputPath) {
+func (f *filesystem) writeManifestGeneratorListFile(ctx android.ModuleContext, outputPath android.WritablePath, matchedSpecs []android.PackagingSpec, rebasedDir android.OutputPath) {
 	var buf strings.Builder
 	for _, spec := range matchedSpecs {
 		buf.WriteString(rebasedDir.Join(ctx, spec.RelPathInPackage()).String())
@@ -113,12 +113,12 @@ func (f *filesystem) buildFsverityMetadataFiles(ctx android.ModuleContext, build
 	f.appendToEntry(ctx, manifestPbPath)
 
 	manifestGeneratorListPath := android.PathForModuleOut(ctx, "fsverity_manifest.list")
-	f.writeManifestGeneratorListFile(ctx, manifestGeneratorListPath.OutputPath, matchedSpecs, rebasedDir)
+	f.writeManifestGeneratorListFile(ctx, manifestGeneratorListPath, matchedSpecs, rebasedDir)
 	sb.WriteRune('@')
 	sb.WriteString(manifestGeneratorListPath.String())
 	sb.WriteRune('\n')
 	cmd.Implicit(manifestGeneratorListPath)
-	f.appendToEntry(ctx, manifestGeneratorListPath.OutputPath)
+	f.appendToEntry(ctx, manifestGeneratorListPath)
 
 	// STEP 2-2: generate BuildManifest.apk (unsigned)
 	aapt2Path := ctx.Config().HostToolPath(ctx, "aapt2")

@@ -85,4 +85,11 @@ func main() {
 	if err = file_list.Format(os.Stdout, template); err != nil {
 		panic(err)
 	}
+
+	metrics_file := os.Getenv("SOONG_METRICS_AGGREGATION_FILE")
+	if metrics_file != "" {
+		if err = file_list.SendMetrics(metrics_file); err != nil {
+			panic(err)
+		}
+	}
 }

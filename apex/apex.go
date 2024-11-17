@@ -105,11 +105,10 @@ type apexBundleProperties struct {
 	Rros []string
 
 	// List of bootclasspath fragments that are embedded inside this APEX bundle.
-	Bootclasspath_fragments []string
+	Bootclasspath_fragments proptools.Configurable[[]string]
 
 	// List of systemserverclasspath fragments that are embedded inside this APEX bundle.
-	Systemserverclasspath_fragments        proptools.Configurable[[]string]
-	ResolvedSystemserverclasspathFragments []string `blueprint:"mutated"`
+	Systemserverclasspath_fragments proptools.Configurable[[]string]
 
 	// List of java libraries that are embedded inside this APEX bundle.
 	Java_libs []string
@@ -505,7 +504,7 @@ type apexBundle struct {
 
 	// Text file having the list of individual files that are included in this APEX. Used for
 	// debugging purpose.
-	installedFilesFile android.WritablePath
+	installedFilesFile android.Path
 
 	// List of module names that this APEX is including (to be shown via *-deps-info target).
 	// Used for debugging purpose.
@@ -884,13 +883,11 @@ func (a *apexBundle) DepsMutator(ctx android.BottomUpMutatorContext) {
 		}
 	}
 
-	a.properties.ResolvedSystemserverclasspathFragments = a.properties.Systemserverclasspath_fragments.GetOrDefault(ctx, nil)
-
 	// Common-arch dependencies come next
 	commonVariation := ctx.Config().AndroidCommonTarget.Variations()
 	ctx.AddFarVariationDependencies(commonVariation, rroTag, a.properties.Rros...)
-	ctx.AddFarVariationDependencies(commonVariation, bcpfTag, a.properties.Bootclasspath_fragments...)
-	ctx.AddFarVariationDependencies(commonVariation, sscpfTag, a.properties.ResolvedSystemserverclasspathFragments...)
+	ctx.AddFarVariationDependencies(commonVariation, bcpfTag, a.properties.Bootclasspath_fragments.GetOrDefault(ctx, nil)...)
+	ctx.AddFarVariationDependencies(commonVariation, sscpfTag, a.properties.Systemserverclasspath_fragments.GetOrDefault(ctx, nil)...)
 	ctx.AddFarVariationDependencies(commonVariation, javaLibTag, a.properties.Java_libs...)
 	ctx.AddFarVariationDependencies(commonVariation, fsTag, a.properties.Filesystems...)
 	ctx.AddFarVariationDependencies(commonVariation, compatConfigTag, a.properties.Compat_configs...)
@@ -2062,8 +2059,7 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 			af := apexFileForNativeLibrary(ctx, ch, vctx.handleSpecialLibs)
 			af.transitiveDep = true
 
-			abInfo, _ := android.ModuleProvider(ctx, android.ApexBundleInfoProvider)
-			if !abInfo.Contents.DirectlyInApex(depName) && (ch.IsStubs() || ch.HasStubsVariants()) {
+			if ch.IsStubs() || ch.HasStubsVariants() {
 				// If the dependency is a stubs lib, don't include it in this APEX,
 				// but make sure that the lib is installed on the device.
 				// In case no APEX is having the lib, the lib is installed to the system
@@ -2567,7 +2563,10 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 		return
 	}
 
-	abInfo, _ := android.ModuleProvider(ctx, android.ApexBundleInfoProvider)
+	librariesDirectlyInApex := make(map[string]bool)
+	ctx.VisitDirectDepsProxyWithTag(sharedLibTag, func(dep android.ModuleProxy) {
+		librariesDirectlyInApex[ctx.OtherModuleName(dep)] = true
+	})
 
 	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
 		if ccm, ok := to.(*cc.Module); ok {
@@ -2593,7 +2592,7 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 				return false
 			}
 
-			isStubLibraryFromOtherApex := ccm.HasStubsVariants() && !abInfo.Contents.DirectlyInApex(toName)
+			isStubLibraryFromOtherApex := ccm.HasStubsVariants() && !librariesDirectlyInApex[toName]
 			if isStubLibraryFromOtherApex && !externalDep {
 				ctx.ModuleErrorf("%q required by %q is a native library providing stub. "+
 					"It shouldn't be included in this APEX via static linking. Dependency path: %s", to.String(), fromName, ctx.GetPathString(false))
@@ -2626,7 +2625,7 @@ func (a *apexBundle) checkUpdatable(ctx android.ModuleContext) {
 
 // checkClasspathFragments enforces that all classpath fragments in deps generate classpaths.proto config.
 func (a *apexBundle) checkClasspathFragments(ctx android.ModuleContext) {
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		if tag := ctx.OtherModuleDependencyTag(module); tag == bcpfTag || tag == sscpfTag {
 			info, _ := android.OtherModuleProvider(ctx, module, java.ClasspathFragmentProtoContentInfoProvider)
 			if !info.ClasspathFragmentProtoGenerated {
@@ -2733,12 +2732,12 @@ func (a *apexBundle) checkApexAvailability(ctx android.ModuleContext) {
 
 // checkStaticExecutable ensures that executables in an APEX are not static.
 func (a *apexBundle) checkStaticExecutables(ctx android.ModuleContext) {
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		if ctx.OtherModuleDependencyTag(module) != executableTag {
 			return
 		}
 
-		if l, ok := module.(cc.LinkableInterface); ok && l.StaticExecutable() {
+		if android.OtherModuleProviderOrDefault(ctx, module, cc.LinkableInfoKey).StaticExecutable {
 			apex := a.ApexVariationName()
 			exec := ctx.OtherModuleName(module)
 			if isStaticExecutableAllowed(apex, exec) {
@@ -2764,8 +2763,8 @@ func isStaticExecutableAllowed(apex string, exec string) bool {
 // Collect information for opening IDE project files in java/jdeps.go.
 func (a *apexBundle) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	dpInfo.Deps = append(dpInfo.Deps, a.properties.Java_libs...)
-	dpInfo.Deps = append(dpInfo.Deps, a.properties.Bootclasspath_fragments...)
-	dpInfo.Deps = append(dpInfo.Deps, a.properties.ResolvedSystemserverclasspathFragments...)
+	dpInfo.Deps = append(dpInfo.Deps, a.properties.Bootclasspath_fragments.GetOrDefault(ctx, nil)...)
+	dpInfo.Deps = append(dpInfo.Deps, a.properties.Systemserverclasspath_fragments.GetOrDefault(ctx, nil)...)
 }
 
 func init() {

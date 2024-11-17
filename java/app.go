@@ -848,7 +848,7 @@ func (a *AndroidApp) createPrivappAllowlist(ctx android.ModuleContext) android.P
 
 	packageName := packageNameProp.Get()
 	fileName := "privapp_allowlist_" + packageName + ".xml"
-	outPath := android.PathForModuleOut(ctx, fileName).OutputPath
+	outPath := android.PathForModuleOut(ctx, fileName)
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   modifyAllowlist,
 		Input:  android.PathForModuleSrc(ctx, *a.appProperties.Privapp_allowlist),
@@ -857,7 +857,7 @@ func (a *AndroidApp) createPrivappAllowlist(ctx android.ModuleContext) android.P
 			"packageName": packageName,
 		},
 	})
-	return &outPath
+	return outPath
 }
 
 func (a *AndroidApp) generateAndroidBuildActions(ctx android.ModuleContext) {

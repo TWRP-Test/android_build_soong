@@ -998,6 +998,10 @@ func (p *pathContextAddMissingDependenciesWrapper) GetOutputFiles() OutputFilesI
 	return OutputFilesInfo{}
 }
 
+func (p *pathContextAddMissingDependenciesWrapper) EqualModules(m1, m2 Module) bool {
+	return m1 == m2
+}
+
 func TestOutputFileForModule(t *testing.T) {
 	testcases := []struct {
 		name        string

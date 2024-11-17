@@ -224,11 +224,8 @@ type ApexModule interface {
 	// run.
 	DirectlyInAnyApex() bool
 
-	// NotInPlatform tells whether or not this module is included in an APEX and therefore
-	// shouldn't be exposed to the platform (i.e. outside of the APEX) directly. A module is
-	// considered to be included in an APEX either when there actually is an APEX that
-	// explicitly has the module as its dependency or the module is not available to the
-	// platform, which indicates that the module belongs to at least one or more other APEXes.
+	// NotInPlatform returns true if the module is not available to the platform due to
+	// apex_available being set and not containing "//apex_available:platform".
 	NotInPlatform() bool
 
 	// Tests if this module could have APEX variants. Even when a module type implements
@@ -290,14 +287,6 @@ type ApexProperties struct {
 
 	// See ApexModule.DirectlyInAnyApex()
 	DirectlyInAnyApex bool `blueprint:"mutated"`
-
-	// AnyVariantDirectlyInAnyApex is true in the primary variant of a module if _any_ variant
-	// of the module is directly in any apex. This includes host, arch, asan, etc. variants. It
-	// is unused in any variant that is not the primary variant. Ideally this wouldn't be used,
-	// as it incorrectly mixes arch variants if only one arch is in an apex, but a few places
-	// depend on it, for example when an ASAN variant is created before the apexMutator. Call
-	// this after apex.apexMutator is run.
-	AnyVariantDirectlyInAnyApex bool `blueprint:"mutated"`
 
 	// See ApexModule.NotAvailableForPlatform()
 	NotAvailableForPlatform bool `blueprint:"mutated"`
@@ -428,7 +417,7 @@ func (m *ApexModuleBase) DirectlyInAnyApex() bool {
 
 // Implements ApexModule
 func (m *ApexModuleBase) NotInPlatform() bool {
-	return m.ApexProperties.AnyVariantDirectlyInAnyApex || !m.AvailableFor(AvailableToPlatform)
+	return !m.AvailableFor(AvailableToPlatform)
 }
 
 // Implements ApexModule
@@ -802,22 +791,6 @@ func UpdateDirectlyInAnyApex(mctx BottomUpMutatorContext, am ApexModule) {
 		}
 		return false
 	})
-
-	if base.ApexProperties.DirectlyInAnyApex {
-		// Variants of a module are always visited sequentially in order, so it is safe to
-		// write to another variant of this module. For a BottomUpMutator the
-		// PrimaryModule() is visited first and FinalModule() is visited last.
-		mctx.FinalModule().(ApexModule).apexModuleBase().ApexProperties.AnyVariantDirectlyInAnyApex = true
-	}
-
-	// If this is the FinalModule (last visited module) copy
-	// AnyVariantDirectlyInAnyApex to all the other variants
-	if mctx.IsFinalModule(am) {
-		mctx.VisitAllModuleVariants(func(variant Module) {
-			variant.(ApexModule).apexModuleBase().ApexProperties.AnyVariantDirectlyInAnyApex =
-				base.ApexProperties.AnyVariantDirectlyInAnyApex
-		})
-	}
 }
 
 // ApexMembership tells how a module became part of an APEX.
@@ -870,28 +843,6 @@ func (i ApexMembership) merge(other ApexMembership) ApexMembership {
 	return notInApex
 }
 
-// Tests whether a module named moduleName is directly included in the apexBundle where this
-// ApexContents is tagged.
-func (ac *ApexContents) DirectlyInApex(moduleName string) bool {
-	return ac.contents[moduleName] == directlyInApex
-}
-
-// Tests whether a module named moduleName is included in the apexBundle where this ApexContent is
-// tagged.
-func (ac *ApexContents) InApex(moduleName string) bool {
-	return ac.contents[moduleName] != notInApex
-}
-
-// Tests whether a module named moduleName is directly depended on by all APEXes in an ApexInfo.
-func DirectlyInAllApexes(apexInfo ApexInfo, moduleName string) bool {
-	for _, contents := range apexInfo.ApexContents {
-		if !contents.DirectlyInApex(moduleName) {
-			return false
-		}
-	}
-	return true
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //Below are routines for extra safety checks.
 //
@@ -918,8 +869,8 @@ type ApexModuleDepInfo struct {
 type DepNameToDepInfoMap map[string]ApexModuleDepInfo
 
 type ApexBundleDepsInfo struct {
-	flatListPath OutputPath
-	fullListPath OutputPath
+	flatListPath Path
+	fullListPath Path
 }
 
 type ApexBundleDepsInfoIntf interface {
@@ -956,13 +907,15 @@ func (d *ApexBundleDepsInfo) BuildDepsInfoLists(ctx ModuleContext, minSdkVersion
 		fmt.Fprintf(&flatContent, "%s\n", toName)
 	}
 
-	d.fullListPath = PathForModuleOut(ctx, "depsinfo", "fulllist.txt").OutputPath
-	WriteFileRule(ctx, d.fullListPath, fullContent.String())
+	fullListPath := PathForModuleOut(ctx, "depsinfo", "fulllist.txt")
+	WriteFileRule(ctx, fullListPath, fullContent.String())
+	d.fullListPath = fullListPath
 
-	d.flatListPath = PathForModuleOut(ctx, "depsinfo", "flatlist.txt").OutputPath
-	WriteFileRule(ctx, d.flatListPath, flatContent.String())
+	flatListPath := PathForModuleOut(ctx, "depsinfo", "flatlist.txt")
+	WriteFileRule(ctx, flatListPath, flatContent.String())
+	d.flatListPath = flatListPath
 
-	ctx.Phony(fmt.Sprintf("%s-depsinfo", ctx.ModuleName()), d.fullListPath, d.flatListPath)
+	ctx.Phony(fmt.Sprintf("%s-depsinfo", ctx.ModuleName()), fullListPath, flatListPath)
 }
 
 // Function called while walking an APEX's payload dependencies.

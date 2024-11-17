@@ -1001,6 +1001,10 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		ctx.Phony("rust", ctx.RustModule().OutputFile().Path())
 	}
 
+	android.SetProvider(ctx, cc.LinkableInfoKey, cc.LinkableInfo{
+		StaticExecutable: mod.StaticExecutable(),
+	})
+
 	mod.setOutputFiles(ctx)
 
 	buildComplianceMetadataInfo(ctx, mod, deps)

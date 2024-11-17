@@ -56,6 +56,8 @@ type prebuiltKernelModulesProperties struct {
 	// This feature is used by system_dlkm
 	Load_by_default *bool
 
+	Blocklist_file *string `android:"path"`
+
 	// Kernel version that these modules are for. Kernel modules are installed to
 	// /lib/modules/<kernel_version> directory in the corresponding partition. Default is "".
 	Kernel_version *string
@@ -109,8 +111,23 @@ func (pkm *prebuiltKernelModules) GenerateAndroidBuildActions(ctx android.Module
 	ctx.InstallFile(installDir, "modules.dep", depmodOut.modulesDep)
 	ctx.InstallFile(installDir, "modules.softdep", depmodOut.modulesSoftdep)
 	ctx.InstallFile(installDir, "modules.alias", depmodOut.modulesAlias)
+	pkm.installBlocklistFile(ctx, installDir)
 
 	ctx.SetOutputFiles(modules, ".modules")
+}
+
+func (pkm *prebuiltKernelModules) installBlocklistFile(ctx android.ModuleContext, installDir android.InstallPath) {
+	if pkm.properties.Blocklist_file == nil {
+		return
+	}
+	blocklistOut := android.PathForModuleOut(ctx, "modules.blocklist")
+
+	ctx.Build(pctx, android.BuildParams{
+		Rule:   processBlocklistFile,
+		Input:  android.PathForModuleSrc(ctx, proptools.String(pkm.properties.Blocklist_file)),
+		Output: blocklistOut,
+	})
+	ctx.InstallFile(installDir, "modules.blocklist", blocklistOut)
 }
 
 var (
@@ -157,6 +174,19 @@ var (
 	addLeadingSlashToPaths = pctx.AndroidStaticRule("add_leading_slash",
 		blueprint.RuleParams{
 			Command: `sed -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' $in > $out`,
+		},
+	)
+	// Remove empty lines. Raise an exception if line is _not_ formatted as `blocklist $name.ko`
+	processBlocklistFile = pctx.AndroidStaticRule("process_blocklist_file",
+		blueprint.RuleParams{
+			Command: `rm -rf $out && awk <$in > $out` +
+				` '/^#/ { print; next }` +
+				` NF == 0 { next }` +
+				` NF != 2 || $$1 != "blocklist"` +
+				` { print "Invalid blocklist line " FNR ": " $$0 >"/dev/stderr";` +
+				` exit_status = 1; next }` +
+				` { $$1 = $$1; print }` +
+				` END { exit exit_status }'`,
 		},
 	)
 )

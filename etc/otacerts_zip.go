@@ -44,7 +44,7 @@ type otacertsZipModule struct {
 	android.ModuleBase
 
 	properties otacertsZipProperties
-	outputPath android.OutputPath
+	outputPath android.Path
 }
 
 // otacerts_zip collects key files defined in PRODUCT_DEFAULT_DEV_CERTIFICATE
@@ -117,11 +117,11 @@ func (m *otacertsZipModule) GenerateAndroidBuildActions(ctx android.ModuleContex
 	// Read .x509.pem files listed  in PRODUCT_EXTRA_OTA_KEYS or PRODUCT_EXTRA_RECOVERY_KEYS.
 	extras := ctx.Config().ExtraOtaKeys(ctx, m.InRecovery())
 	srcPaths := append([]android.SourcePath{pem}, extras...)
-	m.outputPath = android.PathForModuleOut(ctx, m.outputFileName()).OutputPath
+	outputPath := android.PathForModuleOut(ctx, m.outputFileName())
 
 	rule := android.NewRuleBuilder(pctx, ctx)
 	cmd := rule.Command().BuiltTool("soong_zip").
-		FlagWithOutput("-o ", m.outputPath).
+		FlagWithOutput("-o ", outputPath).
 		Flag("-j ").
 		Flag("-symlinks=false ")
 	for _, src := range srcPaths {
@@ -130,7 +130,8 @@ func (m *otacertsZipModule) GenerateAndroidBuildActions(ctx android.ModuleContex
 	rule.Build(ctx.ModuleName(), "Generating the otacerts zip file")
 
 	installPath := android.PathForModuleInstall(ctx, "etc", proptools.String(m.properties.Relative_install_path))
-	ctx.InstallFile(installPath, m.outputFileName(), m.outputPath)
+	ctx.InstallFile(installPath, m.outputFileName(), outputPath)
+	m.outputPath = outputPath
 }
 
 func (m *otacertsZipModule) AndroidMkEntries() []android.AndroidMkEntries {

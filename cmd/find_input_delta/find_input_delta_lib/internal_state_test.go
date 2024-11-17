@@ -199,7 +199,7 @@ func TestCompareInternalState(t *testing.T) {
 			},
 		},
 		{
-			Name:   "one of each",
+			Name:   "one each add modify delete",
 			Target: "foo",
 			Prior: &fid_proto.PartialCompileInputs{
 				InputFiles: []*fid_proto.PartialCompileInput{
@@ -222,11 +222,62 @@ func TestCompareInternalState(t *testing.T) {
 				Deletions: []string{"file2"},
 			},
 		},
+		{
+			Name:   "interior one each add modify delete",
+			Target: "bar",
+			Prior: &fid_proto.PartialCompileInputs{
+				InputFiles: []*fid_proto.PartialCompileInput{
+					protoFile("file1", 405, "", []*fid_proto.PartialCompileInput{
+						protoFile("innerC", 400, "crc32:11111111", nil),
+						protoFile("innerD", 400, "crc32:44444444", nil),
+					}),
+				},
+			},
+			New: &fid_proto.PartialCompileInputs{
+				InputFiles: []*fid_proto.PartialCompileInput{
+					protoFile("file1", 505, "", []*fid_proto.PartialCompileInput{
+						protoFile("innerA", 400, "crc32:55555555", nil),
+						protoFile("innerC", 500, "crc32:66666666", nil),
+					}),
+				},
+			},
+			Expected: &FileList{
+				Name: "bar",
+				Changes: []FileList{FileList{
+					Name:      "file1",
+					Additions: []string{"innerA"},
+					Changes:   []FileList{FileList{Name: "innerC"}},
+					Deletions: []string{"innerD"},
+				}},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		actual := CompareInternalState(tc.Prior, tc.New, tc.Target)
 		if !tc.Expected.Equal(actual) {
-			t.Errorf("%s: expected %q, actual %q", tc.Name, tc.Expected, actual)
+			t.Errorf("%s: expected %v, actual %v", tc.Name, tc.Expected, actual)
+		}
+	}
+}
+
+func TestCompareInspectExtsZipRegexp(t *testing.T) {
+	testCases := []struct {
+		Name     string
+		Expected bool
+	}{
+		{Name: ".jar", Expected: true},
+		{Name: ".jar5", Expected: true},
+		{Name: ".apex", Expected: true},
+		{Name: ".apex9", Expected: true},
+		{Name: ".apexx", Expected: false},
+		{Name: ".apk", Expected: true},
+		{Name: ".apk3", Expected: true},
+		{Name: ".go", Expected: false},
+	}
+	for _, tc := range testCases {
+		actual := InspectExtsZipRegexp.Match([]byte(tc.Name))
+		if tc.Expected != actual {
+			t.Errorf("%s: expected %v, actual %v", tc.Name, tc.Expected, actual)
 		}
 	}
 }

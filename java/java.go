@@ -226,9 +226,9 @@ var (
 
 	// Rule for generating device binary default wrapper
 	deviceBinaryWrapper = pctx.StaticRule("deviceBinaryWrapper", blueprint.RuleParams{
-		Command: `echo -e '#!/system/bin/sh\n` +
+		Command: `printf '#!/system/bin/sh\n` +
 			`export CLASSPATH=/system/framework/$jar_name\n` +
-			`exec app_process /$partition/bin $main_class "$$@"'> ${out}`,
+			`exec app_process /$partition/bin $main_class "$$@"\n'> ${out}`,
 		Description: "Generating device binary wrapper ${jar_name}",
 	}, "jar_name", "partition", "main_class")
 )

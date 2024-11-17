@@ -184,7 +184,7 @@ func (b *platformBootclasspathModule) GenerateAndroidBuildActions(ctx android.Mo
 	}
 	jarArgs := resourcePathsToJarArgs(transitiveSrcFiles)
 	jarArgs = append(jarArgs, "-srcjar") // Move srcfiles to the right package
-	srcjar := android.PathForModuleOut(ctx, ctx.ModuleName()+"-transitive.srcjar").OutputPath
+	srcjar := android.PathForModuleOut(ctx, ctx.ModuleName()+"-transitive.srcjar")
 	TransformResourcesToJar(ctx, srcjar, jarArgs, transitiveSrcFiles)
 
 	// Gather all the fragments dependencies.

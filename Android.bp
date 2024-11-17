@@ -172,9 +172,13 @@ build_prop {
     name: "system-build.prop",
     stem: "build.prop",
     product_config: ":product_config",
+    footer_files: [
+        ":applied_backported_fixes",
+    ],
     // Currently, only microdroid, Ravenwood, and cf system image can refer to system-build.prop
     visibility: [
         "//build/make/target/product/generic",
+        "//build/make/target/product/gsi",
         "//packages/modules/Virtualization/build/microdroid",
         "//frameworks/base/ravenwood",
     ],
@@ -186,7 +190,7 @@ build_prop {
     system_ext_specific: true,
     product_config: ":product_config",
     relative_install_path: "etc", // system_ext/etc/build.prop
-    visibility: ["//visibility:private"],
+    visibility: ["//build/make/target/product/gsi"],
 }
 
 build_prop {
@@ -195,7 +199,7 @@ build_prop {
     product_specific: true,
     product_config: ":product_config",
     relative_install_path: "etc", // product/etc/build.prop
-    visibility: ["//visibility:private"],
+    visibility: ["//build/make/target/product/gsi"],
 }
 
 build_prop {
@@ -231,5 +235,14 @@ build_prop {
     odm_dlkm_specific: true,
     product_config: ":product_config",
     relative_install_path: "etc", // odm_dlkm/etc/build.prop
+    visibility: ["//visibility:private"],
+}
+
+build_prop {
+    name: "ramdisk-build.prop",
+    stem: "build.prop",
+    ramdisk: true,
+    product_config: ":product_config",
+    relative_install_path: "etc/ramdisk", // ramdisk/system/etc/ramdisk/build.prop
     visibility: ["//visibility:private"],
 }

@@ -3050,6 +3050,7 @@ func TestCoverage(t *testing.T) {
 		java_library {
 			name: "android.car",
 			srcs: ["android.car.java"],
+			installable: true,
 		}
 	`)
 

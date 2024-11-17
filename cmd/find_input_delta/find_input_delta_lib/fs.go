@@ -15,7 +15,6 @@
 package find_input_delta_lib
 
 import (
-	"io"
 	"io/fs"
 	"os"
 )
@@ -28,14 +27,6 @@ type fileSystem interface {
 	Open(path string) (fs.File, error)
 	Stat(path string) (os.FileInfo, error)
 	ReadFile(path string) ([]byte, error)
-}
-
-type file interface {
-	io.Closer
-	io.Reader
-	io.ReaderAt
-	io.Seeker
-	Stat() (os.FileInfo, error)
 }
 
 // osFS implements fileSystem using the local disk.

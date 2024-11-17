@@ -1382,6 +1382,8 @@ func (m *ModuleBase) PartitionTag(config DeviceConfig) string {
 		if config.SystemExtPath() == "system_ext" {
 			partition = "system_ext"
 		}
+	} else if m.InstallInRamdisk() {
+		partition = "ramdisk"
 	}
 	return partition
 }
@@ -1641,25 +1643,27 @@ func (m *ModuleBase) generateVariantTarget(ctx *moduleContext) {
 func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 	var allInstalledFiles InstallPaths
 	var allCheckbuildTargets Paths
-	ctx.VisitAllModuleVariants(func(module Module) {
-		a := module.base()
+	ctx.VisitAllModuleVariantProxies(func(module ModuleProxy) {
 		var checkbuildTarget Path
 		var uncheckedModule bool
-		if a == m {
+		var skipAndroidMkProcessing bool
+		if ctx.EqualModules(m.module, module) {
 			allInstalledFiles = append(allInstalledFiles, ctx.installFiles...)
 			checkbuildTarget = ctx.checkbuildTarget
 			uncheckedModule = ctx.uncheckedModule
+			skipAndroidMkProcessing = shouldSkipAndroidMkProcessing(ctx, m)
 		} else {
 			info := OtherModuleProviderOrDefault(ctx, module, InstallFilesProvider)
 			allInstalledFiles = append(allInstalledFiles, info.InstallFiles...)
 			checkbuildTarget = info.CheckbuildTarget
 			uncheckedModule = info.UncheckedModule
+			skipAndroidMkProcessing = OtherModuleProviderOrDefault(ctx, module, CommonModuleInfoKey).SkipAndroidMkProcessing
 		}
 		// A module's -checkbuild phony targets should
 		// not be created if the module is not exported to make.
 		// Those could depend on the build target and fail to compile
 		// for the current build target.
-		if (!ctx.Config().KatiEnabled() || !shouldSkipAndroidMkProcessing(ctx, a)) && !uncheckedModule && checkbuildTarget != nil {
+		if (!ctx.Config().KatiEnabled() || !skipAndroidMkProcessing) && !uncheckedModule && checkbuildTarget != nil {
 			allCheckbuildTargets = append(allCheckbuildTargets, checkbuildTarget)
 		}
 	})
@@ -1832,6 +1836,12 @@ type InstallFilesInfo struct {
 
 var InstallFilesProvider = blueprint.NewProvider[InstallFilesInfo]()
 
+type SourceFilesInfo struct {
+	Srcs Paths
+}
+
+var SourceFilesInfoKey = blueprint.NewProvider[SourceFilesInfo]()
+
 type FinalModuleBuildTargetsInfo struct {
 	// Used by buildTargetSingleton to create checkbuild and per-directory build targets
 	// Only set on the final variant of each module
@@ -1842,15 +1852,16 @@ type FinalModuleBuildTargetsInfo struct {
 
 var FinalModuleBuildTargetsProvider = blueprint.NewProvider[FinalModuleBuildTargetsInfo]()
 
-type CommonPropertiesProviderData struct {
+type CommonModuleInfo struct {
 	Enabled bool
 	// Whether the module has been replaced by a prebuilt
 	ReplacedByPrebuilt bool
 	// The Target of artifacts that this module variant is responsible for creating.
-	CompileTarget Target
+	CompileTarget           Target
+	SkipAndroidMkProcessing bool
 }
 
-var CommonPropertiesProviderKey = blueprint.NewProvider[CommonPropertiesProviderData]()
+var CommonModuleInfoKey = blueprint.NewProvider[CommonModuleInfo]()
 
 type PrebuiltModuleProviderData struct {
 	// Empty for now
@@ -1932,9 +1943,7 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 
 	if m.Enabled(ctx) {
 		// ensure all direct android.Module deps are enabled
-		ctx.VisitDirectDeps(func(m Module) {
-			ctx.validateAndroidModule(m, ctx.OtherModuleDependencyTag(m), ctx.baseModuleContext.strictVisitDeps)
-		})
+		ctx.VisitDirectDepsProxy(func(m ModuleProxy) {})
 
 		if m.Device() {
 			// Handle any init.rc and vintf fragment files requested by the module.  All files installed by this
@@ -2036,6 +2045,10 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 		ctx.GetMissingDependencies()
 	}
 
+	if sourceFileProducer, ok := m.module.(SourceFileProducer); ok {
+		SetProvider(ctx, SourceFilesInfoKey, SourceFilesInfo{Srcs: sourceFileProducer.Srcs()})
+	}
+
 	if ctx.IsFinalModule(m.module) {
 		m.generateModuleTarget(ctx)
 		if ctx.Failed() {
@@ -2110,16 +2123,17 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 	}
 	buildComplianceMetadataProvider(ctx, m)
 
-	commonData := CommonPropertiesProviderData{
-		ReplacedByPrebuilt: m.commonProperties.ReplacedByPrebuilt,
-		CompileTarget:      m.commonProperties.CompileTarget,
+	commonData := CommonModuleInfo{
+		ReplacedByPrebuilt:      m.commonProperties.ReplacedByPrebuilt,
+		CompileTarget:           m.commonProperties.CompileTarget,
+		SkipAndroidMkProcessing: shouldSkipAndroidMkProcessing(ctx, m),
 	}
 	if m.commonProperties.ForcedDisabled {
 		commonData.Enabled = false
 	} else {
 		commonData.Enabled = m.commonProperties.Enabled.GetOrDefault(m.ConfigurableEvaluator(ctx), !m.Os().DefaultDisabled)
 	}
-	SetProvider(ctx, CommonPropertiesProviderKey, commonData)
+	SetProvider(ctx, CommonModuleInfoKey, commonData)
 	if p, ok := m.module.(PrebuiltInterface); ok && p.Prebuilt() != nil {
 		SetProvider(ctx, PrebuiltModuleProviderKey, PrebuiltModuleProviderData{})
 	}
@@ -2128,7 +2142,7 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			HostToolPath: h.HostToolPath()})
 	}
 
-	if p, ok := m.module.(AndroidMkProviderInfoProducer); ok && !shouldSkipAndroidMkProcessing(ctx, m) {
+	if p, ok := m.module.(AndroidMkProviderInfoProducer); ok && !commonData.SkipAndroidMkProcessing {
 		SetProvider(ctx, AndroidMkInfoProvider, p.PrepareAndroidMKProviderInfo(ctx.Config()))
 	}
 }
@@ -2632,7 +2646,7 @@ type SourceFileProducer interface {
 
 // OutputFilesForModule returns the output file paths with the given tag. On error, including if the
 // module produced zero paths, it reports errors to the ctx and returns nil.
-func OutputFilesForModule(ctx PathContext, module blueprint.Module, tag string) Paths {
+func OutputFilesForModule(ctx PathContext, module Module, tag string) Paths {
 	paths, err := outputFilesForModule(ctx, module, tag)
 	if err != nil {
 		reportPathError(ctx, err)
@@ -2643,7 +2657,7 @@ func OutputFilesForModule(ctx PathContext, module blueprint.Module, tag string) 
 
 // OutputFileForModule returns the output file paths with the given tag.  On error, including if the
 // module produced zero or multiple paths, it reports errors to the ctx and returns nil.
-func OutputFileForModule(ctx PathContext, module blueprint.Module, tag string) Path {
+func OutputFileForModule(ctx PathContext, module Module, tag string) Path {
 	paths, err := outputFilesForModule(ctx, module, tag)
 	if err != nil {
 		reportPathError(ctx, err)
@@ -2676,20 +2690,34 @@ func OutputFileForModule(ctx PathContext, module blueprint.Module, tag string) P
 	return paths[0]
 }
 
-func outputFilesForModule(ctx PathContext, module blueprint.Module, tag string) (Paths, error) {
+type OutputFilesProviderModuleContext interface {
+	OtherModuleProviderContext
+	Module() Module
+	GetOutputFiles() OutputFilesInfo
+	EqualModules(m1, m2 Module) bool
+}
+
+func outputFilesForModule(ctx PathContext, module Module, tag string) (Paths, error) {
 	outputFilesFromProvider, err := outputFilesForModuleFromProvider(ctx, module, tag)
 	if outputFilesFromProvider != nil || err != OutputFilesProviderNotSet {
 		return outputFilesFromProvider, err
 	}
-	if sourceFileProducer, ok := module.(SourceFileProducer); ok {
-		if tag != "" {
-			return nil, fmt.Errorf("module %q is a SourceFileProducer, which does not support tag %q", pathContextName(ctx, module), tag)
+
+	if octx, ok := ctx.(OutputFilesProviderModuleContext); ok {
+		if octx.EqualModules(octx.Module(), module) {
+			if sourceFileProducer, ok := module.(SourceFileProducer); ok {
+				return sourceFileProducer.Srcs(), nil
+			}
+		} else if sourceFiles, ok := OtherModuleProvider(octx, module, SourceFilesInfoKey); ok {
+			if tag != "" {
+				return nil, fmt.Errorf("module %q is a SourceFileProducer, which does not support tag %q", pathContextName(ctx, module), tag)
+			}
+			paths := sourceFiles.Srcs
+			return paths, nil
 		}
-		paths := sourceFileProducer.Srcs()
-		return paths, nil
-	} else {
-		return nil, fmt.Errorf("module %q is not a SourceFileProducer or having valid output file for tag %q", pathContextName(ctx, module), tag)
 	}
+
+	return nil, fmt.Errorf("module %q is not a SourceFileProducer or having valid output file for tag %q", pathContextName(ctx, module), tag)
 }
 
 // This method uses OutputFilesProvider for output files
@@ -2698,26 +2726,19 @@ func outputFilesForModule(ctx PathContext, module blueprint.Module, tag string) 
 // from outputFiles property of module base, to avoid both setting and
 // reading OutputFilesProvider before GenerateBuildActions is finished.
 // If a module doesn't have the OutputFilesProvider, nil is returned.
-func outputFilesForModuleFromProvider(ctx PathContext, module blueprint.Module, tag string) (Paths, error) {
+func outputFilesForModuleFromProvider(ctx PathContext, module Module, tag string) (Paths, error) {
 	var outputFiles OutputFilesInfo
 	fromProperty := false
 
-	type OutputFilesProviderModuleContext interface {
-		OtherModuleProviderContext
-		Module() Module
-		GetOutputFiles() OutputFilesInfo
-	}
-
 	if mctx, isMctx := ctx.(OutputFilesProviderModuleContext); isMctx {
-		if mctx.Module() != module {
+		if !mctx.EqualModules(mctx.Module(), module) {
 			outputFiles, _ = OtherModuleProvider(mctx, module, OutputFilesProvider)
 		} else {
 			outputFiles = mctx.GetOutputFiles()
 			fromProperty = true
 		}
 	} else if cta, isCta := ctx.(*singletonContextAdaptor); isCta {
-		providerData, _ := cta.otherModuleProvider(module, OutputFilesProvider)
-		outputFiles, _ = providerData.(OutputFilesInfo)
+		outputFiles, _ = OtherModuleProvider(cta, module, OutputFilesProvider)
 	} else {
 		return nil, fmt.Errorf("unsupported context %q in method outputFilesForModuleFromProvider", reflect.TypeOf(ctx))
 	}

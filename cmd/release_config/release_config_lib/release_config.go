@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	rc_proto "android/soong/cmd/release_config/release_config_proto"
@@ -107,6 +106,9 @@ func (config *ReleaseConfig) InheritConfig(iConfig *ReleaseConfig) error {
 		if !ok {
 			return fmt.Errorf("Could not inherit flag %s from %s", name, iConfig.Name)
 		}
+		if fa.Redacted {
+			myFa.Redact()
+		}
 		if name == "RELEASE_ACONFIG_VALUE_SETS" {
 			// If there is a value assigned, add the trace.
 			if len(fa.Value.GetStringValue()) > 0 {
@@ -166,6 +168,13 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 		}
 		myInherits = append(myInherits, inherit)
 		myInheritsSet[inherit] = true
+		// TODO: there are some configs that rely on vgsbr being
+		// present on branches where it isn't. Once the broken configs
+		// are fixed, we can be more strict.  In the meantime, they
+		// will wind up inheriting `trunk_stable` instead of the
+		// non-existent (alias) that they reference today.  Once fixed,
+		// this becomes:
+		//    iConfig, err := configs.GetReleaseConfigStrict(inherit)
 		iConfig, err := configs.GetReleaseConfig(inherit)
 		if err != nil {
 			return err
@@ -261,9 +270,6 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 			if err := fa.UpdateValue(*value); err != nil {
 				return err
 			}
-			if fa.Redacted {
-				delete(config.FlagArtifacts, name)
-			}
 		}
 	}
 	// Now remove any duplicates from the actual value of RELEASE_ACONFIG_VALUE_SETS
@@ -313,6 +319,10 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 		if err != nil {
 			return err
 		}
+		// Redacted flags return nil when rendered.
+		if artifact == nil {
+			continue
+		}
 		for _, container := range v.FlagDeclaration.Containers {
 			if _, ok := config.PartitionBuildFlags[container]; !ok {
 				config.PartitionBuildFlags[container] = &rc_proto.FlagArtifacts{}
@@ -325,12 +335,7 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 		OtherNames: config.OtherNames,
 		Flags: func() []*rc_proto.FlagArtifact {
 			ret := []*rc_proto.FlagArtifact{}
-			flagNames := []string{}
-			for k := range config.FlagArtifacts {
-				flagNames = append(flagNames, k)
-			}
-			sort.Strings(flagNames)
-			for _, flagName := range flagNames {
+			for _, flagName := range config.FlagArtifacts.SortedFlagNames() {
 				flag := config.FlagArtifacts[flagName]
 				ret = append(ret, &rc_proto.FlagArtifact{
 					FlagDeclaration: flag.FlagDeclaration,
@@ -365,7 +370,7 @@ func (config *ReleaseConfig) WriteMakefile(outFile, targetRelease string, config
 		}
 	}
 	for _, rcName := range extraAconfigReleaseConfigs {
-		rc, err := configs.GetReleaseConfig(rcName)
+		rc, err := configs.GetReleaseConfigStrict(rcName)
 		if err != nil {
 			return err
 		}

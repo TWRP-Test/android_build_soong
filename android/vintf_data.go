@@ -49,7 +49,7 @@ type vintfDataRule struct {
 	properties vintfDataProperties
 
 	installDirPath InstallPath
-	outputFilePath OutputPath
+	outputFilePath Path
 	noAction       bool
 }
 
@@ -148,7 +148,7 @@ func (m *vintfDataRule) GenerateAndroidBuildActions(ctx ModuleContext) {
 	builder.Build("assemble_vintf", "Process vintf data "+gensrc.String())
 
 	m.installDirPath = PathForModuleInstall(ctx, "etc", "vintf")
-	m.outputFilePath = gensrc.OutputPath
+	m.outputFilePath = gensrc
 
 	installFileName := "manifest.xml"
 	if filename := proptools.String(m.properties.Filename); filename != "" {

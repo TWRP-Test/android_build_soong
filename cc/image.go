@@ -179,9 +179,6 @@ type ImageMutatableModule interface {
 	// SnapshotVersion returns the snapshot version for this module.
 	SnapshotVersion(mctx android.ImageInterfaceContext) string
 
-	// SdkVersion returns the SDK version for this module.
-	SdkVersion() string
-
 	// ExtraVariants returns the list of extra variants this module requires.
 	ExtraVariants() []string
 
@@ -370,7 +367,7 @@ func MutateImage(mctx android.ImageInterfaceContext, m ImageMutatableModule) {
 		if m.HasProductVariant() {
 			productVariantNeeded = true
 		}
-	} else if vendorSpecific && m.SdkVersion() == "" {
+	} else if vendorSpecific {
 		// This will be available in /vendor (or /odm) only
 		vendorVariantNeeded = true
 	} else {
@@ -380,7 +377,7 @@ func MutateImage(mctx android.ImageInterfaceContext, m ImageMutatableModule) {
 		coreVariantNeeded = true
 	}
 
-	if coreVariantNeeded && productSpecific && m.SdkVersion() == "" {
+	if coreVariantNeeded && productSpecific {
 		// The module has "product_specific: true" that does not create core variant.
 		coreVariantNeeded = false
 		productVariantNeeded = true

@@ -410,6 +410,14 @@ func (configs *ReleaseConfigs) LoadReleaseConfigMap(path string, ConfigDirIndex 
 }
 
 func (configs *ReleaseConfigs) GetReleaseConfig(name string) (*ReleaseConfig, error) {
+	return configs.getReleaseConfig(name, configs.allowMissing)
+}
+
+func (configs *ReleaseConfigs) GetReleaseConfigStrict(name string) (*ReleaseConfig, error) {
+	return configs.getReleaseConfig(name, false)
+}
+
+func (configs *ReleaseConfigs) getReleaseConfig(name string, allow_missing bool) (*ReleaseConfig, error) {
 	trace := []string{name}
 	for target, ok := configs.Aliases[name]; ok; target, ok = configs.Aliases[name] {
 		name = *target
@@ -418,7 +426,7 @@ func (configs *ReleaseConfigs) GetReleaseConfig(name string) (*ReleaseConfig, er
 	if config, ok := configs.ReleaseConfigs[name]; ok {
 		return config, nil
 	}
-	if configs.allowMissing {
+	if allow_missing {
 		if config, ok := configs.ReleaseConfigs["trunk_staging"]; ok {
 			return config, nil
 		}
@@ -467,7 +475,7 @@ func (configs *ReleaseConfigs) GenerateReleaseConfigs(targetRelease string) erro
 		dirName := filepath.Dir(contrib.path)
 		for k, names := range contrib.FlagValueDirs {
 			for _, rcName := range names {
-				if config, err := configs.GetReleaseConfig(rcName); err == nil {
+				if config, err := configs.getReleaseConfig(rcName, false); err == nil {
 					rcPath := filepath.Join(dirName, "release_configs", fmt.Sprintf("%s.textproto", config.Name))
 					if _, err := os.Stat(rcPath); err != nil {
 						errors = append(errors, fmt.Sprintf("%s exists but %s does not contribute to %s",

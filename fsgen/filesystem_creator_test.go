@@ -16,6 +16,7 @@ package fsgen
 
 import (
 	"android/soong/android"
+	"android/soong/etc"
 	"android/soong/filesystem"
 	"android/soong/java"
 	"testing"
@@ -46,6 +47,12 @@ func TestFileSystemCreatorSystemImageProps(t *testing.T) {
 		}),
 		android.FixtureMergeMockFs(android.MockFS{
 			"external/avb/test/data/testkey_rsa4096.pem": nil,
+			"external/avb/test/Android.bp": []byte(`
+			filegroup {
+				name: "avb_testkey_rsa4096",
+				srcs: ["data/testkey_rsa4096.pem"],
+			}
+			`),
 			"build/soong/fsgen/Android.bp": []byte(`
 			soong_filesystem_creator {
 				name: "foo",
@@ -65,8 +72,8 @@ func TestFileSystemCreatorSystemImageProps(t *testing.T) {
 	)
 	android.AssertStringEquals(
 		t,
-		"Property expected to match the product variable 'BOARD_AVB_KEY_PATH'",
-		"external/avb/test/data/testkey_rsa4096.pem",
+		"Property the avb_private_key property to be set to the existing filegroup",
+		":avb_testkey_rsa4096",
 		proptools.String(fooSystem.FsProps().Avb_private_key),
 	)
 	android.AssertStringEquals(
@@ -252,4 +259,130 @@ java_library {
 	resolvedSystemDeps := result.TestContext.Config().Get(fsGenStateOnceKey).(*FsGenState).fsDeps["system"]
 	_, libFooInDeps := (*resolvedSystemDeps)["libfoo"]
 	android.AssertBoolEquals(t, "libfoo should not appear in deps because it has been overridden by libbaz. The latter is a required dep of libbar, which is listed in PRODUCT_PACKAGES", false, libFooInDeps)
+}
+
+func TestPrebuiltEtcModuleGen(t *testing.T) {
+	result := android.GroupFixturePreparers(
+		android.PrepareForIntegrationTestWithAndroid,
+		android.PrepareForTestWithAndroidBuildComponents,
+		android.PrepareForTestWithAllowMissingDependencies,
+		filesystem.PrepareForTestWithFilesystemBuildComponents,
+		prepareForTestWithFsgenBuildComponents,
+		android.FixtureModifyConfig(func(config android.Config) {
+			config.TestProductVariables.PartitionVarsForSoongMigrationOnlyDoNotUse.ProductCopyFiles = []string{
+				"frameworks/base/config/preloaded-classes:system/etc/preloaded-classes",
+				"frameworks/base/data/keyboards/Vendor_0079_Product_0011.kl:system/usr/keylayout/subdir/Vendor_0079_Product_0011.kl",
+				"frameworks/base/data/keyboards/Vendor_0079_Product_18d4.kl:system/usr/keylayout/subdir/Vendor_0079_Product_18d4.kl",
+				"some/non/existing/file.txt:system/etc/file.txt",
+				"device/sample/etc/apns-full-conf.xml:product/etc/apns-conf.xml:google",
+				"device/sample/etc/apns-full-conf.xml:product/etc/apns-conf-2.xml",
+			}
+			config.TestProductVariables.PartitionVarsForSoongMigrationOnlyDoNotUse.PartitionQualifiedVariables =
+				map[string]android.PartitionQualifiedVariablesType{
+					"system": {
+						BoardFileSystemType: "ext4",
+					},
+				}
+		}),
+		android.FixtureMergeMockFs(android.MockFS{
+			"external/avb/test/data/testkey_rsa4096.pem": nil,
+			"build/soong/fsgen/Android.bp": []byte(`
+			soong_filesystem_creator {
+				name: "foo",
+			}
+			`),
+			"frameworks/base/config/preloaded-classes":                   nil,
+			"frameworks/base/data/keyboards/Vendor_0079_Product_0011.kl": nil,
+			"frameworks/base/data/keyboards/Vendor_0079_Product_18d4.kl": nil,
+			"device/sample/etc/apns-full-conf.xml":                       nil,
+		}),
+	).RunTest(t)
+
+	checkModuleProp := func(m android.Module, matcher func(actual interface{}) bool) bool {
+		for _, prop := range m.GetProperties() {
+
+			if matcher(prop) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// check generated prebuilt_* module type install path and install partition
+	generatedModule := result.ModuleForTests("system-frameworks_base_config-etc-0", "android_arm64_armv8-a").Module()
+	etcModule, _ := generatedModule.(*etc.PrebuiltEtc)
+	android.AssertStringEquals(
+		t,
+		"module expected to have etc install path",
+		"etc",
+		etcModule.BaseDir(),
+	)
+	android.AssertBoolEquals(
+		t,
+		"module expected to be installed in system partition",
+		true,
+		!generatedModule.InstallInProduct() &&
+			!generatedModule.InstallInVendor() &&
+			!generatedModule.InstallInSystemExt(),
+	)
+
+	// check generated prebuilt_* module specifies correct relative_install_path property
+	generatedModule = result.ModuleForTests("system-frameworks_base_data_keyboards-usr_keylayout_subdir-0", "android_arm64_armv8-a").Module()
+	etcModule, _ = generatedModule.(*etc.PrebuiltEtc)
+	android.AssertStringEquals(
+		t,
+		"module expected to set correct relative_install_path properties",
+		"subdir",
+		etcModule.SubDir(),
+	)
+
+	// check that prebuilt_* module is not generated for non existing source file
+	android.AssertPanicMessageContains(
+		t,
+		"prebuilt_* module not generated for non existing source file",
+		"failed to find module \"system-some_non_existing-etc-0\"",
+		func() { result.ModuleForTests("system-some_non_existing-etc-0", "android_arm64_armv8-a") },
+	)
+
+	// check that duplicate src file can exist in PRODUCT_COPY_FILES and generates separate modules
+	generatedModule0 := result.ModuleForTests("product-device_sample_etc-etc-0", "android_arm64_armv8-a").Module()
+	generatedModule1 := result.ModuleForTests("product-device_sample_etc-etc-1", "android_arm64_armv8-a").Module()
+
+	// check that generated prebuilt_* module sets correct srcs and dsts property
+	eval := generatedModule0.ConfigurableEvaluator(android.PanickingConfigAndErrorContext(result.TestContext))
+	android.AssertBoolEquals(
+		t,
+		"module expected to set correct srcs and dsts properties",
+		true,
+		checkModuleProp(generatedModule0, func(actual interface{}) bool {
+			if p, ok := actual.(*etc.PrebuiltEtcProperties); ok {
+				srcs := p.Srcs.GetOrDefault(eval, nil)
+				dsts := p.Dsts.GetOrDefault(eval, nil)
+				return len(srcs) == 1 &&
+					srcs[0] == "apns-full-conf.xml" &&
+					len(dsts) == 1 &&
+					dsts[0] == "apns-conf.xml"
+			}
+			return false
+		}),
+	)
+
+	// check that generated prebuilt_* module sets correct srcs and dsts property
+	eval = generatedModule1.ConfigurableEvaluator(android.PanickingConfigAndErrorContext(result.TestContext))
+	android.AssertBoolEquals(
+		t,
+		"module expected to set correct srcs and dsts properties",
+		true,
+		checkModuleProp(generatedModule1, func(actual interface{}) bool {
+			if p, ok := actual.(*etc.PrebuiltEtcProperties); ok {
+				srcs := p.Srcs.GetOrDefault(eval, nil)
+				dsts := p.Dsts.GetOrDefault(eval, nil)
+				return len(srcs) == 1 &&
+					srcs[0] == "apns-full-conf.xml" &&
+					len(dsts) == 1 &&
+					dsts[0] == "apns-conf-2.xml"
+			}
+			return false
+		}),
+	)
 }

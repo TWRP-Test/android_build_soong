@@ -25,6 +25,7 @@ bootstrap_go_package {
         "golang-protobuf-runtime-protoimpl",
         "soong-cmd-find_input_delta-proto",
         "soong-cmd-find_input_delta-proto_internal",
+        "android-archive-zip",
         "blueprint-pathtools",
     ],
     srcs: [

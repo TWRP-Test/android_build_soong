@@ -15,7 +15,12 @@
 
 syntax = "proto2";
 package android.find_input_delta_proto;
-option go_package = "android/soong/find_input_delta/proto";
+option go_package = "android/soong/cmd/find_input_delta/find_input_delta_proto";
+
+enum FieldNumbers {
+  FIELD_NUMBERS_UNSPECIFIED = 0;
+  FIELD_NUMBERS_FILE_LIST = 1;
+}
 
 message FileList {
   // The name of the file.
@@ -26,9 +31,29 @@ message FileList {
   // The added files.
   repeated string additions = 2;
 
-  // The deleted files.
-  repeated string deletions = 3;
-
   // The changed files.
-  repeated FileList changes = 4;
+  repeated FileList changes = 3;
+
+  // The deleted files.
+  repeated string deletions = 4;
+
+  // Count of files added/changed/deleted.
+  optional uint32 total_delta = 5;
+
+  // Counts by extension.
+  repeated FileCount counts = 6;
+}
+
+message FileCount {
+  // The file extension
+  optional string extension = 1;
+
+  // Number of added files with this extension.
+  optional uint32 additions = 2;
+
+  // Number of modified files with this extension.
+  optional uint32 modifications = 3;
+
+  // Number of deleted files with this extension.
+  optional uint32 deletions = 4;
 }

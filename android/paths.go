@@ -91,6 +91,8 @@ type ModuleWithDepsPathContext interface {
 	EarlyModulePathContext
 	OtherModuleProviderContext
 	VisitDirectDeps(visit func(Module))
+	VisitDirectDepsProxy(visit func(ModuleProxy))
+	VisitDirectDepsProxyWithTag(tag blueprint.DependencyTag, visit func(ModuleProxy))
 	OtherModuleDependencyTag(m blueprint.Module) blueprint.DependencyTag
 	HasMutatorFinished(mutatorName string) bool
 }
@@ -598,7 +600,7 @@ func DirectoryPathsForModuleSrc(ctx ModuleMissingDepsPathContext, paths []string
 
 	for _, path := range paths {
 		if m, t := SrcIsModuleWithTag(path); m != "" {
-			module := GetModuleFromPathDep(ctx, m, t)
+			module := GetModuleProxyFromPathDep(ctx, m, t)
 			if module == nil {
 				ctx.ModuleErrorf(`missing dependency on %q, is the property annotated with android:"path"?`, m)
 				continue
@@ -611,7 +613,7 @@ func DirectoryPathsForModuleSrc(ctx ModuleMissingDepsPathContext, paths []string
 			if !ok {
 				panic(fmt.Errorf("%s is not an OtherModuleProviderContext", ctx))
 			}
-			if dirProvider, ok := OtherModuleProvider(mctx, module, DirProvider); ok {
+			if dirProvider, ok := OtherModuleProvider(mctx, *module, DirProvider); ok {
 				ret = append(ret, dirProvider.Dirs...)
 			} else {
 				ReportPathErrorf(ctx, "module %q does not implement DirProvider", module)
@@ -669,14 +671,15 @@ func (p OutputPaths) Strings() []string {
 // If the dependency is not found, a missingErrorDependency is returned.
 // If the module dependency is not a SourceFileProducer or OutputFileProducer, appropriate errors will be returned.
 func getPathsFromModuleDep(ctx ModuleWithDepsPathContext, path, moduleName, tag string) (Paths, error) {
-	module := GetModuleFromPathDep(ctx, moduleName, tag)
+	module := GetModuleProxyFromPathDep(ctx, moduleName, tag)
 	if module == nil {
 		return nil, missingDependencyError{[]string{moduleName}}
 	}
-	if aModule, ok := module.(Module); ok && !aModule.Enabled(ctx) {
+	if !OtherModuleProviderOrDefault(ctx, *module, CommonModuleInfoKey).Enabled {
 		return nil, missingDependencyError{[]string{moduleName}}
 	}
-	outputFiles, err := outputFilesForModule(ctx, module, tag)
+
+	outputFiles, err := outputFilesForModule(ctx, *module, tag)
 	if outputFiles != nil && err == nil {
 		return outputFiles, nil
 	} else {
@@ -684,7 +687,7 @@ func getPathsFromModuleDep(ctx ModuleWithDepsPathContext, path, moduleName, tag 
 	}
 }
 
-// GetModuleFromPathDep will return the module that was added as a dependency automatically for
+// GetModuleProxyFromPathDep will return the module that was added as a dependency automatically for
 // properties tagged with `android:"path"` or manually using ExtractSourceDeps or
 // ExtractSourcesDeps.
 //
@@ -694,6 +697,27 @@ func getPathsFromModuleDep(ctx ModuleWithDepsPathContext, path, moduleName, tag 
 //
 // If tag is "" then the returned module will be the dependency that was added for ":moduleName".
 // Otherwise, it is the dependency that was added for ":moduleName{tag}".
+func GetModuleProxyFromPathDep(ctx ModuleWithDepsPathContext, moduleName, tag string) *ModuleProxy {
+	var found *ModuleProxy
+	// The sourceOrOutputDepTag uniquely identifies the module dependency as it contains both the
+	// module name and the tag. Dependencies added automatically for properties tagged with
+	// `android:"path"` are deduped so are guaranteed to be unique. It is possible for duplicate
+	// dependencies to be added manually using ExtractSourcesDeps or ExtractSourceDeps but even then
+	// it will always be the case that the dependencies will be identical, i.e. the same tag and same
+	// moduleName referring to the same dependency module.
+	//
+	// It does not matter whether the moduleName is a fully qualified name or if the module
+	// dependency is a prebuilt module. All that matters is the same information is supplied to
+	// create the tag here as was supplied to create the tag when the dependency was added so that
+	// this finds the matching dependency module.
+	expectedTag := sourceOrOutputDepTag(moduleName, tag)
+	ctx.VisitDirectDepsProxyWithTag(expectedTag, func(module ModuleProxy) {
+		found = &module
+	})
+	return found
+}
+
+// Deprecated: use GetModuleProxyFromPathDep
 func GetModuleFromPathDep(ctx ModuleWithDepsPathContext, moduleName, tag string) blueprint.Module {
 	var found blueprint.Module
 	// The sourceOrOutputDepTag uniquely identifies the module dependency as it contains both the
@@ -2588,4 +2612,20 @@ func IsThirdPartyPath(path string) bool {
 		return true
 	}
 	return false
+}
+
+// ToRelativeSourcePath converts absolute source path to the path relative to the source root.
+// This throws an error if the input path is outside of the source root and cannot be converted
+// to the relative path.
+// This should be rarely used given that the source path is relative in Soong.
+func ToRelativeSourcePath(ctx PathContext, path string) string {
+	ret := path
+	if filepath.IsAbs(path) {
+		relPath, err := filepath.Rel(absSrcDir, path)
+		if err != nil || strings.HasPrefix(relPath, "..") {
+			ReportPathErrorf(ctx, "%s is outside of the source root", path)
+		}
+		ret = relPath
+	}
+	return ret
 }

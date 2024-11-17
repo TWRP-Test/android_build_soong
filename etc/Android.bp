@@ -12,6 +12,7 @@ bootstrap_go_package {
     ],
     srcs: [
         "adb_keys.go",
+        "avbpubkey.go",
         "install_symlink.go",
         "otacerts_zip.go",
         "prebuilt_etc.go",

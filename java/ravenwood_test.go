@@ -177,6 +177,12 @@ func TestRavenwoodTest(t *testing.T) {
 			resource_apk: "app2",
 			inst_resource_apk: "app3",
 			sdk_version: "test_current",
+			target_sdk_version: "34",
+			package_name: "a.b.c",
+			inst_package_name: "x.y.z",
+		}
+		android_ravenwood_test {
+			name: "ravenwood-test-empty",
 		}
 	`)
 
@@ -199,11 +205,15 @@ func TestRavenwoodTest(t *testing.T) {
 	// Verify that we've emitted test artifacts in expected location
 	outputJar := module.Output(installPathPrefix + "/ravenwood-test/ravenwood-test.jar")
 	module.Output(installPathPrefix + "/ravenwood-test/ravenwood-test.config")
+	module.Output(installPathPrefix + "/ravenwood-test/ravenwood.properties")
 	module.Output(installPathPrefix + "/ravenwood-test/lib64/jni-lib1.so")
 	module.Output(installPathPrefix + "/ravenwood-test/lib64/libblue.so")
 	module.Output(installPathPrefix + "/ravenwood-test/lib64/libpink.so")
 	module.Output(installPathPrefix + "/ravenwood-test/ravenwood-res-apks/ravenwood-res.apk")
 	module.Output(installPathPrefix + "/ravenwood-test/ravenwood-res-apks/ravenwood-inst-res.apk")
+
+	module = ctx.ModuleForTests("ravenwood-test-empty", "android_common")
+	module.Output(installPathPrefix + "/ravenwood-test-empty/ravenwood.properties")
 
 	// ravenwood-runtime*.so are included in the runtime, so it shouldn't be emitted.
 	for _, o := range module.AllOutputs() {

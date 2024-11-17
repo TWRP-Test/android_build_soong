@@ -13,6 +13,7 @@ bootstrap_go_package {
         "soong-kernel",
     ],
     srcs: [
+        "boot_imgs.go",
         "filesystem_creator.go",
         "fsgen_mutators.go",
         "prebuilt_etc_modules_gen.go",

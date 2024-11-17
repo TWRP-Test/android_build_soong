@@ -386,7 +386,7 @@ type Prebuilt struct {
 
 	inputApex android.Path
 
-	provenanceMetaDataFile android.OutputPath
+	provenanceMetaDataFile android.Path
 }
 
 type ApexFileProperties struct {
@@ -697,7 +697,7 @@ func (p *Prebuilt) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	ctx.SetOutputFiles(android.Paths{p.outputApex}, "")
 }
 
-func (p *Prebuilt) ProvenanceMetaDataFile() android.OutputPath {
+func (p *Prebuilt) ProvenanceMetaDataFile() android.Path {
 	return p.provenanceMetaDataFile
 }
 

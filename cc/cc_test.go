@@ -40,9 +40,6 @@ func TestMain(m *testing.M) {
 
 var prepareForCcTest = android.GroupFixturePreparers(
 	PrepareForIntegrationTestWithCc,
-	android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
-		variables.VendorApiLevel = StringPtr("202404")
-	}),
 )
 
 var apexVariationName = "apex28"
@@ -1008,7 +1005,7 @@ func TestLlndkLibrary(t *testing.T) {
 	android.AssertArrayString(t, "variants for llndk stubs", expected, actual)
 
 	params := result.ModuleForTests("libllndk", "android_vendor_arm_armv7-a-neon_shared").Description("generate stub")
-	android.AssertSame(t, "use Vendor API level for default stubs", "999999", params.Args["apiLevel"])
+	android.AssertSame(t, "use Vendor API level for default stubs", "35", params.Args["apiLevel"])
 
 	checkExportedIncludeDirs := func(module, variant string, expectedSystemDirs []string, expectedDirs ...string) {
 		t.Helper()

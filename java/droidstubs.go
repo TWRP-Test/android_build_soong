@@ -769,15 +769,6 @@ func addMetalavaConfigFilesToCmd(cmd *android.RuleBuilderCommand, configFiles an
 // property is defined, apply transformations and only revert the flagged apis that are not
 // enabled via release configurations and are not specified in aconfig_declarations
 func generateRevertAnnotationArgs(ctx android.ModuleContext, cmd *android.RuleBuilderCommand, stubsType StubsType, aconfigFlagsPaths android.Paths) {
-
-	if len(aconfigFlagsPaths) == 0 {
-		cmd.Flag("--revert-annotation android.annotation.FlaggedApi")
-		return
-	}
-
-	releasedFlaggedApisFile := android.PathForModuleOut(ctx, fmt.Sprintf("released-flagged-apis-%s.txt", stubsType.String()))
-	revertAnnotationsFile := android.PathForModuleOut(ctx, fmt.Sprintf("revert-annotations-%s.txt", stubsType.String()))
-
 	var filterArgs string
 	switch stubsType {
 	// No flagged apis specific flags need to be passed to metalava when generating
@@ -798,6 +789,15 @@ func generateRevertAnnotationArgs(ctx android.ModuleContext, cmd *android.RuleBu
 			filterArgs = "--filter='state:ENABLED+permission:READ_ONLY'"
 		}
 	}
+
+	if len(aconfigFlagsPaths) == 0 {
+		// This argument should not be added for "everything" stubs
+		cmd.Flag("--revert-annotation android.annotation.FlaggedApi")
+		return
+	}
+
+	releasedFlaggedApisFile := android.PathForModuleOut(ctx, fmt.Sprintf("released-flagged-apis-%s.txt", stubsType.String()))
+	revertAnnotationsFile := android.PathForModuleOut(ctx, fmt.Sprintf("revert-annotations-%s.txt", stubsType.String()))
 
 	ctx.Build(pctx, android.BuildParams{
 		Rule:        gatherReleasedFlaggedApisRule,

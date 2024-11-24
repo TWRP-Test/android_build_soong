@@ -341,15 +341,14 @@ type BaseProperties struct {
 	// If true, always create an sdk variant and don't create a platform variant.
 	Sdk_variant_only *bool
 
-	AndroidMkSharedLibs       []string `blueprint:"mutated"`
-	AndroidMkStaticLibs       []string `blueprint:"mutated"`
-	AndroidMkRlibs            []string `blueprint:"mutated"`
-	AndroidMkRuntimeLibs      []string `blueprint:"mutated"`
-	AndroidMkWholeStaticLibs  []string `blueprint:"mutated"`
-	AndroidMkHeaderLibs       []string `blueprint:"mutated"`
-	HideFromMake              bool     `blueprint:"mutated"`
-	PreventInstall            bool     `blueprint:"mutated"`
-	ApexesProvidingSharedLibs []string `blueprint:"mutated"`
+	AndroidMkSharedLibs      []string `blueprint:"mutated"`
+	AndroidMkStaticLibs      []string `blueprint:"mutated"`
+	AndroidMkRlibs           []string `blueprint:"mutated"`
+	AndroidMkRuntimeLibs     []string `blueprint:"mutated"`
+	AndroidMkWholeStaticLibs []string `blueprint:"mutated"`
+	AndroidMkHeaderLibs      []string `blueprint:"mutated"`
+	HideFromMake             bool     `blueprint:"mutated"`
+	PreventInstall           bool     `blueprint:"mutated"`
 
 	// Set by DepsMutator.
 	AndroidMkSystemSharedLibs []string `blueprint:"mutated"`
@@ -1880,7 +1879,7 @@ var (
 // Returns true if a stub library could be installed in multiple apexes
 func (c *Module) stubLibraryMultipleApexViolation(ctx android.ModuleContext) bool {
 	// If this is not an apex variant, no check necessary
-	if !c.InAnyApex() {
+	if info, ok := android.ModuleProvider(ctx, android.ApexInfoProvider); !ok || info.IsForPlatform() {
 		return false
 	}
 	// If this is not a stub library, no check necessary
@@ -3285,18 +3284,6 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 				c.Properties.AndroidMkHeaderLibs = append(
 					c.Properties.AndroidMkHeaderLibs, makeLibName)
 			case libDepTag.shared():
-				if lib := moduleLibraryInterface(dep); lib != nil {
-					if lib.buildStubs() && dep.(android.ApexModule).InAnyApex() {
-						// Add the dependency to the APEX(es) providing the library so that
-						// m <module> can trigger building the APEXes as well.
-						depApexInfo, _ := android.OtherModuleProvider(ctx, dep, android.ApexInfoProvider)
-						for _, an := range depApexInfo.InApexVariants {
-							c.Properties.ApexesProvidingSharedLibs = append(
-								c.Properties.ApexesProvidingSharedLibs, an)
-						}
-					}
-				}
-
 				// Note: the order of libs in this list is not important because
 				// they merely serve as Make dependencies and do not affect this lib itself.
 				c.Properties.AndroidMkSharedLibs = append(

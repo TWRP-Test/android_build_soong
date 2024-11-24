@@ -218,16 +218,11 @@ func (b systemServerClasspathFragmentContentDependencyTag) ExportMember() bool {
 	return true
 }
 
-// Contents of system server fragments in an apex are considered to be directly in the apex, as if
-// they were listed in java_libs.
-func (systemServerClasspathFragmentContentDependencyTag) CopyDirectlyInAnyApex() {}
-
 // Contents of system server fragments require files from prebuilt apex files.
 func (systemServerClasspathFragmentContentDependencyTag) RequiresFilesFromPrebuiltApex() {}
 
 var _ android.ReplaceSourceWithPrebuilt = systemServerClasspathFragmentContentDepTag
 var _ android.SdkMemberDependencyTag = systemServerClasspathFragmentContentDepTag
-var _ android.CopyDirectlyInAnyApexTag = systemServerClasspathFragmentContentDepTag
 var _ android.RequiresFilesFromPrebuiltApexTag = systemServerClasspathFragmentContentDepTag
 
 // The tag used for the dependency between the systemserverclasspath_fragment module and its contents.

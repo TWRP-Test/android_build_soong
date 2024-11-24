@@ -83,10 +83,6 @@ func (b bootclasspathFragmentContentDependencyTag) ExportMember() bool {
 	return true
 }
 
-// Contents of bootclasspath fragments in an apex are considered to be directly in the apex, as if
-// they were listed in java_libs.
-func (b bootclasspathFragmentContentDependencyTag) CopyDirectlyInAnyApex() {}
-
 // Contents of bootclasspath fragments require files from prebuilt apex files.
 func (b bootclasspathFragmentContentDependencyTag) RequiresFilesFromPrebuiltApex() {}
 
@@ -96,7 +92,6 @@ var bootclasspathFragmentContentDepTag = bootclasspathFragmentContentDependencyT
 var _ android.ExcludeFromVisibilityEnforcementTag = bootclasspathFragmentContentDepTag
 var _ android.ReplaceSourceWithPrebuilt = bootclasspathFragmentContentDepTag
 var _ android.SdkMemberDependencyTag = bootclasspathFragmentContentDepTag
-var _ android.CopyDirectlyInAnyApexTag = bootclasspathFragmentContentDepTag
 var _ android.RequiresFilesFromPrebuiltApexTag = bootclasspathFragmentContentDepTag
 
 func IsBootclasspathFragmentContentDepTag(tag blueprint.DependencyTag) bool {

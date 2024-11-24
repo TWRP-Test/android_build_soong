@@ -758,3 +758,28 @@ func TestOverrideModulesInDeps(t *testing.T) {
 	fileList := android.ContentFromFileRuleForTests(t, result.TestContext, partition.Output("fileList"))
 	android.AssertStringEquals(t, "filesystem with override app", "app/myoverrideapp/myoverrideapp.apk\n", fileList)
 }
+
+func TestRamdiskPartitionSetsDevNodes(t *testing.T) {
+	result := android.GroupFixturePreparers(
+		fixture,
+		android.FixtureMergeMockFs(android.MockFS{
+			"ramdisk_node_list": nil,
+		}),
+	).RunTestWithBp(t, `
+		android_filesystem {
+			name: "ramdisk_filesystem",
+			partition_name: "ramdisk",
+		}
+		filegroup {
+			name: "ramdisk_node_list",
+			srcs: ["ramdisk_node_list"],
+		}
+	`)
+
+	android.AssertBoolEquals(
+		t,
+		"Generated ramdisk image expected to depend on \"ramdisk_node_list\" module",
+		true,
+		java.CheckModuleHasDependency(t, result.TestContext, "ramdisk_filesystem", "android_common", "ramdisk_node_list"),
+	)
+}

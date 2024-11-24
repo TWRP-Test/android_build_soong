@@ -15,10 +15,11 @@
 package apex
 
 import (
-	"android/soong/android"
-	"android/soong/java"
 	"fmt"
 	"testing"
+
+	"android/soong/android"
+	"android/soong/java"
 )
 
 var checkContainerMatch = func(t *testing.T, name string, container string, expected bool, actual bool) {
@@ -329,6 +330,7 @@ func TestUpdatableAndNonUpdatableApexesIdenticalMinSdkVersion(t *testing.T) {
 			],
 			min_sdk_version: "30",
 			sdk_version: "current",
+			compile_dex: true,
 		}
 	`)
 

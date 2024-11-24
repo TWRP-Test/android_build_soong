@@ -190,6 +190,7 @@ var PrepareForTestWithJacocoInstrumentation = android.GroupFixturePreparers(
 				"//apex_available:anyapex",
 				"//apex_available:platform",
 			],
+			compile_dex: true,
 		}
 	`)),
 )
@@ -426,7 +427,7 @@ func gatherRequiredDepsForTest() string {
 		"kotlin-annotations",
 		"stub-annotations",
 		"aconfig-annotations-lib",
-		"aconfig_storage_reader_java",
+		"aconfig_storage_stub",
 		"unsupportedappusage",
 	}
 

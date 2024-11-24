@@ -162,6 +162,10 @@ type FilesystemProperties struct {
 	// Determines if the module is auto-generated from Soong or not. If the module is
 	// auto-generated, its deps are exempted from visibility enforcement.
 	Is_auto_generated *bool
+
+	// Path to the dev nodes description file. This is only needed for building the ramdisk
+	// partition and should not be explicitly specified.
+	Dev_nodes_description_file *string `android:"path" blueprint:"mutated"`
 }
 
 // Additional properties required to generate erofs FS partitions.
@@ -210,6 +214,10 @@ func initFilesystemModule(module android.DefaultableModule, filesystemModule *fi
 	filesystemModule.PackagingBase.AllowHighPriorityDeps = true
 	android.InitAndroidMultiTargetsArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)
+
+	android.AddLoadHook(module, func(ctx android.LoadHookContext) {
+		filesystemModule.setDevNodesDescriptionProp()
+	})
 }
 
 type depTag struct {
@@ -228,6 +236,16 @@ var _ android.ExcludeFromVisibilityEnforcementTag = (*depTagWithVisibilityEnforc
 func (t depTagWithVisibilityEnforcementBypass) ExcludeFromVisibilityEnforcement() {}
 
 var dependencyTagWithVisibilityEnforcementBypass = depTagWithVisibilityEnforcementBypass{}
+
+// ramdiskDevNodesDescription is the name of the filegroup module that provides the file that
+// contains the description of dev nodes added to the CPIO archive for the ramdisk partition.
+const ramdiskDevNodesDescription = "ramdisk_node_list"
+
+func (f *filesystem) setDevNodesDescriptionProp() {
+	if proptools.String(f.properties.Partition_name) == "ramdisk" {
+		f.properties.Dev_nodes_description_file = proptools.StringPtr(":" + ramdiskDevNodesDescription)
+	}
+}
 
 func (f *filesystem) DepsMutator(ctx android.BottomUpMutatorContext) {
 	if proptools.Bool(f.properties.Is_auto_generated) {
@@ -659,6 +677,9 @@ func (f *filesystem) buildCpioImage(ctx android.ModuleContext, compressed bool) 
 	cmd := builder.Command().
 		BuiltTool("mkbootfs").
 		Text(rootDir.String()) // input directory
+	if nodeList := f.properties.Dev_nodes_description_file; nodeList != nil {
+		cmd.FlagWithInput("-n ", android.PathForModuleSrc(ctx, proptools.String(nodeList)))
+	}
 	if compressed {
 		cmd.Text("|").
 			BuiltTool("lz4").
@@ -689,6 +710,7 @@ var validPartitions = []string{
 	"odm_dlkm",
 	"system_dlkm",
 	"ramdisk",
+	"vendor_ramdisk",
 }
 
 func (f *filesystem) addMakeBuiltFiles(ctx android.ModuleContext, builder *android.RuleBuilder, rootDir android.Path) {
@@ -903,4 +925,27 @@ func (f *filesystem) getLibsForLinkerConfig(ctx android.ModuleContext) ([]androi
 	})
 
 	return provideModules, requireModules
+}
+
+// Checks that the given file doesn't exceed the given size, and will also print a warning
+// if it's nearing the maximum size. Equivalent to assert-max-image-size in make:
+// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/definitions.mk;l=3455;drc=993c4de29a02a6accd60ceaaee153307e1a18d10
+func assertMaxImageSize(builder *android.RuleBuilder, image android.Path, maxSize int64, addAvbLater bool) {
+	if addAvbLater {
+		// The value 69632 is derived from MAX_VBMETA_SIZE + MAX_FOOTER_SIZE in avbtool.
+		// Logic copied from make:
+		// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/Makefile;l=228;drc=a6a0007ef24e16c0b79f439beac4a118416717e6
+		maxSize -= 69632
+	}
+	cmd := builder.Command()
+	cmd.Textf(`file="%s"; maxsize="%d";`+
+		`total=$(stat -c "%%s" "$file" | tr -d '\n');`+
+		`if [ "$total" -gt "$maxsize" ]; then `+
+		`  echo "error: $file too large ($total > $maxsize)";`+
+		`  false;`+
+		`elif [ "$total" -gt $((maxsize - 32768)) ]; then `+
+		`  echo "WARNING: $file approaching size limit ($total now; limit $maxsize)";`+
+		`fi`,
+		image, maxSize)
+	cmd.Implicit(image)
 }

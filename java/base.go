@@ -766,7 +766,8 @@ func (j *Module) shouldInstrumentInApex(ctx android.BaseModuleContext) bool {
 	apexInfo, _ := android.ModuleProvider(ctx, android.ApexInfoProvider)
 	isJacocoAgent := ctx.ModuleName() == "jacocoagent"
 
-	if j.DirectlyInAnyApex() && !isJacocoAgent && !apexInfo.IsForPlatform() {
+	compileDex := Bool(j.dexProperties.Compile_dex) || Bool(j.properties.Installable)
+	if compileDex && !isJacocoAgent && !apexInfo.IsForPlatform() {
 		if !inList(ctx.ModuleName(), config.InstrumentFrameworkModules) {
 			return true
 		} else if ctx.Config().IsEnvTrue("EMMA_INSTRUMENT_FRAMEWORK") {
@@ -1735,20 +1736,10 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 
 	completeStaticLibsImplementationJarsToCombine := completeStaticLibsImplementationJars
 
-	// Enable dex compilation for the APEX variants, unless it is disabled explicitly
-	compileDex := Bool(j.dexProperties.Compile_dex)
 	apexInfo, _ := android.ModuleProvider(ctx, android.ApexInfoProvider)
-	if j.DirectlyInAnyApex() && !apexInfo.IsForPlatform() {
-		if j.dexProperties.Compile_dex == nil {
-			compileDex = true
-		}
-		if j.deviceProperties.Hostdex == nil {
-			j.deviceProperties.Hostdex = proptools.BoolPtr(true)
-		}
-	}
-	if Bool(j.properties.Installable) {
-		compileDex = true
-	}
+
+	// Enable dex compilation for the APEX variants, unless it is disabled explicitly
+	compileDex := Bool(j.dexProperties.Compile_dex) || Bool(j.properties.Installable)
 
 	if j.shouldInstrument(ctx) && (!ctx.Device() || compileDex) {
 		instrumentedOutputFile := j.instrument(ctx, flags, outputFile, jarName, specs)
@@ -2331,7 +2322,10 @@ func (m *Module) getSdkLinkType(ctx android.BaseModuleContext, name string) (ret
 		"stable.core.platform.api.stubs",
 		"stub-annotations", "private-stub-annotations-jar",
 		"core-lambda-stubs",
-		"core-generated-annotation-stubs":
+		"core-generated-annotation-stubs",
+		// jacocoagent only uses core APIs, but has to specify a non-core sdk_version so it can use
+		// a prebuilt SDK to avoid circular dependencies when it statically included in the bootclasspath.
+		"jacocoagent":
 		return javaCore, true
 	case android.SdkPublic.DefaultJavaLibraryName():
 		return javaSdk, true

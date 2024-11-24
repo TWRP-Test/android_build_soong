@@ -300,6 +300,11 @@ func (b *bindgenDecorator) GenerateSource(ctx ModuleContext, deps PathDeps) andr
 	// it cannot recognize. Turn off unknown warning flags warning.
 	cflags = append(cflags, "-Wno-unknown-warning-option")
 
+	// Suppress warnings while testing a new compiler.
+	if ctx.Config().IsEnvTrue("LLVM_NEXT") {
+		cflags = append(cflags, "-Wno-everything")
+	}
+
 	outputFile := android.PathForModuleOut(ctx, b.BaseSourceProvider.getStem(ctx)+".rs")
 
 	var cmd, cmdDesc string

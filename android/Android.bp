@@ -111,6 +111,7 @@ bootstrap_go_package {
         "testing.go",
         "util.go",
         "variable.go",
+        "vendor_api_levels.go",
         "vintf_fragment.go",
         "vintf_data.go",
         "visibility.go",

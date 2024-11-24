@@ -611,6 +611,7 @@ func (r *RuleBuilder) build(name string, desc string, ninjaEscapeCommandString b
 		nsjailCmd.WriteString(" -m none:/tmp:tmpfs:size=1073741824") // 1GB, should be enough
 		nsjailCmd.WriteString(" -D nsjail_build_sandbox")
 		nsjailCmd.WriteString(" --disable_rlimits")
+		nsjailCmd.WriteString(" --skip_setsid") // ABFS relies on process-groups to track file operations
 		nsjailCmd.WriteString(" -q")
 		nsjailCmd.WriteString(" -- ")
 		nsjailCmd.WriteString("/bin/bash -c ")

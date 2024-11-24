@@ -285,6 +285,10 @@ func (c Config) ReleaseCreateAconfigStorageFile() bool {
 	return c.config.productVariables.GetBuildFlagBool("RELEASE_CREATE_ACONFIG_STORAGE_FILE")
 }
 
+func (c Config) ReleaseUseSystemFeatureBuildFlags() bool {
+	return c.config.productVariables.GetBuildFlagBool("RELEASE_USE_SYSTEM_FEATURE_BUILD_FLAGS")
+}
+
 // A DeviceConfig object represents the configuration for a particular device
 // being built. For now there will only be one of these, but in the future there
 // may be multiple devices being built.
@@ -1832,6 +1836,10 @@ func (c *config) ForceApexSymlinkOptimization() bool {
 
 func (c *config) ApexCompressionEnabled() bool {
 	return Bool(c.productVariables.CompressedApex) && !c.UnbundledBuildApps()
+}
+
+func (c *config) DefaultApexPayloadType() string {
+	return StringDefault(c.productVariables.DefaultApexPayloadType, "ext4")
 }
 
 func (c *config) UseSoongSystemImage() bool {

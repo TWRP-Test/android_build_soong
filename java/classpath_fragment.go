@@ -105,6 +105,10 @@ func gatherPossibleApexModuleNamesAndStems(ctx android.ModuleContext, contents [
 	set := map[string]struct{}{}
 	for _, name := range contents {
 		dep := ctx.GetDirectDepWithTag(name, tag)
+		if dep == nil && ctx.Config().AllowMissingDependencies() {
+			// Ignore apex boot jars from dexpreopt if it does not exist, and missing deps are allowed.
+			continue
+		}
 		set[ModuleStemForDeapexing(dep)] = struct{}{}
 		if m, ok := dep.(ModuleWithStem); ok {
 			set[m.Stem()] = struct{}{}

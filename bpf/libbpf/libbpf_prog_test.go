@@ -41,7 +41,7 @@ var prepareForLibbpfProgTest = android.GroupFixturePreparers(
 func TestLibbpfProgDataDependency(t *testing.T) {
 	bp := `
 		libbpf_prog {
-			name: "bpf.o",
+			name: "bpf.bpf",
 			srcs: ["bpf.c"],
 		}
 
@@ -49,7 +49,7 @@ func TestLibbpfProgDataDependency(t *testing.T) {
 			name: "vts_test_binary_bpf_module",
 			compile_multilib: "first",
 			srcs: ["BpfTest.cpp"],
-			data: [":bpf.o"],
+			data: [":bpf.bpf"],
 			gtest: false,
 		}
 	`
@@ -60,7 +60,7 @@ func TestLibbpfProgDataDependency(t *testing.T) {
 func TestLibbpfProgSourceName(t *testing.T) {
 	bp := `
 		libbpf_prog {
-			name: "bpf_invalid_name.o",
+			name: "bpf_invalid_name.bpf",
 			srcs: ["bpf_invalid_name.c"],
 		}
 	`

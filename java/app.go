@@ -164,7 +164,7 @@ type appProperties struct {
 type overridableAppProperties struct {
 	// The name of a certificate in the default certificate directory, blank to use the default product certificate,
 	// or an android_app_certificate module name in the form ":module".
-	Certificate *string
+	Certificate proptools.Configurable[string] `android:"replace_instead_of_append"`
 
 	// Name of the signing certificate lineage file or filegroup module.
 	Lineage *string `android:"path"`
@@ -1252,7 +1252,7 @@ func (a *AndroidApp) getCertString(ctx android.BaseModuleContext) string {
 	if overridden {
 		return ":" + certificate
 	}
-	return String(a.overridableAppProperties.Certificate)
+	return a.overridableAppProperties.Certificate.GetOrDefault(ctx, "")
 }
 
 func (a *AndroidApp) DepIsInSameApex(ctx android.BaseModuleContext, dep android.Module) bool {

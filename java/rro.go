@@ -50,7 +50,7 @@ type RuntimeResourceOverlay struct {
 type RuntimeResourceOverlayProperties struct {
 	// the name of a certificate in the default certificate directory or an android_app_certificate
 	// module name in the form ":module".
-	Certificate *string
+	Certificate proptools.Configurable[string] `android:"replace_instead_of_append"`
 
 	// Name of the signing certificate lineage file.
 	Lineage *string
@@ -119,7 +119,7 @@ func (r *RuntimeResourceOverlay) DepsMutator(ctx android.BottomUpMutatorContext)
 		r.aapt.deps(ctx, sdkDep)
 	}
 
-	cert := android.SrcIsModule(String(r.properties.Certificate))
+	cert := android.SrcIsModule(r.properties.Certificate.GetOrDefault(ctx, ""))
 	if cert != "" {
 		ctx.AddDependency(ctx.Module(), certificateTag, cert)
 	}
@@ -166,7 +166,7 @@ func (r *RuntimeResourceOverlay) GenerateAndroidBuildActions(ctx android.ModuleC
 
 	// Sign the built package
 	_, _, certificates := collectAppDeps(ctx, r, false, false)
-	r.certificate, certificates = processMainCert(r.ModuleBase, String(r.properties.Certificate), certificates, ctx)
+	r.certificate, certificates = processMainCert(r.ModuleBase, r.properties.Certificate.GetOrDefault(ctx, ""), certificates, ctx)
 	signed := android.PathForModuleOut(ctx, "signed", r.Name()+".apk")
 	var lineageFile android.Path
 	if lineage := String(r.properties.Lineage); lineage != "" {

@@ -488,21 +488,15 @@ func (r *RuleBuilder) depFileMergerCmd(depFiles WritablePaths) *RuleBuilderComma
 		Inputs(depFiles.Paths())
 }
 
-// BuildWithNinjaVars adds the built command line to the build graph, with dependencies on Inputs and Tools, and output files for
-// Outputs. This function will not escape Ninja variables, so it may be used to write sandbox manifests using Ninja variables.
-func (r *RuleBuilder) BuildWithUnescapedNinjaVars(name string, desc string) {
-	r.build(name, desc, false)
-}
-
 // Build adds the built command line to the build graph, with dependencies on Inputs and Tools, and output files for
 // Outputs.
 func (r *RuleBuilder) Build(name string, desc string) {
-	r.build(name, desc, true)
+	r.build(name, desc)
 }
 
 var sandboxEnvOnceKey = NewOnceKey("sandbox_environment_variables")
 
-func (r *RuleBuilder) build(name string, desc string, ninjaEscapeCommandString bool) {
+func (r *RuleBuilder) build(name string, desc string) {
 	name = ninjaNameEscape(name)
 
 	if len(r.missingDeps) > 0 {
@@ -765,30 +759,7 @@ func (r *RuleBuilder) build(name string, desc string, ninjaEscapeCommandString b
 		if err != nil {
 			ReportPathErrorf(r.ctx, "sbox manifest failed to marshal: %q", err)
 		}
-		if ninjaEscapeCommandString {
-			WriteFileRule(r.ctx, r.sboxManifestPath, string(pbText))
-		} else {
-			// We need  to have a rule to write files that is
-			// defined on the RuleBuilder's pctx in order to
-			// write Ninja variables in the string.
-			// The WriteFileRule function above rule can only write
-			// raw strings because it is defined on the android
-			// package's pctx, and it can't access variables defined
-			// in another context.
-			r.ctx.Build(r.pctx, BuildParams{
-				Rule: r.ctx.Rule(r.pctx, "unescapedWriteFile", blueprint.RuleParams{
-					Command:        `rm -rf ${out} && cat ${out}.rsp > ${out}`,
-					Rspfile:        "${out}.rsp",
-					RspfileContent: "${content}",
-					Description:    "write file",
-				}, "content"),
-				Output:      r.sboxManifestPath,
-				Description: "write sbox manifest " + r.sboxManifestPath.Base(),
-				Args: map[string]string{
-					"content": string(pbText),
-				},
-			})
-		}
+		WriteFileRule(r.ctx, r.sboxManifestPath, string(pbText))
 
 		// Generate a new string to use as the command line of the sbox rule.  This uses
 		// a RuleBuilderCommand as a convenience method of building the command line, then
@@ -882,9 +853,7 @@ func (r *RuleBuilder) build(name string, desc string, ninjaEscapeCommandString b
 		pool = localPool
 	}
 
-	if ninjaEscapeCommandString {
-		commandString = proptools.NinjaEscape(commandString)
-	}
+	commandString = proptools.NinjaEscape(commandString)
 
 	args_vars := make([]string, len(r.args))
 	i := 0

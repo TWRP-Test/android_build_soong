@@ -71,6 +71,10 @@ type filesystemBuilder interface {
 	// For example, GSI system.img contains system_ext and product artifacts and their
 	// relPathInPackage need to be rebased to system/system_ext and system/system_product.
 	ModifyPackagingSpec(spec *android.PackagingSpec)
+
+	// Function to check if the filesystem should not use `vintf_fragments` property,
+	// but use `vintf_fragment` module type instead
+	ShouldUseVintfFragmentModuleOnly() bool
 }
 
 var _ filesystemBuilder = (*filesystem)(nil)
@@ -343,6 +347,9 @@ var pctx = android.NewPackageContext("android/soong/filesystem")
 
 func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	validatePartitionType(ctx, f)
+	if f.filesystemBuilder.ShouldUseVintfFragmentModuleOnly() {
+		f.validateVintfFragments(ctx)
+	}
 	switch f.fsType(ctx) {
 	case ext4Type, erofsType, f2fsType:
 		f.output = f.buildImageUsingBuildImage(ctx)
@@ -369,6 +376,43 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	if proptools.Bool(f.properties.Unchecked_module) {
 		ctx.UncheckedModule()
 	}
+}
+
+func (f *filesystem) validateVintfFragments(ctx android.ModuleContext) {
+	visitedModule := map[string]bool{}
+	packagingSpecs := f.gatherFilteredPackagingSpecs(ctx)
+
+	moduleInFileSystem := func(mod android.Module) bool {
+		for _, ps := range android.OtherModuleProviderOrDefault(
+			ctx, mod, android.InstallFilesProvider).PackagingSpecs {
+			if _, ok := packagingSpecs[ps.RelPathInPackage()]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
+	ctx.WalkDeps(func(child, parent android.Module) bool {
+		if visitedModule[child.Name()] {
+			return false
+		}
+		if !moduleInFileSystem(child) {
+			visitedModule[child.Name()] = true
+			return true
+		}
+		if vintfFragments := child.VintfFragments(ctx); vintfFragments != nil {
+			ctx.PropertyErrorf(
+				"vintf_fragments",
+				"Module %s is referenced by soong-defined filesystem %s with property vintf_fragments(%s) in use."+
+					" Use vintf_fragment_modules property instead.",
+				child.Name(),
+				f.BaseModuleName(),
+				strings.Join(vintfFragments, ", "),
+			)
+		}
+		visitedModule[child.Name()] = true
+		return true
+	})
 }
 
 func (f *filesystem) appendToEntry(ctx android.ModuleContext, installedFile android.Path) {
@@ -594,6 +638,13 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 		addStr("hash_seed", uuid)
 	}
 
+	// TODO(b/381120092): This should only be added if none of the size-related properties are set,
+	// but currently soong built partitions don't have size properties. Make code:
+	// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/Makefile;l=2262;drc=39cd33701c9278db0e7e481a090605f428d5b12d
+	// Make uses system_disable_sparse but disable_sparse has the same effect, and we shouldn't need
+	// to qualify it because each partition gets its own property file built.
+	addStr("disable_sparse", "true")
+
 	fst := f.fsType(ctx)
 	switch fst {
 	case erofsType:
@@ -777,6 +828,10 @@ func (f *filesystem) BuildLinkerConfigFile(ctx android.ModuleContext, builder *a
 	linkerconfig.BuildLinkerConfig(ctx, builder, android.PathsForModuleSrc(ctx, f.properties.Linker_config.Linker_config_srcs), provideModules, nil, output)
 
 	f.appendToEntry(ctx, output)
+}
+
+func (f *filesystem) ShouldUseVintfFragmentModuleOnly() bool {
+	return false
 }
 
 type partition interface {

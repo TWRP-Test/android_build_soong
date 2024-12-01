@@ -912,14 +912,14 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 	var validations android.Paths
 	validations = append(validations, runApexLinkerconfigValidation(ctx, unsignedOutputFile, imageDir))
 	// TODO(b/279688635) deapexer supports [ext4]
-	if !a.testApex && suffix == imageApexSuffix && ext4 == a.payloadFsType {
+	if !a.skipValidation(apexSepolicyTests) && suffix == imageApexSuffix && ext4 == a.payloadFsType {
 		validations = append(validations, runApexSepolicyTests(ctx, unsignedOutputFile))
 	}
 	if !a.testApex && len(a.properties.Unwanted_transitive_deps) > 0 {
 		validations = append(validations,
 			runApexElfCheckerUnwanted(ctx, unsignedOutputFile, a.properties.Unwanted_transitive_deps))
 	}
-	if !a.testApex && android.InList(a.payloadFsType, []fsType{ext4, erofs}) {
+	if !a.skipValidation(hostApexVerifier) && android.InList(a.payloadFsType, []fsType{ext4, erofs}) {
 		validations = append(validations, runApexHostVerifier(ctx, a, unsignedOutputFile))
 	}
 	ctx.Build(pctx, android.BuildParams{
@@ -1208,7 +1208,7 @@ func runApexLinkerconfigValidation(ctx android.ModuleContext, apexFile android.P
 // $ deapexer list -Z {apex_file} > {file_contexts}
 // $ apex_sepolicy_tests -f {file_contexts}
 func runApexSepolicyTests(ctx android.ModuleContext, apexFile android.Path) android.Path {
-	timestamp := android.PathForModuleOut(ctx, "sepolicy_tests.timestamp")
+	timestamp := android.PathForModuleOut(ctx, "apex_sepolicy_tests.timestamp")
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   apexSepolicyTestsRule,
 		Input:  apexFile,

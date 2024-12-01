@@ -361,10 +361,22 @@ func (configs *ReleaseConfigs) LoadReleaseConfigMap(path string, ConfigDirIndex 
 		if fmt.Sprintf("%s.textproto", name) != filepath.Base(path) {
 			return fmt.Errorf("%s incorrectly declares release config %s", path, name)
 		}
+		releaseConfigType := releaseConfigContribution.proto.ReleaseConfigType
+		if releaseConfigType == nil {
+			if name == "root" {
+				releaseConfigType = rc_proto.ReleaseConfigType_EXPLICIT_INHERITANCE_CONFIG.Enum()
+			} else {
+				releaseConfigType = rc_proto.ReleaseConfigType_RELEASE_CONFIG.Enum()
+			}
+		}
 		if _, ok := configs.ReleaseConfigs[name]; !ok {
 			configs.ReleaseConfigs[name] = ReleaseConfigFactory(name, ConfigDirIndex)
+			configs.ReleaseConfigs[name].ReleaseConfigType = *releaseConfigType
 		}
 		config := configs.ReleaseConfigs[name]
+		if config.ReleaseConfigType != *releaseConfigType {
+			return fmt.Errorf("%s mismatching ReleaseConfigType value %s", path, *releaseConfigType)
+		}
 		config.FilesUsedMap[path] = true
 		inheritNames := make(map[string]bool)
 		for _, inh := range config.InheritNames {
@@ -437,8 +449,10 @@ func (configs *ReleaseConfigs) getReleaseConfig(name string, allow_missing bool)
 func (configs *ReleaseConfigs) GetAllReleaseNames() []string {
 	var allReleaseNames []string
 	for _, v := range configs.ReleaseConfigs {
-		allReleaseNames = append(allReleaseNames, v.Name)
-		allReleaseNames = append(allReleaseNames, v.OtherNames...)
+		if v.isConfigListable() {
+			allReleaseNames = append(allReleaseNames, v.Name)
+			allReleaseNames = append(allReleaseNames, v.OtherNames...)
+		}
 	}
 	slices.Sort(allReleaseNames)
 	return allReleaseNames

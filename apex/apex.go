@@ -427,6 +427,7 @@ type apexBundle struct {
 	archProperties        apexArchBundleProperties
 	overridableProperties overridableProperties
 	vndkProperties        apexVndkProperties // only for apex_vndk modules
+	testProperties        apexTestProperties // only for apex_test modules
 
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// Inputs
@@ -606,9 +607,6 @@ func newApexFile(ctx android.BaseModuleContext, builtFile android.Path, androidM
 		}
 		ret.moduleDir = ctx.OtherModuleDir(module)
 		ret.partition = module.PartitionTag(ctx.DeviceConfig())
-		ret.requiredModuleNames = module.RequiredModuleNames(ctx)
-		ret.targetRequiredModuleNames = module.TargetRequiredModuleNames()
-		ret.hostRequiredModuleNames = module.HostRequiredModuleNames()
 		ret.multilib = module.Target().Arch.ArchType.Multilib
 	}
 	return ret
@@ -1289,6 +1287,23 @@ func (a *apexBundle) UsePlatformApis() bool {
 	return proptools.BoolDefault(a.properties.Platform_apis, false)
 }
 
+type apexValidationType int
+
+const (
+	hostApexVerifier apexValidationType = iota
+	apexSepolicyTests
+)
+
+func (a *apexBundle) skipValidation(validationType apexValidationType) bool {
+	switch validationType {
+	case hostApexVerifier:
+		return proptools.Bool(a.testProperties.Skip_validations.Host_apex_verifier)
+	case apexSepolicyTests:
+		return proptools.Bool(a.testProperties.Skip_validations.Apex_sepolicy_tests)
+	}
+	panic("Unknown validation type")
+}
+
 // getCertString returns the name of the cert that should be used to sign this APEX. This is
 // basically from the "certificate" property, but could be overridden by the device config.
 func (a *apexBundle) getCertString(ctx android.BaseModuleContext) string {
@@ -1725,7 +1740,13 @@ func (a *apexBundle) setPayloadFsType(ctx android.ModuleContext) {
 }
 
 func (a *apexBundle) isCompressable() bool {
-	return proptools.BoolDefault(a.overridableProperties.Compressible, false) && !a.testApex
+	if a.testApex {
+		return false
+	}
+	if a.payloadFsType == erofs {
+		return false
+	}
+	return proptools.Bool(a.overridableProperties.Compressible)
 }
 
 func (a *apexBundle) commonBuildActions(ctx android.ModuleContext) bool {
@@ -2415,10 +2436,14 @@ func newApexBundle() *apexBundle {
 	return module
 }
 
-func ApexBundleFactory(testApex bool) android.Module {
-	bundle := newApexBundle()
-	bundle.testApex = testApex
-	return bundle
+type apexTestProperties struct {
+	// Boolean flags for validation checks. Test APEXes can turn on/off individual checks.
+	Skip_validations struct {
+		// Skips `Apex_sepolicy_tests` check if true
+		Apex_sepolicy_tests *bool
+		// Skips `Host_apex_verifier` check if true
+		Host_apex_verifier *bool
+	}
 }
 
 // apex_test is an APEX for testing. The difference from the ordinary apex module type is that
@@ -2426,6 +2451,7 @@ func ApexBundleFactory(testApex bool) android.Module {
 func TestApexBundleFactory() android.Module {
 	bundle := newApexBundle()
 	bundle.testApex = true
+	bundle.AddProperties(&bundle.testProperties)
 	return bundle
 }
 

@@ -2148,6 +2148,10 @@ func (c *config) UseTransitiveJarsInClasspath() bool {
 	return c.productVariables.GetBuildFlagBool("RELEASE_USE_TRANSITIVE_JARS_IN_CLASSPATH")
 }
 
+func (c *config) UseDexV41() bool {
+	return c.productVariables.GetBuildFlagBool("RELEASE_USE_DEX_V41")
+}
+
 var (
 	mainlineApexContributionBuildFlagsToApexNames = map[string]string{
 		"RELEASE_APEX_CONTRIBUTIONS_ADBD":                    "com.android.adbd",

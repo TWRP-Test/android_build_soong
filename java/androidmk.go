@@ -425,6 +425,24 @@ func (app *AndroidApp) AndroidMkEntries() []android.AndroidMkEntries {
 	}
 }
 
+func (a *AutogenRuntimeResourceOverlay) AndroidMkEntries() []android.AndroidMkEntries {
+	if a.IsHideFromMake() || a.outputFile == nil {
+		return []android.AndroidMkEntries{android.AndroidMkEntries{
+			Disabled: true,
+		}}
+	}
+	return []android.AndroidMkEntries{android.AndroidMkEntries{
+		Class:      "APPS",
+		OutputFile: android.OptionalPathForPath(a.outputFile),
+		Include:    "$(BUILD_SYSTEM)/soong_app_prebuilt.mk",
+		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
+			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
+				entries.SetString("LOCAL_CERTIFICATE", "presigned") // The apk will be signed by soong
+			},
+		},
+	}}
+}
+
 func (a *AndroidApp) getOverriddenPackages() []string {
 	var overridden []string
 	if len(a.overridableAppProperties.Overrides) > 0 {

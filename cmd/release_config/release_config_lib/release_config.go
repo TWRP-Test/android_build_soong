@@ -85,6 +85,26 @@ type ReleaseConfig struct {
 	// Prior stage(s) for flag advancement (during development).
 	// Once a flag has met criteria in a prior stage, it can advance to this one.
 	PriorStagesMap map[string]bool
+
+	// What type of release config is this?  This should never be
+	// ReleaseConfigType_CONFIG_TYPE_UNSPECIFIED.
+	ReleaseConfigType rc_proto.ReleaseConfigType
+}
+
+// If true, this is a proper release config that can be used in "lunch".
+func (config *ReleaseConfig) isConfigListable() bool {
+	switch config.ReleaseConfigType {
+	case rc_proto.ReleaseConfigType_RELEASE_CONFIG:
+		return true
+	}
+
+	return false
+}
+
+// If true, this ReleaseConfigType may only inherit from a ReleaseConfig of the
+// same ReleaseConfigType.
+var ReleaseConfigInheritanceDenyMap = map[rc_proto.ReleaseConfigType]bool{
+	rc_proto.ReleaseConfigType_BUILD_VARIANT: true,
 }
 
 func ReleaseConfigFactory(name string, index int) (c *ReleaseConfig) {
@@ -97,6 +117,10 @@ func ReleaseConfigFactory(name string, index int) (c *ReleaseConfig) {
 }
 
 func (config *ReleaseConfig) InheritConfig(iConfig *ReleaseConfig) error {
+	if config.ReleaseConfigType != iConfig.ReleaseConfigType && ReleaseConfigInheritanceDenyMap[config.ReleaseConfigType] {
+		return fmt.Errorf("Release config %s (type '%s') cannot inherit from %s (type '%s')",
+			config.Name, config.ReleaseConfigType, iConfig.Name, iConfig.ReleaseConfigType)
+	}
 	for f := range iConfig.FilesUsedMap {
 		config.FilesUsedMap[f] = true
 	}
@@ -154,10 +178,10 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 	contributionsToApply := []*ReleaseConfigContribution{}
 	myInherits := []string{}
 	myInheritsSet := make(map[string]bool)
-	// If there is a "root" release config, it is the start of every inheritance chain.
-	_, err = configs.GetReleaseConfig("root")
-	if err == nil && !isRoot {
-		config.InheritNames = append([]string{"root"}, config.InheritNames...)
+	if config.ReleaseConfigType == rc_proto.ReleaseConfigType_RELEASE_CONFIG {
+		if _, err = configs.GetReleaseConfigStrict("root"); err == nil {
+			config.InheritNames = append([]string{"root"}, config.InheritNames...)
+		}
 	}
 	for _, inherit := range config.InheritNames {
 		if _, ok := myInheritsSet[inherit]; ok {
@@ -272,6 +296,36 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 			}
 		}
 	}
+
+	if config.ReleaseConfigType == rc_proto.ReleaseConfigType_RELEASE_CONFIG {
+		inheritBuildVariant := func() error {
+			build_variant := os.Getenv("TARGET_BUILD_VARIANT")
+			if build_variant == "" || config.Name == build_variant {
+				return nil
+			}
+			variant, err := configs.GetReleaseConfigStrict(build_variant)
+			if err != nil {
+				// Failure to find the build-variant release config is
+				// not an error.
+				return nil
+			}
+			if variant.ReleaseConfigType != rc_proto.ReleaseConfigType_BUILD_VARIANT {
+				return nil
+			}
+			if err = variant.GenerateReleaseConfig(configs); err != nil {
+				return err
+			}
+			return config.InheritConfig(variant)
+		}
+
+		useVariant, ok := config.FlagArtifacts["RELEASE_BUILD_USE_VARIANT_FLAGS"]
+		if ok && MarshalValue(useVariant.Value) != "" {
+			if err = inheritBuildVariant(); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Now remove any duplicates from the actual value of RELEASE_ACONFIG_VALUE_SETS
 	myAconfigValueSets := []string{}
 	myAconfigValueSetsMap := map[string]bool{}
@@ -345,11 +399,12 @@ func (config *ReleaseConfig) GenerateReleaseConfig(configs *ReleaseConfigs) erro
 			}
 			return ret
 		}(),
-		AconfigValueSets: myAconfigValueSets,
-		Inherits:         myInherits,
-		Directories:      directories,
-		ValueDirectories: valueDirectories,
-		PriorStages:      SortedMapKeys(config.PriorStagesMap),
+		AconfigValueSets:  myAconfigValueSets,
+		Inherits:          myInherits,
+		Directories:       directories,
+		ValueDirectories:  valueDirectories,
+		PriorStages:       SortedMapKeys(config.PriorStagesMap),
+		ReleaseConfigType: config.ReleaseConfigType.Enum(),
 	}
 
 	config.compileInProgress = false

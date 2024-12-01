@@ -238,6 +238,7 @@ var (
 	// opting into the warning.
 	noOverrideGlobalCflags = []string{
 		"-Werror=bool-operation",
+		"-Werror=dangling",
 		"-Werror=format-insufficient-args",
 		"-Werror=implicit-int-float-conversion",
 		"-Werror=int-in-bool-context",
@@ -296,6 +297,7 @@ var (
 
 		// Allow using VLA CXX extension.
 		"-Wno-vla-cxx-extension",
+		"-Wno-cast-function-type-mismatch",
 	}
 
 	noOverride64GlobalCflags = []string{}
@@ -384,7 +386,7 @@ var (
 
 	// prebuilts/clang default settings.
 	ClangDefaultBase         = "prebuilts/clang/host"
-	ClangDefaultVersion      = "clang-r530567"
+	ClangDefaultVersion      = "clang-r536225"
 	ClangDefaultShortVersion = "19"
 
 	// Directories with warnings from Android.bp files.

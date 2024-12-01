@@ -330,9 +330,17 @@ func (b *bootimg) addAvbFooter(ctx android.ModuleContext, unsignedImage android.
 		cmd.Flag("--dynamic_partition_size")
 	}
 
+	// If you don't provide a salt, avbtool will use random bytes for the salt.
+	// This is bad for determinism (cached builds and diff tests are affected), so instead,
+	// we try to provide a salt. The requirements for a salt are not very clear, one aspect of it
+	// is that if it's unpredictable, attackers trying to change the contents of a partition need
+	// to find a new hash collision every release, because the salt changed.
 	if kernel != nil {
 		cmd.Textf(`--salt $(sha256sum "%s" | cut -d " " -f 1)`, kernel.String())
 		cmd.Implicit(kernel)
+	} else {
+		cmd.Textf(`--salt $(sha256sum "%s" "%s" | cut -d " " -f 1 | tr -d '\n')`, ctx.Config().BuildNumberFile(ctx), ctx.Config().Getenv("BUILD_DATETIME_FILE"))
+		cmd.OrderOnly(ctx.Config().BuildNumberFile(ctx))
 	}
 
 	cmd.FlagWithArg("--partition_name ", b.bootImageType.String())

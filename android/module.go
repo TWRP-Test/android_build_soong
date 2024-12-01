@@ -117,6 +117,7 @@ type Module interface {
 	HostRequiredModuleNames() []string
 	TargetRequiredModuleNames() []string
 	VintfFragmentModuleNames(ctx ConfigurableEvaluatorContext) []string
+	VintfFragments(ctx ConfigurableEvaluatorContext) []string
 
 	ConfigurableEvaluator(ctx ConfigurableEvaluatorContext) proptools.ConfigurableEvaluator
 
@@ -1384,6 +1385,8 @@ func (m *ModuleBase) PartitionTag(config DeviceConfig) string {
 		}
 	} else if m.InstallInRamdisk() {
 		partition = "ramdisk"
+	} else if m.InstallInVendorRamdisk() {
+		partition = "vendor_ramdisk"
 	}
 	return partition
 }
@@ -1624,6 +1627,10 @@ func (m *ModuleBase) TargetRequiredModuleNames() []string {
 
 func (m *ModuleBase) VintfFragmentModuleNames(ctx ConfigurableEvaluatorContext) []string {
 	return m.base().commonProperties.Vintf_fragment_modules.GetOrDefault(m.ConfigurableEvaluator(ctx), nil)
+}
+
+func (m *ModuleBase) VintfFragments(ctx ConfigurableEvaluatorContext) []string {
+	return m.base().commonProperties.Vintf_fragments.GetOrDefault(m.ConfigurableEvaluator(ctx), nil)
 }
 
 func (m *ModuleBase) generateVariantTarget(ctx *moduleContext) {
@@ -2450,6 +2457,8 @@ func (e configurationEvalutor) EvaluateConfiguration(condition proptools.Configu
 					return proptools.ConfigurableValueString(v)
 				case "bool":
 					return proptools.ConfigurableValueBool(v == "true")
+				case "string_list":
+					return proptools.ConfigurableValueStringList(strings.Split(v, " "))
 				default:
 					panic("unhandled soong config variable type: " + ty)
 				}

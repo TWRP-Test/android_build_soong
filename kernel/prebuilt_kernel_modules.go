@@ -58,6 +58,9 @@ type prebuiltKernelModulesProperties struct {
 
 	Blocklist_file *string `android:"path"`
 
+	// Path to the kernel module options file
+	Options_file *string `android:"path"`
+
 	// Kernel version that these modules are for. Kernel modules are installed to
 	// /lib/modules/<kernel_version> directory in the corresponding partition. Default is "".
 	Kernel_version *string
@@ -100,6 +103,13 @@ func (pkm *prebuiltKernelModules) GenerateAndroidBuildActions(ctx android.Module
 	strippedModules := stripDebugSymbols(ctx, modules)
 
 	installDir := android.PathForModuleInstall(ctx, "lib", "modules")
+	// Kernel module is installed to vendor_ramdisk/lib/modules regardless of product
+	// configuration. This matches the behavior in make and prevents the files from being
+	// installed in `vendor_ramdisk/first_stage_ramdisk`.
+	if pkm.InstallInVendorRamdisk() {
+		installDir = android.PathForModuleInPartitionInstall(ctx, "vendor_ramdisk", "lib", "modules")
+	}
+
 	if pkm.KernelVersion() != "" {
 		installDir = installDir.Join(ctx, pkm.KernelVersion())
 	}
@@ -112,6 +122,7 @@ func (pkm *prebuiltKernelModules) GenerateAndroidBuildActions(ctx android.Module
 	ctx.InstallFile(installDir, "modules.softdep", depmodOut.modulesSoftdep)
 	ctx.InstallFile(installDir, "modules.alias", depmodOut.modulesAlias)
 	pkm.installBlocklistFile(ctx, installDir)
+	pkm.installOptionsFile(ctx, installDir)
 
 	ctx.SetOutputFiles(modules, ".modules")
 }
@@ -128,6 +139,20 @@ func (pkm *prebuiltKernelModules) installBlocklistFile(ctx android.ModuleContext
 		Output: blocklistOut,
 	})
 	ctx.InstallFile(installDir, "modules.blocklist", blocklistOut)
+}
+
+func (pkm *prebuiltKernelModules) installOptionsFile(ctx android.ModuleContext, installDir android.InstallPath) {
+	if pkm.properties.Options_file == nil {
+		return
+	}
+	optionsOut := android.PathForModuleOut(ctx, "modules.options")
+
+	ctx.Build(pctx, android.BuildParams{
+		Rule:   processOptionsFile,
+		Input:  android.PathForModuleSrc(ctx, proptools.String(pkm.properties.Options_file)),
+		Output: optionsOut,
+	})
+	ctx.InstallFile(installDir, "modules.options", optionsOut)
 }
 
 var (
@@ -184,6 +209,19 @@ var (
 				` NF == 0 { next }` +
 				` NF != 2 || $$1 != "blocklist"` +
 				` { print "Invalid blocklist line " FNR ": " $$0 >"/dev/stderr";` +
+				` exit_status = 1; next }` +
+				` { $$1 = $$1; print }` +
+				` END { exit exit_status }'`,
+		},
+	)
+	// Remove empty lines. Raise an exception if line is _not_ formatted as `options $name.ko`
+	processOptionsFile = pctx.AndroidStaticRule("process_options_file",
+		blueprint.RuleParams{
+			Command: `rm -rf $out && awk <$in > $out` +
+				` '/^#/ { print; next }` +
+				` NF == 0 { next }` +
+				` NF < 2 || $$1 != "options"` +
+				` { print "Invalid options line " FNR ": " $$0 >"/dev/stderr";` +
 				` exit_status = 1; next }` +
 				` { $$1 = $$1; print }` +
 				` END { exit exit_status }'`,

@@ -419,6 +419,14 @@ type FuzzProperties struct {
 	// Optional list of data files to be installed to the fuzz target's output
 	// directory. Directory structure relative to the module is preserved.
 	Data []string `android:"path"`
+	// Same as data, but adds dependencies on modules using the device's os variant, and common
+	// architecture's variant. Can be useful to add device-built apps to the data of a host
+	// test.
+	Device_common_data []string `android:"path_device_common"`
+	// Same as data, but adds dependencies on modules using the device's os variant, and the
+	// device's first architecture's variant. Can be useful to add device-built apps to the data
+	// of a host test.
+	Device_first_data []string `android:"path_device_first"`
 	// Optional dictionary to be installed to the fuzz target's output directory.
 	Dictionary *string `android:"path"`
 	// Define the fuzzing frameworks this fuzz target can be built for. If

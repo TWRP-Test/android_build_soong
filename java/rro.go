@@ -290,7 +290,8 @@ type AutogenRuntimeResourceOverlay struct {
 
 	properties AutogenRuntimeResourceOverlayProperties
 
-	outputFile android.Path
+	certificate Certificate
+	outputFile  android.Path
 }
 
 type AutogenRuntimeResourceOverlayProperties struct {
@@ -380,7 +381,8 @@ func (a *AutogenRuntimeResourceOverlay) GenerateAndroidBuildActions(ctx android.
 		return
 	}
 	// Sign the built package
-	_, certificates := processMainCert(a.ModuleBase, "", nil, ctx)
+	var certificates []Certificate
+	a.certificate, certificates = processMainCert(a.ModuleBase, "", nil, ctx)
 	signed := android.PathForModuleOut(ctx, "signed", a.Name()+".apk")
 	SignAppPackage(ctx, signed, a.exportPackage, certificates, nil, nil, "")
 	a.outputFile = signed

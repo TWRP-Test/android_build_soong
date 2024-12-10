@@ -80,15 +80,16 @@ func main() {
 		panic(err)
 	}
 
-	file_list := *fid_lib.CompareInternalState(prior_state, new_state, target)
+	file_list := fid_lib.CompareInternalState(prior_state, new_state, target)
 
 	if err = file_list.Format(os.Stdout, template); err != nil {
 		panic(err)
 	}
 
-	metrics_file := os.Getenv("SOONG_METRICS_AGGREGATION_FILE")
-	if metrics_file != "" {
-		if err = file_list.SendMetrics(metrics_file); err != nil {
+	metrics_dir := os.Getenv("SOONG_METRICS_AGGREGATION_DIR")
+	out_dir := os.Getenv("OUT_DIR")
+	if metrics_dir != "" {
+		if err = file_list.WriteMetrics(metrics_dir, out_dir); err != nil {
 			panic(err)
 		}
 	}

@@ -27,6 +27,7 @@ import (
 
 	"android/soong/shared"
 	"android/soong/ui/build"
+	"android/soong/ui/execution_metrics"
 	"android/soong/ui/logger"
 	"android/soong/ui/metrics"
 	"android/soong/ui/signal"
@@ -170,14 +171,16 @@ func main() {
 		stat.Finish()
 	})
 	criticalPath := status.NewCriticalPath()
+	emet := execution_metrics.NewExecutionMetrics(log)
 	buildCtx := build.Context{ContextImpl: &build.ContextImpl{
-		Context:      ctx,
-		Logger:       log,
-		Metrics:      met,
-		Tracer:       trace,
-		Writer:       output,
-		Status:       stat,
-		CriticalPath: criticalPath,
+		Context:          ctx,
+		Logger:           log,
+		Metrics:          met,
+		ExecutionMetrics: emet,
+		Tracer:           trace,
+		Writer:           output,
+		Status:           stat,
+		CriticalPath:     criticalPath,
 	}}
 
 	freshConfig := func() build.Config {
@@ -194,6 +197,7 @@ func main() {
 	rbeMetricsFile := filepath.Join(logsDir, c.logsPrefix+"rbe_metrics.pb")
 	soongBuildMetricsFile := filepath.Join(logsDir, c.logsPrefix+"soong_build_metrics.pb")
 	buildTraceFile := filepath.Join(logsDir, c.logsPrefix+"build.trace.gz")
+	executionMetricsFile := filepath.Join(logsDir, c.logsPrefix+"soong_execution_metrics.pb")
 
 	metricsFiles := []string{
 		buildErrorFile,        // build error strings
@@ -204,9 +208,16 @@ func main() {
 	}
 
 	defer func() {
+		emet.Finish(buildCtx)
 		stat.Finish()
 		criticalPath.WriteToMetrics(met)
 		met.Dump(soongMetricsFile)
+		emet.Dump(executionMetricsFile, args)
+		// If there are execution metrics, upload them.
+		if _, err := os.Stat(executionMetricsFile); err == nil {
+			// TODO: Upload the metrics file.
+			// metricsFiles = append(metricsFiles, executionMetricsFile)
+		}
 		if !config.SkipMetricsUpload() {
 			build.UploadMetrics(buildCtx, config, c.simpleOutput, buildStarted, metricsFiles...)
 		}

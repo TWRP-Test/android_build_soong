@@ -451,3 +451,40 @@ message OptimizedBuildMetrics {
     }
   }
 }
+
+// This is created by soong_ui from the various
+// android.find_input_delta_proto.FileList metrics provided to it by
+// find_input_delta.
+message AggregatedFileList {
+  // The arguments provided on the command line.
+  repeated string command_args = 1;
+
+  // The (possibly truncated list of) added files.
+  repeated string additions = 2;
+
+  // The (possibly truncated list of) changed files.
+  repeated string changes = 3;
+
+  // The (possibly truncated list of) deleted files.
+  repeated string deletions = 4;
+
+  // Count of files added/changed/deleted.
+  optional uint32 total_delta = 5;
+
+  // Counts by extension.
+  repeated FileCount counts = 6;
+}
+
+message FileCount {
+  // The file extension
+  optional string extension = 1;
+
+  // Number of added files with this extension.
+  optional uint32 additions = 2;
+
+  // Number of modified files with this extension.
+  optional uint32 modifications = 3;
+
+  // Number of deleted files with this extension.
+  optional uint32 deletions = 4;
+}

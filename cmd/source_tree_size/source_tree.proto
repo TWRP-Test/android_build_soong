@@ -1,5 +1,4 @@
-//
-// Copyright (C) 2024 The Android Open-Source Project
+// Copyright 2024 Google Inc. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,24 +13,15 @@
 // limitations under the License.
 
 syntax = "proto2";
-package android.find_input_delta_proto;
-option go_package = "android/soong/cmd/find_input_delta/find_input_delta_proto";
 
-enum FieldNumbers {
-  FIELD_NUMBERS_UNSPECIFIED = 0;
-  FIELD_NUMBERS_FILE_LIST = 1;
+package source_files;
+option go_package = "./main";
+
+message SourceFile {
+  optional string path = 1;
+  optional int32 size_bytes = 2;
 }
 
-message FileList {
-  // The name of the output file (Ninja target).
-  optional string name = 1;
-
-  // The added files.
-  repeated string additions = 2;
-
-  // The changed files.
-  repeated string changes = 3;
-
-  // The deleted files.
-  repeated string deletions = 4;
+message SourceTree {
+  repeated SourceFile files = 1;
 }

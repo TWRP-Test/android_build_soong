@@ -51,6 +51,9 @@ func CreateState(inputs []string, inspect_contents bool, fsys StatReadFileFS) (*
 	for _, input := range inputs {
 		stat, err := fs.Stat(fsys, input)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			return ret, err
 		}
 		pci := &fid_proto.PartialCompileInput{

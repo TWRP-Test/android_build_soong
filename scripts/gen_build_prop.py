@@ -453,7 +453,7 @@ def append_additional_vendor_props(args):
   props.append(f"ro.vendor.build.security_patch={config['VendorSecurityPatch']}")
   props.append(f"ro.product.board={config['BootloaderBoardName']}")
   props.append(f"ro.board.platform={config['BoardPlatform']}")
-  props.append(f"ro.hwui.use_vulkan={'true' if config['UsesVulkan'] else 'false'}")
+  props.append(f"ro.hwui.use_vulkan={config['UsesVulkan']}")
 
   if config["ScreenDensity"]:
     props.append(f"ro.sf.lcd_density={config['ScreenDensity']}")

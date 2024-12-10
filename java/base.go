@@ -60,6 +60,9 @@ type CommonProperties struct {
 	// This is most useful in the arch/multilib variants to remove non-common files
 	Exclude_srcs []string `android:"path,arch_variant"`
 
+	// list of Kotlin source files that should excluded from the list of common_srcs.
+	Exclude_common_srcs []string `android:"path,arch_variant"`
+
 	// list of directories containing Java resources
 	Java_resource_dirs []string `android:"arch_variant"`
 
@@ -922,7 +925,7 @@ func (j *Module) deps(ctx android.BottomUpMutatorContext) {
 
 	if j.useCompose(ctx) {
 		ctx.AddVariationDependencies(ctx.Config().BuildOSCommonTarget.Variations(), kotlinPluginTag,
-			"androidx.compose.compiler_compiler-hosted-plugin")
+			"kotlin-compose-compiler-plugin")
 	}
 }
 
@@ -1182,7 +1185,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		flags = protoFlags(ctx, &j.properties, &j.protoProperties, flags)
 	}
 
-	kotlinCommonSrcFiles := android.PathsForModuleSrcExcludes(ctx, j.properties.Common_srcs, nil)
+	kotlinCommonSrcFiles := android.PathsForModuleSrcExcludes(ctx, j.properties.Common_srcs, j.properties.Exclude_common_srcs)
 	if len(kotlinCommonSrcFiles.FilterOutByExt(".kt")) > 0 {
 		ctx.PropertyErrorf("common_srcs", "common_srcs must be .kt files")
 	}

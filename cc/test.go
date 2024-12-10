@@ -83,14 +83,14 @@ type TestBinaryProperties struct {
 	// the test
 	Data []string `android:"path,arch_variant"`
 
-	// Same as data, but adds depedencies on modules using the device's os variant, and common
+	// Same as data, but adds dependencies on modules using the device's os variant, and common
 	// architecture's variant. Can be useful to add device-built apps to the data of a host
 	// test.
 	Device_common_data []string `android:"path_device_common"`
 
-	// Same as data, but adds depedencies on modules using the device's os variant, and the device's
-	// first architecture's variant. Can be useful to add device-built apps to the data of a host
-	// test.
+	// Same as data, but adds dependencies on modules using the device's os variant, and the
+	// device's first architecture's variant. Can be useful to add device-built apps to the data
+	// of a host test.
 	Device_first_data []string `android:"path_device_first"`
 
 	// list of shared library modules that should be installed alongside the test

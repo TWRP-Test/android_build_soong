@@ -408,7 +408,7 @@ func (a *AutogenRuntimeResourceOverlay) AndroidMkEntries() []android.AndroidMkEn
 		Include:    "$(BUILD_SYSTEM)/soong_app_prebuilt.mk",
 		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
 			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
-				entries.SetString("LOCAL_CERTIFICATE", "PRESIGNED") // The apk will be signed by soong
+				entries.SetString("LOCAL_CERTIFICATE", a.certificate.AndroidMkString())
 			},
 		},
 	}}

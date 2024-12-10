@@ -501,7 +501,7 @@ func TestKotlinCompose(t *testing.T) {
 		}
 
 		kotlin_plugin {
-			name: "androidx.compose.compiler_compiler-hosted-plugin",
+			name: "kotlin-compose-compiler-plugin",
 		}
 
 		java_library {
@@ -523,7 +523,7 @@ func TestKotlinCompose(t *testing.T) {
 
 	buildOS := result.Config.BuildOS.String()
 
-	composeCompiler := result.ModuleForTests("androidx.compose.compiler_compiler-hosted-plugin", buildOS+"_common").Rule("combineJar").Output
+	composeCompiler := result.ModuleForTests("kotlin-compose-compiler-plugin", buildOS+"_common").Rule("combineJar").Output
 	withCompose := result.ModuleForTests("withcompose", "android_common")
 	noCompose := result.ModuleForTests("nocompose", "android_common")
 

@@ -136,6 +136,7 @@ var d8, d8RE = pctx.MultiCommandRemoteStaticRules("d8",
 			`rm -f "$outDir"/classes*.dex "$outDir/classes.dex.jar"`,
 		CommandDeps: []string{
 			"${config.D8Cmd}",
+			"${config.D8Jar}",
 			"${config.SoongZipCmd}",
 			"${config.MergeZipsCmd}",
 		},

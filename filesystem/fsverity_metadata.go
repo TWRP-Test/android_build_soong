@@ -120,6 +120,7 @@ func (f *filesystem) buildFsverityMetadataFiles(ctx android.ModuleContext, build
 	}
 
 	unsignedApkCommand := builder.Command().
+		Textf("mkdir -p %s && ", filepath.Dir(apkPath.String())).
 		BuiltTool("aapt2").
 		Text("link").
 		FlagWithOutput("-o ", apkPath).

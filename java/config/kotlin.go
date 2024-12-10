@@ -49,7 +49,7 @@ func init() {
 		"-J--add-opens=java.base/java.util=ALL-UNNAMED", // https://youtrack.jetbrains.com/issue/KT-43704
 	}, " "))
 
-	pctx.StaticVariable("KotlincGlobalFlags", strings.Join([]string{}, " "))
+	pctx.StaticVariable("KotlincGlobalFlags", strings.Join([]string{"-language-version 1.9"}, " "))
 	// Use KotlincKytheGlobalFlags to prevent kotlinc version skew issues between android and
 	// g3 kythe indexers.
 	// This is necessary because there might be instances of kotlin code in android

@@ -273,6 +273,7 @@ func runMakeProductConfig(ctx Context, config Config) {
 		"BUILD_BROKEN_USES_BUILD_SHARED_LIBRARY",
 		"BUILD_BROKEN_USES_BUILD_STATIC_JAVA_LIBRARY",
 		"BUILD_BROKEN_USES_BUILD_STATIC_LIBRARY",
+		"RELEASE_BUILD_EXECUTION_METRICS",
 	}, exportEnvVars...), BannerVars...)
 
 	makeVars, err := dumpMakeVars(ctx, config, config.Arguments(), allVars, true, "")

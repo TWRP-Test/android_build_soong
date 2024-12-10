@@ -352,6 +352,8 @@ type ProductVariables struct {
 	OemPath               *string `json:",omitempty"`
 	UserdataPath          *string `json:",omitempty"`
 	BuildingUserdataImage *bool   `json:",omitempty"`
+	RecoveryPath          *string `json:",omitempty"`
+	BuildingRecoveryImage *bool   `json:",omitempty"`
 
 	ClangTidy  *bool   `json:",omitempty"`
 	TidyChecks *string `json:",omitempty"`
@@ -580,6 +582,11 @@ type PartitionQualifiedVariablesType struct {
 	BoardAvbRollbackIndexLocation string `json:",omitempty"`
 }
 
+type BoardSuperPartitionGroupProps struct {
+	GroupSize     string   `json:",omitempty"`
+	PartitionList []string `json:",omitempty"`
+}
+
 type ChainedAvbPartitionProps struct {
 	Partitions            []string `json:",omitempty"`
 	Key                   string   `json:",omitempty"`
@@ -633,6 +640,18 @@ type PartitionVariables struct {
 	InternalBootconfig              []string `json:",omitempty"`
 	InternalBootconfigFile          string   `json:",omitempty"`
 
+	// Super image stuff
+	ProductUseDynamicPartitions       bool                                     `json:",omitempty"`
+	ProductRetrofitDynamicPartitions  bool                                     `json:",omitempty"`
+	ProductBuildSuperPartition        bool                                     `json:",omitempty"`
+	BoardSuperPartitionSize           string                                   `json:",omitempty"`
+	BoardSuperPartitionMetadataDevice string                                   `json:",omitempty"`
+	BoardSuperPartitionBlockDevices   []string                                 `json:",omitempty"`
+	BoardSuperPartitionGroups         map[string]BoardSuperPartitionGroupProps `json:",omitempty"`
+	ProductVirtualAbOta               bool                                     `json:",omitempty"`
+	ProductVirtualAbOtaRetrofit       bool                                     `json:",omitempty"`
+	AbOtaUpdater                      bool                                     `json:",omitempty"`
+
 	// Avb (android verified boot) stuff
 	BoardAvbEnable          bool                                `json:",omitempty"`
 	BoardAvbAlgorithm       string                              `json:",omitempty"`
@@ -666,6 +685,10 @@ type PartitionVariables struct {
 	VendorRamdiskKernelBlocklistFile string   `json:",omitempty"`
 	VendorRamdiskKernelLoadModules   []string `json:",omitempty"`
 	VendorRamdiskKernelOptionsFile   string   `json:",omitempty"`
+
+	ProductFsverityGenerateMetadata bool `json:",omitempty"`
+
+	TargetScreenDensity string `json:",omitempty"`
 }
 
 func boolPtr(v bool) *bool {

@@ -81,6 +81,10 @@ func RegisterPrebuiltEtcBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("prebuilt_tvservice", PrebuiltTvServiceFactory)
 	ctx.RegisterModuleType("prebuilt_optee", PrebuiltOpteeFactory)
 	ctx.RegisterModuleType("prebuilt_tvconfig", PrebuiltTvConfigFactory)
+	ctx.RegisterModuleType("prebuilt_vendor", PrebuiltVendorFactory)
+	ctx.RegisterModuleType("prebuilt_sbin", PrebuiltSbinFactory)
+	ctx.RegisterModuleType("prebuilt_system", PrebuiltSystemFactory)
+	ctx.RegisterModuleType("prebuilt_first_stage_ramdisk", PrebuiltFirstStageRamdiskFactory)
 
 	ctx.RegisterModuleType("prebuilt_defaults", defaultsFactory)
 
@@ -573,6 +577,7 @@ func InitPrebuiltEtcModule(p *PrebuiltEtc, dirBase string) {
 	p.installDirBase = dirBase
 	p.AddProperties(&p.properties)
 	p.AddProperties(&p.subdirProperties)
+	p.AddProperties(&p.rootProperties)
 }
 
 func InitPrebuiltRootModule(p *PrebuiltEtc) {
@@ -967,6 +972,46 @@ func PrebuiltOpteeFactory() android.Module {
 func PrebuiltTvConfigFactory() android.Module {
 	module := &PrebuiltEtc{}
 	InitPrebuiltEtcModule(module, "tvconfig")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_vendor installs files in <partition>/vendor directory.
+func PrebuiltVendorFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "vendor")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_sbin installs files in <partition>/sbin directory.
+func PrebuiltSbinFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "sbin")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_system installs files in <partition>/system directory.
+func PrebuiltSystemFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "system")
+	// This module is device-only
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitDefaultableModule(module)
+	return module
+}
+
+// prebuilt_first_stage_ramdisk installs files in <partition>/first_stage_ramdisk directory.
+func PrebuiltFirstStageRamdiskFactory() android.Module {
+	module := &PrebuiltEtc{}
+	InitPrebuiltEtcModule(module, "first_stage_ramdisk")
 	// This module is device-only
 	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
 	android.InitDefaultableModule(module)

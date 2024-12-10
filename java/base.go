@@ -612,21 +612,24 @@ func (j *Module) IsStubsModule() bool {
 	return proptools.Bool(j.properties.Is_stubs_module)
 }
 
-func (j *Module) CheckStableSdkVersion(ctx android.BaseModuleContext) error {
-	sdkVersion := j.SdkVersion(ctx)
-	if sdkVersion.Stable() {
-		return nil
-	}
-	if sdkVersion.Kind == android.SdkCorePlatform {
-		if useLegacyCorePlatformApi(ctx, j.BaseModuleName()) {
-			return fmt.Errorf("non stable SDK %v - uses legacy core platform", sdkVersion)
-		} else {
-			// Treat stable core platform as stable.
+func CheckStableSdkVersion(ctx android.BaseModuleContext, module android.ModuleProxy) error {
+	if info, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
+		if info.SdkVersion.Stable() {
 			return nil
 		}
-	} else {
-		return fmt.Errorf("non stable SDK %v", sdkVersion)
+		if info.SdkVersion.Kind == android.SdkCorePlatform {
+			if useLegacyCorePlatformApi(ctx, android.OtherModuleProviderOrDefault(ctx, module, android.CommonModuleInfoKey).BaseModuleName) {
+				return fmt.Errorf("non stable SDK %v - uses legacy core platform", info.SdkVersion)
+			} else {
+				// Treat stable core platform as stable.
+				return nil
+			}
+		} else {
+			return fmt.Errorf("non stable SDK %v", info.SdkVersion)
+		}
 	}
+
+	return nil
 }
 
 // checkSdkVersions enforces restrictions around SDK dependencies.
@@ -1300,6 +1303,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 			ExportedPluginDisableTurbine:        j.exportedDisableTurbine,
 			StubsLinkType:                       j.stubsLinkType,
 			AconfigIntermediateCacheOutputPaths: deps.aconfigProtoFiles,
+			SdkVersion:                          j.SdkVersion(ctx),
 		})
 
 		j.outputFile = j.headerJarFile
@@ -1929,6 +1933,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		JacocoReportClassesFile:             j.jacocoReportClassesFile,
 		StubsLinkType:                       j.stubsLinkType,
 		AconfigIntermediateCacheOutputPaths: j.aconfigCacheFiles,
+		SdkVersion:                          j.SdkVersion(ctx),
 	})
 
 	// Save the output file with no relative path so that it doesn't end up in a subdirectory when used as a resource

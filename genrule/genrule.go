@@ -230,8 +230,9 @@ type generateTask struct {
 	shards int
 
 	// For nsjail tasks
-	useNsjail bool
-	dirSrcs   android.DirectoryPaths
+	useNsjail  bool
+	dirSrcs    android.DirectoryPaths
+	keepGendir bool
 }
 
 func (g *Module) GeneratedSourceFiles() android.Paths {
@@ -487,6 +488,9 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 		name := "generator"
 		if task.useNsjail {
 			rule = android.NewRuleBuilder(pctx, ctx).Nsjail(task.genDir, android.PathForModuleOut(ctx, "nsjail_build_sandbox"))
+			if task.keepGendir {
+				rule.NsjailKeepGendir()
+			}
 		} else {
 			manifestName := "genrule.sbox.textproto"
 			if task.shards > 0 {
@@ -897,17 +901,24 @@ func NewGenRule() *Module {
 			return nil
 		}
 
+		keepGendir := Bool(properties.Keep_gendir)
+		if keepGendir && !useNsjail {
+			ctx.PropertyErrorf("keep_gendir", "can't use keep_gendir if use_nsjail is false")
+			return nil
+		}
+
 		outs := make(android.WritablePaths, len(properties.Out))
 		for i, out := range properties.Out {
 			outs[i] = android.PathForModuleGen(ctx, out)
 		}
 		return []generateTask{{
-			in:        srcFiles,
-			out:       outs,
-			genDir:    android.PathForModuleGen(ctx),
-			cmd:       rawCommand,
-			useNsjail: useNsjail,
-			dirSrcs:   dirSrcs,
+			in:         srcFiles,
+			out:        outs,
+			genDir:     android.PathForModuleGen(ctx),
+			cmd:        rawCommand,
+			useNsjail:  useNsjail,
+			dirSrcs:    dirSrcs,
+			keepGendir: keepGendir,
 		}}
 	}
 
@@ -927,6 +938,10 @@ type genRuleProperties struct {
 	// List of input directories. Can be set only when use_nsjail is true. Currently, usage of
 	// dir_srcs is limited only to Trusty build.
 	Dir_srcs []string `android:"path"`
+
+	// If set to true, $(genDir) is not truncated. Useful when this genrule can be incrementally
+	// built. Can be set only when use_nsjail is true.
+	Keep_gendir *bool
 
 	// names of the output files that will be generated
 	Out []string `android:"arch_variant"`

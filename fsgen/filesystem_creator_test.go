@@ -168,13 +168,8 @@ func TestFileSystemCreatorDepsWithNamespace(t *testing.T) {
 						BoardFileSystemType: "ext4",
 					},
 				}
-			config.Targets[android.Android] = []android.Target{
-				{Os: android.Android, Arch: android.Arch{ArchType: android.X86_64, ArchVariant: "silvermont", Abi: []string{"arm64-v8a"}}, NativeBridge: android.NativeBridgeDisabled, NativeBridgeHostArchName: "", NativeBridgeRelativePath: "", HostCross: false},
-				{Os: android.Android, Arch: android.Arch{ArchType: android.X86, ArchVariant: "silvermont", Abi: []string{"armeabi-v7a"}}, NativeBridge: android.NativeBridgeDisabled, NativeBridgeHostArchName: "", NativeBridgeRelativePath: "", HostCross: false},
-				{Os: android.Android, Arch: android.Arch{ArchType: android.Arm64, ArchVariant: "armv8-a", Abi: []string{"arm64-v8a"}}, NativeBridge: android.NativeBridgeEnabled, NativeBridgeHostArchName: "x86_64", NativeBridgeRelativePath: "arm64", HostCross: false},
-				{Os: android.Android, Arch: android.Arch{ArchType: android.Arm, ArchVariant: "armv7-a-neon", Abi: []string{"armeabi-v7a"}}, NativeBridge: android.NativeBridgeEnabled, NativeBridgeHostArchName: "x86", NativeBridgeRelativePath: "arm", HostCross: false},
-			}
 		}),
+		android.PrepareForNativeBridgeEnabled,
 		android.FixtureMergeMockFs(android.MockFS{
 			"external/avb/test/data/testkey_rsa4096.pem": nil,
 			"build/soong/fsgen/Android.bp": []byte(`

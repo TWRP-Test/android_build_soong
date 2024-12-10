@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/gobtools"
@@ -594,10 +593,6 @@ func (p *PackagingBase) CopySpecsToDirs(ctx ModuleContext, builder *RuleBuilder,
 	}
 
 	seenDir := make(map[string]bool)
-	preparerPath := PathForModuleOut(ctx, "preparer.sh")
-	cmd := builder.Command().Tool(preparerPath)
-	var sb strings.Builder
-	sb.WriteString("set -e\n")
 
 	dirs := make([]WritablePath, 0, len(dirsToSpecs))
 	for dir, _ := range dirsToSpecs {
@@ -616,21 +611,18 @@ func (p *PackagingBase) CopySpecsToDirs(ctx ModuleContext, builder *RuleBuilder,
 			entries = append(entries, ps.relPathInPackage)
 			if _, ok := seenDir[destDir]; !ok {
 				seenDir[destDir] = true
-				sb.WriteString(fmt.Sprintf("mkdir -p %s\n", destDir))
+				builder.Command().Textf("mkdir -p %s", destDir)
 			}
 			if ps.symlinkTarget == "" {
-				cmd.Implicit(ps.srcPath)
-				sb.WriteString(fmt.Sprintf("cp %s %s\n", ps.srcPath, destPath))
+				builder.Command().Text("cp").Input(ps.srcPath).Text(destPath)
 			} else {
-				sb.WriteString(fmt.Sprintf("ln -sf %s %s\n", ps.symlinkTarget, destPath))
+				builder.Command().Textf("ln -sf %s %s", ps.symlinkTarget, destPath)
 			}
 			if ps.executable {
-				sb.WriteString(fmt.Sprintf("chmod a+x %s\n", destPath))
+				builder.Command().Textf("chmod a+x %s", destPath)
 			}
 		}
 	}
-
-	WriteExecutableFileRuleVerbatim(ctx, preparerPath, sb.String())
 
 	return entries
 }

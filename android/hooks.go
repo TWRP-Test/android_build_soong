@@ -59,6 +59,16 @@ func AddLoadHook(m blueprint.Module, hook func(LoadHookContext)) {
 	})
 }
 
+func AddLoadHookWithPriority(m blueprint.Module, hook func(LoadHookContext), priority int) {
+	blueprint.AddLoadHookWithPriority(m, func(ctx blueprint.LoadHookContext) {
+		actx := &loadHookContext{
+			earlyModuleContext: m.(Module).base().earlyModuleContextFactory(ctx),
+			bp:                 ctx,
+		}
+		hook(actx)
+	}, priority)
+}
+
 type loadHookContext struct {
 	earlyModuleContext
 	bp     blueprint.LoadHookContext

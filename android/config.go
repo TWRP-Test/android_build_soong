@@ -1519,6 +1519,13 @@ func (c *deviceConfig) BinderBitness() string {
 	return "64"
 }
 
+func (c *deviceConfig) RecoveryPath() string {
+	if c.config.productVariables.RecoveryPath != nil {
+		return *c.config.productVariables.RecoveryPath
+	}
+	return "recovery"
+}
+
 func (c *deviceConfig) VendorPath() string {
 	if c.config.productVariables.VendorPath != nil {
 		return *c.config.productVariables.VendorPath
@@ -1612,6 +1619,10 @@ func (c *deviceConfig) UserdataPath() string {
 
 func (c *deviceConfig) BuildingUserdataImage() bool {
 	return proptools.Bool(c.config.productVariables.BuildingUserdataImage)
+}
+
+func (c *deviceConfig) BuildingRecoveryImage() bool {
+	return proptools.Bool(c.config.productVariables.BuildingRecoveryImage)
 }
 
 func (c *deviceConfig) BtConfigIncludeDir() string {

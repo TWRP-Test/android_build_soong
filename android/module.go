@@ -338,6 +338,7 @@ type commonProperties struct {
 		}
 		Android struct {
 			Compile_multilib *string
+			Enabled          *bool
 		}
 	}
 
@@ -1387,6 +1388,8 @@ func (m *ModuleBase) PartitionTag(config DeviceConfig) string {
 		partition = "ramdisk"
 	} else if m.InstallInVendorRamdisk() {
 		partition = "vendor_ramdisk"
+	} else if m.InstallInRecovery() {
+		partition = "recovery"
 	}
 	return partition
 }
@@ -1866,6 +1869,8 @@ type CommonModuleInfo struct {
 	// The Target of artifacts that this module variant is responsible for creating.
 	CompileTarget           Target
 	SkipAndroidMkProcessing bool
+	BaseModuleName          string
+	CanHaveApexVariants     bool
 }
 
 var CommonModuleInfoKey = blueprint.NewProvider[CommonModuleInfo]()
@@ -2134,12 +2139,15 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 		ReplacedByPrebuilt:      m.commonProperties.ReplacedByPrebuilt,
 		CompileTarget:           m.commonProperties.CompileTarget,
 		SkipAndroidMkProcessing: shouldSkipAndroidMkProcessing(ctx, m),
+		BaseModuleName:          m.BaseModuleName(),
 	}
 	if m.commonProperties.ForcedDisabled {
 		commonData.Enabled = false
 	} else {
 		commonData.Enabled = m.commonProperties.Enabled.GetOrDefault(m.ConfigurableEvaluator(ctx), !m.Os().DefaultDisabled)
 	}
+	am, ok := m.module.(ApexModule)
+	commonData.CanHaveApexVariants = ok && am.CanHaveApexVariants()
 	SetProvider(ctx, CommonModuleInfoKey, commonData)
 	if p, ok := m.module.(PrebuiltInterface); ok && p.Prebuilt() != nil {
 		SetProvider(ctx, PrebuiltModuleProviderKey, PrebuiltModuleProviderData{})

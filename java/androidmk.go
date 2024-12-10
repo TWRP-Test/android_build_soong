@@ -307,15 +307,11 @@ func (app *AndroidApp) AndroidMkEntries() []android.AndroidMkEntries {
 			Disabled: true,
 		}}
 	}
-	var required []string
-	if proptools.Bool(app.appProperties.Generate_product_characteristics_rro) {
-		required = []string{app.productCharacteristicsRROPackageName()}
-	}
 	return []android.AndroidMkEntries{android.AndroidMkEntries{
 		Class:      "APPS",
 		OutputFile: android.OptionalPathForPath(app.outputFile),
 		Include:    "$(BUILD_SYSTEM)/soong_app_prebuilt.mk",
-		Required:   required,
+		Required:   app.requiredModuleNames,
 		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
 			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
 				// App module names can be overridden.
@@ -348,31 +344,6 @@ func (app *AndroidApp) AndroidMkEntries() []android.AndroidMkEntries {
 					// Make base_rules.mk not put framework-res in a subdirectory called
 					// framework_res.
 					entries.SetBoolIfTrue("LOCAL_NO_STANDARD_LIBRARIES", true)
-				}
-
-				filterRRO := func(filter overlayType) android.Paths {
-					var paths android.Paths
-					seen := make(map[android.Path]bool)
-					for _, d := range app.rroDirsDepSet.ToList() {
-						if d.overlayType == filter {
-							if seen[d.path] {
-								continue
-							}
-							seen[d.path] = true
-							paths = append(paths, d.path)
-						}
-					}
-					// Reverse the order, Soong stores rroDirs in aapt2 order (low to high priority), but Make
-					// expects it in LOCAL_RESOURCE_DIRS order (high to low priority).
-					return android.ReversePaths(paths)
-				}
-				deviceRRODirs := filterRRO(device)
-				if len(deviceRRODirs) > 0 {
-					entries.AddStrings("LOCAL_SOONG_DEVICE_RRO_DIRS", deviceRRODirs.Strings()...)
-				}
-				productRRODirs := filterRRO(product)
-				if len(productRRODirs) > 0 {
-					entries.AddStrings("LOCAL_SOONG_PRODUCT_RRO_DIRS", productRRODirs.Strings()...)
 				}
 
 				entries.SetBoolIfTrue("LOCAL_EXPORT_PACKAGE_RESOURCES", Bool(app.appProperties.Export_package_resources))
@@ -437,7 +408,7 @@ func (a *AutogenRuntimeResourceOverlay) AndroidMkEntries() []android.AndroidMkEn
 		Include:    "$(BUILD_SYSTEM)/soong_app_prebuilt.mk",
 		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
 			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
-				entries.SetString("LOCAL_CERTIFICATE", "presigned") // The apk will be signed by soong
+				entries.SetString("LOCAL_CERTIFICATE", "PRESIGNED") // The apk will be signed by soong
 			},
 		},
 	}}

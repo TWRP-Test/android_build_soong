@@ -17,6 +17,8 @@ bootstrap_go_package {
         "filesystem_creator.go",
         "fsgen_mutators.go",
         "prebuilt_etc_modules_gen.go",
+        "super_img.go",
+        "util.go",
         "vbmeta_partitions.go",
     ],
     testSrcs: [

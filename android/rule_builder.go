@@ -63,6 +63,7 @@ type RuleBuilder struct {
 	missingDeps      []string
 	args             map[string]string
 	nsjail           bool
+	nsjailKeepGendir bool
 	nsjailBasePath   WritablePath
 	nsjailImplicits  Paths
 }
@@ -205,6 +206,18 @@ func (r *RuleBuilder) NsjailImplicits(inputs Paths) *RuleBuilder {
 		panic("NsjailImplicits() must be called after Nsjail()")
 	}
 	r.nsjailImplicits = append(r.nsjailImplicits, inputs...)
+	return r
+}
+
+// By default, nsjail rules truncate outputDir and baseDir before running commands, similar to Sbox
+// rules which always run commands in a fresh sandbox. Calling NsjailKeepGendir keeps outputDir and
+// baseDir as-is, leaving previous artifacts. This is useful when the rules support incremental
+// builds.
+func (r *RuleBuilder) NsjailKeepGendir() *RuleBuilder {
+	if !r.nsjail {
+		panic("NsjailKeepGendir() must be called after Nsjail()")
+	}
+	r.nsjailKeepGendir = true
 	return r
 }
 
@@ -555,8 +568,17 @@ func (r *RuleBuilder) build(name string, desc string) {
 	if r.nsjail {
 		var nsjailCmd strings.Builder
 		nsjailPath := r.ctx.Config().PrebuiltBuildTool(r.ctx, "nsjail")
+		if !r.nsjailKeepGendir {
+			nsjailCmd.WriteString("rm -rf ")
+			nsjailCmd.WriteString(r.nsjailBasePath.String())
+			nsjailCmd.WriteRune(' ')
+			nsjailCmd.WriteString(r.outDir.String())
+			nsjailCmd.WriteString(" && ")
+		}
 		nsjailCmd.WriteString("mkdir -p ")
 		nsjailCmd.WriteString(r.nsjailBasePath.String())
+		nsjailCmd.WriteRune(' ')
+		nsjailCmd.WriteString(r.outDir.String())
 		nsjailCmd.WriteString(" && ")
 		nsjailCmd.WriteString(nsjailPath.String())
 		nsjailCmd.WriteRune(' ')
@@ -851,6 +873,18 @@ func (r *RuleBuilder) build(name string, desc string) {
 		pool = highmemPool
 	} else if r.ctx.Config().UseRemoteBuild() {
 		pool = localPool
+	}
+
+	// If the command length is getting close to linux's maximum, dump it to a file, which allows
+	// for longer commands.
+	if len(commandString) > 100000 {
+		hasher := sha256.New()
+		hasher.Write([]byte(output.String()))
+		script := PathForOutput(r.ctx, "rule_builder_scripts", fmt.Sprintf("%x.sh", hasher.Sum(nil)))
+		commandString = "set -eu\n\n" + commandString + "\n"
+		WriteExecutableFileRuleVerbatim(r.ctx, script, commandString)
+		inputs = append(inputs, script)
+		commandString = script.String()
 	}
 
 	commandString = proptools.NinjaEscape(commandString)

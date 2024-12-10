@@ -288,7 +288,7 @@ func (b *baseModuleContext) OtherModuleReverseDependencyVariantExists(name strin
 	return b.bp.OtherModuleReverseDependencyVariantExists(name)
 }
 func (b *baseModuleContext) OtherModuleType(m blueprint.Module) string {
-	return b.bp.OtherModuleType(m)
+	return b.bp.OtherModuleType(getWrappedModule(m))
 }
 
 func (b *baseModuleContext) otherModuleProvider(m blueprint.Module, provider blueprint.AnyProviderKey) (any, bool) {

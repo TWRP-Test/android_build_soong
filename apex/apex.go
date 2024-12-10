@@ -1671,6 +1671,32 @@ func (a *apexBundle) WalkPayloadDeps(ctx android.BaseModuleContext, do android.P
 	})
 }
 
+func (a *apexBundle) WalkPayloadDepsProxy(ctx android.BaseModuleContext,
+	do func(ctx android.BaseModuleContext, from, to android.ModuleProxy, externalDep bool) bool) {
+	ctx.WalkDepsProxy(func(child, parent android.ModuleProxy) bool {
+		if !android.OtherModuleProviderOrDefault(ctx, child, android.CommonModuleInfoKey).CanHaveApexVariants {
+			return false
+		}
+		// Filter-out unwanted depedendencies
+		depTag := ctx.OtherModuleDependencyTag(child)
+		if _, ok := depTag.(android.ExcludeFromApexContentsTag); ok {
+			return false
+		}
+		if dt, ok := depTag.(*dependencyTag); ok && !dt.payload {
+			return false
+		}
+		if depTag == android.RequiredDepTag {
+			return false
+		}
+
+		ai, _ := android.OtherModuleProvider(ctx, child, android.ApexInfoProvider)
+		externalDep := !android.InList(ctx.ModuleName(), ai.InApexVariants)
+
+		// Visit actually
+		return do(ctx, parent, child, externalDep)
+	})
+}
+
 // filesystem type of the apex_payload.img inside the APEX. Currently, ext4 and f2fs are supported.
 type fsType int
 
@@ -1838,7 +1864,7 @@ func (vctx *visitorContext) normalizeFileInfo(mctx android.ModuleContext) {
 // as the apex.
 func (a *apexBundle) enforcePartitionTagOnApexSystemServerJar(ctx android.ModuleContext) {
 	global := dexpreopt.GetGlobalConfig(ctx)
-	ctx.VisitDirectDepsWithTag(sscpfTag, func(child android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(sscpfTag, func(child android.ModuleProxy) {
 		info, ok := android.OtherModuleProvider(ctx, child, java.LibraryNameToPartitionInfoProvider)
 		if !ok {
 			ctx.ModuleErrorf("Could not find partition info of apex system server jars.")
@@ -2297,7 +2323,7 @@ func (a *apexBundle) providePrebuiltInfo(ctx android.ModuleContext) {
 // Apexes built from source retrieve this information by visiting `bootclasspath_fragments`
 // Used by dex_bootjars to generate the boot image
 func (a *apexBundle) provideApexExportsInfo(ctx android.ModuleContext) {
-	ctx.VisitDirectDepsWithTag(bcpfTag, func(child android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(bcpfTag, func(child android.ModuleProxy) {
 		if info, ok := android.OtherModuleProvider(ctx, child, java.BootclasspathFragmentApexContentInfoProvider); ok {
 			exports := android.ApexExportsInfo{
 				ApexName:                      a.ApexVariationName(),
@@ -2328,7 +2354,7 @@ func (a *apexBundle) enforceAppUpdatability(mctx android.ModuleContext) {
 	}
 	if a.Updatable() {
 		// checking direct deps is sufficient since apex->apk is a direct edge, even when inherited via apex_defaults
-		mctx.VisitDirectDeps(func(module android.Module) {
+		mctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 			if appInfo, ok := android.OtherModuleProvider(mctx, module, java.AppInfoProvider); ok {
 				// ignore android_test_app
 				if !appInfo.TestHelperApp && !appInfo.Updatable {
@@ -2564,20 +2590,18 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 		librariesDirectlyInApex[ctx.OtherModuleName(dep)] = true
 	})
 
-	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
-		if ccm, ok := to.(*cc.Module); ok {
-			apexName := ctx.ModuleName()
-			fromName := ctx.OtherModuleName(from)
-			toName := ctx.OtherModuleName(to)
-
+	a.WalkPayloadDepsProxy(ctx, func(ctx android.BaseModuleContext, from, to android.ModuleProxy, externalDep bool) bool {
+		if ccInfo, ok := android.OtherModuleProvider(ctx, to, cc.CcInfoProvider); ok {
 			// If `to` is not actually in the same APEX as `from` then it does not need
 			// apex_available and neither do any of its dependencies.
-			//
-			// It is ok to call DepIsInSameApex() directly from within WalkPayloadDeps().
-			if am, ok := from.(android.DepIsInSameApex); ok && !am.DepIsInSameApex(ctx, to) {
+			if externalDep {
 				// As soon as the dependency graph crosses the APEX boundary, don't go further.
 				return false
 			}
+
+			apexName := ctx.ModuleName()
+			fromName := ctx.OtherModuleName(from)
+			toName := ctx.OtherModuleName(to)
 
 			// The dynamic linker and crash_dump tool in the runtime APEX is the only
 			// exception to this rule. It can't make the static dependencies dynamic
@@ -2588,12 +2612,11 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 				return false
 			}
 
-			isStubLibraryFromOtherApex := ccm.HasStubsVariants() && !librariesDirectlyInApex[toName]
+			isStubLibraryFromOtherApex := ccInfo.HasStubsVariants && !librariesDirectlyInApex[toName]
 			if isStubLibraryFromOtherApex && !externalDep {
 				ctx.ModuleErrorf("%q required by %q is a native library providing stub. "+
 					"It shouldn't be included in this APEX via static linking. Dependency path: %s", to.String(), fromName, ctx.GetPathString(false))
 			}
-
 		}
 		return true
 	})
@@ -2635,16 +2658,12 @@ func (a *apexBundle) checkClasspathFragments(ctx android.ModuleContext) {
 func (a *apexBundle) checkJavaStableSdkVersion(ctx android.ModuleContext) {
 	// Visit direct deps only. As long as we guarantee top-level deps are using stable SDKs,
 	// java's checkLinkType guarantees correct usage for transitive deps
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(module)
 		switch tag {
 		case javaLibTag, androidAppTag:
-			if m, ok := module.(interface {
-				CheckStableSdkVersion(ctx android.BaseModuleContext) error
-			}); ok {
-				if err := m.CheckStableSdkVersion(ctx); err != nil {
-					ctx.ModuleErrorf("cannot depend on \"%v\": %v", ctx.OtherModuleName(module), err)
-				}
+			if err := java.CheckStableSdkVersion(ctx, module); err != nil {
+				ctx.ModuleErrorf("cannot depend on \"%v\": %v", ctx.OtherModuleName(module), err)
 			}
 		}
 	})
@@ -2877,7 +2896,7 @@ func (a *apexBundle) verifyNativeImplementationLibs(ctx android.ModuleContext) {
 	}
 
 	var appEmbeddedJNILibs android.Paths
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(dep)
 		if !checkApexTag(tag) {
 			return

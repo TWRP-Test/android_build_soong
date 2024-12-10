@@ -84,26 +84,6 @@ func withFiles(files android.MockFS) android.FixturePreparer {
 	return files.AddToFixture()
 }
 
-// withNativeBridgeTargets sets configuration with targets including:
-// - X86_64 (primary)
-// - X86 (secondary)
-// - Arm64 on X86_64 (native bridge)
-// - Arm on X86 (native bridge)
-var withNativeBridgeEnabled = android.FixtureModifyConfig(
-	func(config android.Config) {
-		config.Targets[android.Android] = []android.Target{
-			{Os: android.Android, Arch: android.Arch{ArchType: android.X86_64, ArchVariant: "silvermont", Abi: []string{"arm64-v8a"}},
-				NativeBridge: android.NativeBridgeDisabled, NativeBridgeHostArchName: "", NativeBridgeRelativePath: ""},
-			{Os: android.Android, Arch: android.Arch{ArchType: android.X86, ArchVariant: "silvermont", Abi: []string{"armeabi-v7a"}},
-				NativeBridge: android.NativeBridgeDisabled, NativeBridgeHostArchName: "", NativeBridgeRelativePath: ""},
-			{Os: android.Android, Arch: android.Arch{ArchType: android.Arm64, ArchVariant: "armv8-a", Abi: []string{"arm64-v8a"}},
-				NativeBridge: android.NativeBridgeEnabled, NativeBridgeHostArchName: "x86_64", NativeBridgeRelativePath: "arm64"},
-			{Os: android.Android, Arch: android.Arch{ArchType: android.Arm, ArchVariant: "armv7-a-neon", Abi: []string{"armeabi-v7a"}},
-				NativeBridge: android.NativeBridgeEnabled, NativeBridgeHostArchName: "x86", NativeBridgeRelativePath: "arm"},
-		}
-	},
-)
-
 func withManifestPackageNameOverrides(specs []string) android.FixturePreparer {
 	return android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
 		variables.ManifestPackageNameOverrides = specs
@@ -3198,7 +3178,7 @@ func TestFilesInSubDirWhenNativeBridgeEnabled(t *testing.T) {
 				},
 			},
 		}
-	`, withNativeBridgeEnabled)
+	`, android.PrepareForNativeBridgeEnabled)
 	ensureExactContents(t, ctx, "myapex", "android_common_myapex", []string{
 		"bin/foo/bar/mybin",
 		"bin/foo/bar/mybin64",
@@ -12168,34 +12148,32 @@ func TestApexVerifyNativeImplementationLibs(t *testing.T) {
 			},
 			dependencyPath: []string{"myapex", "libjni", "libbar", "libplatform"},
 		},
-		// TODO: embedded JNI in apps should be checked too, but Soong currently just packages the transitive
-		//  JNI libraries even if they came from another apex.
-		//{
-		//	name:           "app jni library dependency in other apex",
-		//	bpModifier:     addToSharedLibs("libembeddedjni", "libotherapex#impl"),
-		//	dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libotherapex"},
-		//},
-		//{
-		//	name: "transitive app jni library dependency in other apex",
-		//	bpModifier: func(bp *bpmodify.Blueprint) {
-		//		addToSharedLibs("libembeddedjni", "libbar")(bp)
-		//		addToSharedLibs("libbar", "libotherapex#impl")(bp)
-		//	},
-		//	dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libbar", "libotherapex"},
-		//},
-		//{
-		//	name:           "app jni library dependency in platform",
-		//	bpModifier:     addToSharedLibs("libembeddedjni", "libplatform#impl"),
-		//	dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libplatform"},
-		//},
-		//{
-		//	name: "transitive app jni library dependency in platform",
-		//	bpModifier: func(bp *bpmodify.Blueprint) {
-		//		addToSharedLibs("libembeddedjni", "libbar")(bp)
-		//		addToSharedLibs("libbar", "libplatform#impl")(bp)
-		//	},
-		//	dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libbar", "libplatform"},
-		//},
+		{
+			name:           "app jni library dependency in other apex",
+			bpModifier:     addToSharedLibs("libembeddedjni", "libotherapex#impl"),
+			dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libotherapex"},
+		},
+		{
+			name: "transitive app jni library dependency in other apex",
+			bpModifier: func(bp *bpmodify.Blueprint) {
+				addToSharedLibs("libembeddedjni", "libbar")(bp)
+				addToSharedLibs("libbar", "libotherapex#impl")(bp)
+			},
+			dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libbar", "libotherapex"},
+		},
+		{
+			name:           "app jni library dependency in platform",
+			bpModifier:     addToSharedLibs("libembeddedjni", "libplatform#impl"),
+			dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libplatform"},
+		},
+		{
+			name: "transitive app jni library dependency in platform",
+			bpModifier: func(bp *bpmodify.Blueprint) {
+				addToSharedLibs("libembeddedjni", "libbar")(bp)
+				addToSharedLibs("libbar", "libplatform#impl")(bp)
+			},
+			dependencyPath: []string{"myapex", "myapp", "libembeddedjni", "libbar", "libplatform"},
+		},
 		{
 			name:           "binary dependency in other apex",
 			bpModifier:     addToSharedLibs("mybin", "libotherapex#impl"),

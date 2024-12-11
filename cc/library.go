@@ -1800,12 +1800,17 @@ func (library *libraryDecorator) everInstallable() bool {
 	return library.shared() || library.static()
 }
 
-// static returns true if this library is for a "static' variant.
+// static returns true if this library is for a "static" variant.
 func (library *libraryDecorator) static() bool {
 	return library.MutatedProperties.VariantIsStatic
 }
 
-// shared returns true if this library is for a "shared' variant.
+// staticLibrary returns true if this library is for a "static"" variant.
+func (library *libraryDecorator) staticLibrary() bool {
+	return library.static()
+}
+
+// shared returns true if this library is for a "shared" variant.
 func (library *libraryDecorator) shared() bool {
 	return library.MutatedProperties.VariantIsShared
 }

@@ -519,6 +519,7 @@ type VendorProperties struct {
 type ModuleContextIntf interface {
 	static() bool
 	staticBinary() bool
+	staticLibrary() bool
 	testBinary() bool
 	testLibrary() bool
 	header() bool
@@ -1521,6 +1522,10 @@ func (ctx *moduleContextImpl) static() bool {
 
 func (ctx *moduleContextImpl) staticBinary() bool {
 	return ctx.mod.staticBinary()
+}
+
+func (ctx *moduleContextImpl) staticLibrary() bool {
+	return ctx.mod.staticLibrary()
 }
 
 func (ctx *moduleContextImpl) testBinary() bool {
@@ -3546,6 +3551,15 @@ func (c *Module) static() bool {
 		static() bool
 	}); ok {
 		return static.static()
+	}
+	return false
+}
+
+func (c *Module) staticLibrary() bool {
+	if static, ok := c.linker.(interface {
+		staticLibrary() bool
+	}); ok {
+		return static.staticLibrary()
 	}
 	return false
 }

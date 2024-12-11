@@ -264,9 +264,6 @@ type ApexProperties struct {
 
 // Marker interface that identifies dependencies that are excluded from APEX contents.
 //
-// Unless the tag also implements the AlwaysRequireApexVariantTag this will prevent an apex variant
-// from being created for the module.
-//
 // At the moment the sdk.sdkRequirementsMutator relies on the fact that the existing tags which
 // implement this interface do not define dependencies onto members of an sdk_snapshot. If that
 // changes then sdk.sdkRequirementsMutator will need fixing.
@@ -275,17 +272,6 @@ type ExcludeFromApexContentsTag interface {
 
 	// Method that differentiates this interface from others.
 	ExcludeFromApexContents()
-}
-
-// Marker interface that identifies dependencies that always requires an APEX variant to be created.
-//
-// It is possible for a dependency to require an apex variant but exclude the module from the APEX
-// contents. See sdk.sdkMemberDependencyTag.
-type AlwaysRequireApexVariantTag interface {
-	blueprint.DependencyTag
-
-	// Return true if this tag requires that the target dependency has an apex variant.
-	AlwaysRequireApexVariant() bool
 }
 
 // Interface that identifies dependencies to skip Apex dependency check
@@ -778,7 +764,7 @@ func (d *ApexBundleDepsInfo) BuildDepsInfoLists(ctx ModuleContext, minSdkVersion
 // Function called while walking an APEX's payload dependencies.
 //
 // Return true if the `to` module should be visited, false otherwise.
-type PayloadDepsCallback func(ctx BaseModuleContext, from blueprint.Module, to ApexModule, externalDep bool) bool
+type PayloadDepsCallback func(ctx BaseModuleContext, from Module, to ApexModule, externalDep bool) bool
 type WalkPayloadDepsFunc func(ctx BaseModuleContext, do PayloadDepsCallback)
 
 // ModuleWithMinSdkVersionCheck represents a module that implements min_sdk_version checks
@@ -806,7 +792,7 @@ func CheckMinSdkVersion(ctx ModuleContext, minSdkVersion ApiLevel, walk WalkPayl
 		return
 	}
 
-	walk(ctx, func(ctx BaseModuleContext, from blueprint.Module, to ApexModule, externalDep bool) bool {
+	walk(ctx, func(ctx BaseModuleContext, from Module, to ApexModule, externalDep bool) bool {
 		if externalDep {
 			// external deps are outside the payload boundary, which is "stable"
 			// interface. We don't have to check min_sdk_version for external

@@ -1225,7 +1225,7 @@ func (a *AndroidApp) buildAppDependencyInfo(ctx android.ModuleContext) {
 	}
 
 	depsInfo := android.DepNameToDepInfoMap{}
-	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from blueprint.Module, to android.ApexModule, externalDep bool) bool {
+	a.WalkPayloadDeps(ctx, func(ctx android.BaseModuleContext, from android.Module, to android.ApexModule, externalDep bool) bool {
 		depName := to.Name()
 
 		// Skip dependencies that are only available to APEXes; they are developed with updatability

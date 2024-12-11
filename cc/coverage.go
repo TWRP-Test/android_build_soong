@@ -145,7 +145,7 @@ func (cov *coverage) flags(ctx ModuleContext, flags Flags, deps PathDeps) (Flags
 	// Even if we don't have coverage enabled, if any of our object files were compiled
 	// with coverage, then we need to add --coverage to our ldflags.
 	if !cov.linkCoverage {
-		if ctx.static() && !ctx.staticBinary() {
+		if ctx.staticLibrary() {
 			// For static libraries, the only thing that changes our object files
 			// are included whole static libraries, so check to see if any of
 			// those have coverage enabled.

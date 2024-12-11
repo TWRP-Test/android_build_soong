@@ -337,8 +337,8 @@ func (a *apexBundle) buildManifest(ctx android.ModuleContext, provideNativeLibs,
 		if err != nil {
 			ctx.ModuleErrorf("expected RELEASE_DEFAULT_UPDATABLE_MODULE_VERSION to be an int, but got %s", defaultVersion)
 		}
-		if defaultVersionInt%10 != 0 {
-			ctx.ModuleErrorf("expected RELEASE_DEFAULT_UPDATABLE_MODULE_VERSION to end in a zero, but got %s", defaultVersion)
+		if defaultVersionInt%10 != 0 && defaultVersionInt%10 != 9 {
+			ctx.ModuleErrorf("expected RELEASE_DEFAULT_UPDATABLE_MODULE_VERSION to end in a zero or a nine, but got %s", defaultVersion)
 		}
 		variantVersion := []rune(*a.properties.Variant_version)
 		if len(variantVersion) != 1 || variantVersion[0] < '0' || variantVersion[0] > '9' {

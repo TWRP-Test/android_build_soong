@@ -163,7 +163,7 @@ func (a *afdoTransitionMutator) OutgoingTransition(ctx android.OutgoingTransitio
 		}
 
 		// TODO(b/324141705): this is designed to prevent propagating AFDO from static libraries that have afdo: true set, but
-		//  it should be m.static() && !m.staticBinary() so that static binaries use AFDO variants of dependencies.
+		//  it should be m.staticLibrary() so that static binaries use AFDO variants of dependencies.
 		if m.static() {
 			return ""
 		}
@@ -188,7 +188,7 @@ func (a *afdoTransitionMutator) Mutate(ctx android.BottomUpMutatorContext, varia
 		if variation == "" {
 			// The empty variation is either a module that has enabled AFDO for itself, or the non-AFDO
 			// variant of a dependency.
-			if m.afdo.afdoEnabled() && !(m.static() && !m.staticBinary()) && !m.Host() {
+			if m.afdo.afdoEnabled() && !m.staticLibrary() && !m.Host() {
 				m.afdo.addDep(ctx, ctx.ModuleName())
 			}
 		} else {

@@ -274,10 +274,13 @@ func (p *prebuiltCommon) prebuiltApexContentsDeps(ctx android.BottomUpMutatorCon
 }
 
 // Implements android.DepInInSameApex
-func (p *prebuiltCommon) DepIsInSameApex(ctx android.BaseModuleContext, dep android.Module) bool {
-	tag := ctx.OtherModuleDependencyTag(dep)
+func (p *prebuiltCommon) OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool {
 	_, ok := tag.(exportedDependencyTag)
 	return ok
+}
+
+func (p *prebuiltCommon) IncomingDepIsInSameApex(tag blueprint.DependencyTag) bool {
+	return true
 }
 
 // apexInfoMutator marks any modules for which this apex exports a file as requiring an apex

@@ -1282,7 +1282,7 @@ func (module *SdkLibrary) CheckMinSdkVersion(ctx android.ModuleContext) {
 func CheckMinSdkVersion(ctx android.ModuleContext, module *Library) {
 	android.CheckMinSdkVersion(ctx, module.MinSdkVersion(ctx), func(c android.BaseModuleContext, do android.PayloadDepsCallback) {
 		ctx.WalkDeps(func(child android.Module, parent android.Module) bool {
-			isExternal := !module.depIsInSameApex(ctx, child)
+			isExternal := !android.IsDepInSameApex(ctx, module, child)
 			if am, ok := child.(android.ApexModule); ok {
 				if !do(ctx, parent, am, isExternal) {
 					return false
@@ -1636,15 +1636,14 @@ func (module *SdkLibrary) compareAgainstLatestApi(apiScope *apiScope) bool {
 }
 
 // Implements android.ApexModule
-func (module *SdkLibrary) DepIsInSameApex(mctx android.BaseModuleContext, dep android.Module) bool {
-	depTag := mctx.OtherModuleDependencyTag(dep)
+func (module *SdkLibrary) OutgoingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 	if depTag == xmlPermissionsFileTag {
 		return true
 	}
-	if dep.Name() == module.implLibraryModuleName() {
+	if depTag == implLibraryTag {
 		return true
 	}
-	return module.Library.DepIsInSameApex(mctx, dep)
+	return module.Library.OutgoingDepIsInSameApex(depTag)
 }
 
 // Implements android.ApexModule
@@ -2059,8 +2058,7 @@ func (module *SdkLibraryImport) DepsMutator(ctx android.BottomUpMutatorContext) 
 var _ android.ApexModule = (*SdkLibraryImport)(nil)
 
 // Implements android.ApexModule
-func (module *SdkLibraryImport) DepIsInSameApex(mctx android.BaseModuleContext, dep android.Module) bool {
-	depTag := mctx.OtherModuleDependencyTag(dep)
+func (module *SdkLibraryImport) OutgoingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 	if depTag == xmlPermissionsFileTag {
 		return true
 	}

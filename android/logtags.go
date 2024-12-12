@@ -16,41 +16,8 @@ package android
 
 import "github.com/google/blueprint"
 
-func init() {
-	RegisterParallelSingletonType("logtags", LogtagsSingleton)
-}
-
 type LogtagsInfo struct {
 	Logtags Paths
 }
 
 var LogtagsProviderKey = blueprint.NewProvider[*LogtagsInfo]()
-
-func LogtagsSingleton() Singleton {
-	return &logtagsSingleton{}
-}
-
-type logtagsSingleton struct{}
-
-func MergedLogtagsPath(ctx PathContext) OutputPath {
-	return PathForIntermediates(ctx, "all-event-log-tags.txt")
-}
-
-func (l *logtagsSingleton) GenerateBuildActions(ctx SingletonContext) {
-	var allLogtags Paths
-	ctx.VisitAllModules(func(module Module) {
-		if !module.ExportedToMake() {
-			return
-		}
-		if logtagsInfo, ok := OtherModuleProvider(ctx, module, LogtagsProviderKey); ok {
-			allLogtags = append(allLogtags, logtagsInfo.Logtags...)
-		}
-	})
-
-	builder := NewRuleBuilder(pctx, ctx)
-	builder.Command().
-		BuiltTool("merge-event-log-tags").
-		FlagWithOutput("-o ", MergedLogtagsPath(ctx)).
-		Inputs(SortedUniquePaths(allLogtags))
-	builder.Build("all-event-log-tags.txt", "merge logtags")
-}

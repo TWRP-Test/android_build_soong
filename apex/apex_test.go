@@ -5818,7 +5818,6 @@ func TestApexWithTests(t *testing.T) {
 			relative_install_path: "test",
 			shared_libs: ["mylib"],
 			system_shared_libs: [],
-			static_executable: true,
 			stl: "none",
 			data: [":fg"],
 		}
@@ -6353,10 +6352,16 @@ func TestApexAvailable_IndirectDep(t *testing.T) {
 	testApexError(t, `requires "libbaz" that doesn't list the APEX under 'apex_available'.\n\nDependency path:
 .*via tag apex\.dependencyTag\{"sharedLib"\}
 .*-> libfoo.*link:shared.*
+.*via tag cc\.dependencyTag.*
+.*-> libfoo.*link:static.*
 .*via tag cc\.libraryDependencyTag.*Kind:sharedLibraryDependency.*
 .*-> libbar.*link:shared.*
+.*via tag cc\.dependencyTag.*
+.*-> libbar.*link:static.*
 .*via tag cc\.libraryDependencyTag.*Kind:sharedLibraryDependency.*
-.*-> libbaz.*link:shared.*`, `
+.*-> libbaz.*link:shared.*
+.*via tag cc\.dependencyTag.*
+.*-> libbaz.*link:static.*`, `
 	apex {
 		name: "myapex",
 		key: "myapex.key",

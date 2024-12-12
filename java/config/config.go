@@ -159,6 +159,7 @@ func init() {
 	pctx.SourcePathVariable("ResourceProcessorBusyBox", "prebuilts/bazel/common/android_tools/android_tools/all_android_tools_deploy.jar")
 
 	pctx.HostBinToolVariable("GenKotlinBuildFileCmd", "gen-kotlin-build-file")
+	pctx.HostBinToolVariable("FindInputDeltaCmd", "find_input_delta")
 
 	pctx.SourcePathVariable("JarArgsCmd", "build/soong/scripts/jar-args.sh")
 	pctx.SourcePathVariable("PackageCheckCmd", "build/soong/scripts/package-check.sh")

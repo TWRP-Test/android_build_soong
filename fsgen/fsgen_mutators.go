@@ -164,6 +164,7 @@ func createFsGenState(ctx android.LoadHookContext, generatedPrebuiltEtcModuleNam
 
 		// Add common resources `prebuilt_res` module as dep of recovery partition
 		(*fsGenState.fsDeps["recovery"])[fmt.Sprintf("recovery-resources-common-%s", getDpi(ctx))] = defaultDepCandidateProps(ctx.Config())
+		(*fsGenState.fsDeps["recovery"])[getRecoveryFontModuleName(ctx)] = defaultDepCandidateProps(ctx.Config())
 
 		return &fsGenState
 	}).(*FsGenState)

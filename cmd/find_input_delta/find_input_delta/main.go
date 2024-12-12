@@ -17,10 +17,12 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
+	"regexp"
 
 	fid_lib "android/soong/cmd/find_input_delta/find_input_delta_lib"
 )
+
+var fileSepRegex = regexp.MustCompile("[^[:space:]]+")
 
 func main() {
 	var top string
@@ -46,6 +48,8 @@ func main() {
 	if target == "" {
 		panic("must specify --target")
 	}
+	// Drop any extra file names that arrived in `target`.
+	target = fileSepRegex.FindString(target)
 	if prior_state_file == "" {
 		prior_state_file = target + ".pc_state"
 	}
@@ -63,7 +67,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		inputs = append(inputs, strings.Split(string(data), "\n")...)
+		inputs = append(inputs, fileSepRegex.FindAllString(string(data), -1)...)
 	}
 
 	// Read the prior state

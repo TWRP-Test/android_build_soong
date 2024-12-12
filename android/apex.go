@@ -77,6 +77,9 @@ type ApexInfo struct {
 
 	// Returns the value of `apex_available_name`
 	ApexAvailableName string
+
+	// Returns the apex names that this module is available for
+	ApexAvailableFor []string
 }
 
 // AllApexInfo holds the ApexInfo of all apexes that include this module.
@@ -146,15 +149,25 @@ var ApexBundleInfoProvider = blueprint.NewMutatorProvider[ApexBundleInfo]("apex_
 // extracted from ApexModule to make it easier to define custom subsets of the ApexModule interface
 // and improve code navigation within the IDE.
 type DepIsInSameApex interface {
-	// DepIsInSameApex tests if the other module 'dep' is considered as part of the same APEX as
-	// this module. For example, a static lib dependency usually returns true here, while a
+	// OutgoingDepIsInSameApex tests if the module depended on via 'tag' is considered as part of
+	// the same APEX as this module. For example, a static lib dependency usually returns true here, while a
 	// shared lib dependency to a stub library returns false.
 	//
 	// This method must not be called directly without first ignoring dependencies whose tags
 	// implement ExcludeFromApexContentsTag. Calls from within the func passed to WalkPayloadDeps()
 	// are fine as WalkPayloadDeps() will ignore those dependencies automatically. Otherwise, use
 	// IsDepInSameApex instead.
-	DepIsInSameApex(ctx BaseModuleContext, dep Module) bool
+	OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool
+
+	// IncomingDepIsInSameApex tests if this module depended on via 'tag' is considered as part of
+	// the same APEX as the depending module module. For example, a static lib dependency usually
+	// returns true here, while a shared lib dependency to a stub library returns false.
+	//
+	// This method must not be called directly without first ignoring dependencies whose tags
+	// implement ExcludeFromApexContentsTag. Calls from within the func passed to WalkPayloadDeps()
+	// are fine as WalkPayloadDeps() will ignore those dependencies automatically. Otherwise, use
+	// IsDepInSameApex instead.
+	IncomingDepIsInSameApex(tag blueprint.DependencyTag) bool
 }
 
 func IsDepInSameApex(ctx BaseModuleContext, module, dep Module) bool {
@@ -164,7 +177,14 @@ func IsDepInSameApex(ctx BaseModuleContext, module, dep Module) bool {
 		// apex as the parent.
 		return false
 	}
-	return module.(DepIsInSameApex).DepIsInSameApex(ctx, dep)
+
+	if m, ok := module.(DepIsInSameApex); ok && !m.OutgoingDepIsInSameApex(depTag) {
+		return false
+	}
+	if d, ok := dep.(DepIsInSameApex); ok && !d.IncomingDepIsInSameApex(depTag) {
+		return false
+	}
+	return true
 }
 
 // ApexModule is the interface that a module type is expected to implement if the module has to be
@@ -212,6 +232,12 @@ type ApexModule interface {
 	// Tests if this module is available for the specified APEX or ":platform". This is from the
 	// apex_available property of the module.
 	AvailableFor(what string) bool
+
+	// Returns the apexes that are available for this module, valid values include
+	// "//apex_available:platform", "//apex_available:anyapex" and specific apexes.
+	// There are some differences between this one and the ApexAvailable on
+	// ApexModuleBase for cc, java library and sdkLibraryXml.
+	ApexAvailableFor() []string
 
 	// AlwaysRequiresPlatformApexVariant allows the implementing module to determine whether an
 	// APEX mutator should always be created for it.
@@ -320,6 +346,10 @@ func (m *ApexModuleBase) ApexAvailable() []string {
 	return CopyOf(availableToPlatformList)
 }
 
+func (m *ApexModuleBase) ApexAvailableFor() []string {
+	return m.ApexAvailable()
+}
+
 // Implements ApexModule
 func (m *ApexModuleBase) BuildForApex(apex ApexInfo) {
 	m.apexInfosLock.Lock()
@@ -372,7 +402,15 @@ func (m *ApexModuleBase) UniqueApexVariations() bool {
 }
 
 // Implements ApexModule
-func (m *ApexModuleBase) DepIsInSameApex(ctx BaseModuleContext, dep Module) bool {
+func (m *ApexModuleBase) OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool {
+	// By default, if there is a dependency from A to B, we try to include both in the same
+	// APEX, unless B is explicitly from outside of the APEX (i.e. a stubs lib). Thus, returning
+	// true. This is overridden by some module types like apex.ApexBundle, cc.Module,
+	// java.Module, etc.
+	return true
+}
+
+func (m *ApexModuleBase) IncomingDepIsInSameApex(tag blueprint.DependencyTag) bool {
 	// By default, if there is a dependency from A to B, we try to include both in the same
 	// APEX, unless B is explicitly from outside of the APEX (i.e. a stubs lib). Thus, returning
 	// true. This is overridden by some module types like apex.ApexBundle, cc.Module,
@@ -420,7 +458,7 @@ func CheckAvailableForApex(what string, apex_available []string) bool {
 
 // Implements ApexModule
 func (m *ApexModuleBase) AvailableFor(what string) bool {
-	return CheckAvailableForApex(what, m.ApexProperties.Apex_available)
+	return CheckAvailableForApex(what, m.ApexAvailableFor())
 }
 
 // Implements ApexModule
@@ -614,6 +652,7 @@ func MutateApexTransition(ctx BaseModuleContext, variation string) {
 		} else {
 			panic(fmt.Errorf("failed to find apexInfo for incoming variation %q", variation))
 		}
+		thisApexInfo.ApexAvailableFor = module.ApexAvailableFor()
 
 		SetProvider(ctx, ApexInfoProvider, thisApexInfo)
 	}
@@ -647,7 +686,7 @@ func ApexInfoMutator(ctx TopDownMutatorContext, module ApexModule) {
 // variant.
 func UpdateUniqueApexVariationsForDeps(mctx BottomUpMutatorContext, am ApexModule) {
 	// anyInSameApex returns true if the two ApexInfo lists contain any values in an
-	// InApexVariants list in common. It is used instead of DepIsInSameApex because it needs to
+	// InApexVariants list in common. It is used instead of OutgoingDepIsInSameApex because it needs to
 	// determine if the dep is in the same APEX due to being directly included, not only if it
 	// is included _because_ it is a dependency.
 	anyInSameApex := func(a, b ApexModule) bool {
@@ -799,7 +838,7 @@ func CheckMinSdkVersion(ctx ModuleContext, minSdkVersion ApiLevel, walk WalkPayl
 			// dependencies.
 			return false
 		}
-		if am, ok := from.(DepIsInSameApex); ok && !am.DepIsInSameApex(ctx, to) {
+		if !IsDepInSameApex(ctx, from, to) {
 			return false
 		}
 		if m, ok := to.(ModuleWithMinSdkVersionCheck); ok {

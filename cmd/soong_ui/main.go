@@ -215,8 +215,7 @@ func main() {
 		emet.Dump(executionMetricsFile, args)
 		// If there are execution metrics, upload them.
 		if _, err := os.Stat(executionMetricsFile); err == nil {
-			// TODO: Upload the metrics file.
-			// metricsFiles = append(metricsFiles, executionMetricsFile)
+			metricsFiles = append(metricsFiles, executionMetricsFile)
 		}
 		if !config.SkipMetricsUpload() {
 			build.UploadMetrics(buildCtx, config, c.simpleOutput, buildStarted, metricsFiles...)

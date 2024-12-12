@@ -15,11 +15,12 @@
 package java
 
 import (
-	"android/soong/android"
-	"android/soong/etc"
 	"fmt"
 	"path"
 	"strings"
+
+	"android/soong/android"
+	"android/soong/etc"
 
 	"github.com/google/blueprint/proptools"
 )
@@ -778,7 +779,11 @@ var _ etc.PrebuiltEtcModule = (*sdkLibraryXml)(nil)
 
 // from android.ApexModule
 func (module *sdkLibraryXml) AvailableFor(what string) bool {
-	return true
+	return android.CheckAvailableForApex(what, module.ApexAvailableFor())
+}
+
+func (module *sdkLibraryXml) ApexAvailableFor() []string {
+	return []string{android.AvailableToPlatform, android.AvailableToAnyApex}
 }
 
 func (module *sdkLibraryXml) DepsMutator(ctx android.BottomUpMutatorContext) {

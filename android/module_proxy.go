@@ -189,7 +189,7 @@ func (m ModuleProxy) VariablesForTests() map[string]string {
 }
 
 func (m ModuleProxy) String() string {
-	return m.module.Name()
+	return m.module.String()
 }
 
 func (m ModuleProxy) qualifiedModuleId(ctx BaseModuleContext) qualifiedModuleName {

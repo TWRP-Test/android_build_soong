@@ -365,13 +365,13 @@ func (e *embeddableInModuleAndImport) initModuleAndImport(module android.Module)
 	e.initSdkLibraryComponent(module)
 }
 
-// Module/Import's DepIsInSameApex(...) delegates to this method.
+// Module/Import's OutgoingDepIsInSameApex(...) delegates to this method.
 //
-// This cannot implement DepIsInSameApex(...) directly as that leads to ambiguity with
+// This cannot implement OutgoingDepIsInSameApex(...) directly as that leads to ambiguity with
 // the one provided by ApexModuleBase.
-func (e *embeddableInModuleAndImport) depIsInSameApex(ctx android.BaseModuleContext, dep android.Module) bool {
+func (e *embeddableInModuleAndImport) depIsInSameApex(tag blueprint.DependencyTag) bool {
 	// dependencies other than the static linkage are all considered crossing APEX boundary
-	if staticLibTag == ctx.OtherModuleDependencyTag(dep) {
+	if tag == staticLibTag {
 		return true
 	}
 	return false
@@ -838,13 +838,18 @@ func (j *Module) TargetSdkVersion(ctx android.EarlyModuleContext) android.ApiLev
 }
 
 func (j *Module) AvailableFor(what string) bool {
-	if what == android.AvailableToPlatform && Bool(j.deviceProperties.Hostdex) {
+	return android.CheckAvailableForApex(what, j.ApexAvailableFor())
+}
+
+func (j *Module) ApexAvailableFor() []string {
+	list := j.ApexModuleBase.ApexAvailable()
+	if Bool(j.deviceProperties.Hostdex) {
 		// Exception: for hostdex: true libraries, the platform variant is created
 		// even if it's not marked as available to platform. In that case, the platform
 		// variant is used only for the hostdex and not installed to the device.
-		return true
+		list = append(list, android.AvailableToPlatform)
 	}
-	return j.ApexModuleBase.AvailableFor(what)
+	return android.FirstUniqueStrings(list)
 }
 
 func (j *Module) staticLibs(ctx android.BaseModuleContext) []string {
@@ -2209,8 +2214,8 @@ func (j *Module) hasCode(ctx android.ModuleContext) bool {
 }
 
 // Implements android.ApexModule
-func (j *Module) DepIsInSameApex(ctx android.BaseModuleContext, dep android.Module) bool {
-	return j.depIsInSameApex(ctx, dep)
+func (j *Module) OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool {
+	return j.depIsInSameApex(tag)
 }
 
 // Implements android.ApexModule

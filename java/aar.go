@@ -1603,8 +1603,8 @@ var _ UsesLibraryDependency = (*AARImport)(nil)
 var _ android.ApexModule = (*AARImport)(nil)
 
 // Implements android.ApexModule
-func (a *AARImport) DepIsInSameApex(ctx android.BaseModuleContext, dep android.Module) bool {
-	return a.depIsInSameApex(ctx, dep)
+func (a *AARImport) OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool {
+	return a.depIsInSameApex(tag)
 }
 
 // Implements android.ApexModule

@@ -1683,7 +1683,7 @@ func (mod *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	}
 
 	for _, lib := range deps.SharedLibs {
-		depTag := cc.SharedDepTag()
+		depTag := cc.SharedDepTag(mod.Static())
 		name, version := cc.StubsLibNameAndVersion(lib)
 
 		variations := []blueprint.Variation{
@@ -1824,41 +1824,16 @@ func (mod *Module) ShouldSupportSdkVersion(ctx android.BaseModuleContext, sdkVer
 }
 
 // Implements android.ApexModule
-func (mod *Module) DepIsInSameApex(ctx android.BaseModuleContext, dep android.Module) bool {
-	depTag := ctx.OtherModuleDependencyTag(dep)
-
-	if ccm, ok := dep.(*cc.Module); ok {
-		if ccm.HasStubsVariants() {
-			if cc.IsSharedDepTag(depTag) {
-				// dynamic dep to a stubs lib crosses APEX boundary
-				return false
-			}
-			if cc.IsRuntimeDepTag(depTag) {
-				// runtime dep to a stubs lib also crosses APEX boundary
-				return false
-			}
-
-			if cc.IsHeaderDepTag(depTag) {
-				return false
-			}
-		}
-		if mod.Static() && cc.IsSharedDepTag(depTag) {
-			// shared_lib dependency from a static lib is considered as crossing
-			// the APEX boundary because the dependency doesn't actually is
-			// linked; the dependency is used only during the compilation phase.
-			return false
-		}
-	}
-
+func (mod *Module) OutgoingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 	if depTag == procMacroDepTag || depTag == customBindgenDepTag {
 		return false
 	}
 
-	if rustDep, ok := dep.(*Module); ok && rustDep.ApexExclude() {
-		return false
-	}
-
 	return true
+}
+
+func (mod *Module) IncomingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
+	return !mod.ApexExclude()
 }
 
 // Overrides ApexModule.IsInstallabeToApex()

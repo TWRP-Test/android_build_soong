@@ -85,6 +85,18 @@ func (f *filesystem) buildFsverityMetadataFiles(ctx android.ModuleContext, build
 		f.appendToEntry(ctx, destPath)
 	}
 
+	fsVerityBaseDir := rootDir.String()
+	if f.PartitionType() == "system_ext" {
+		// Use the equivalent of $PRODUCT_OUT as the base dir.
+		// This ensures that the paths in build_manifest.pb contain on-device paths
+		// e.g. system_ext/framework/javalib.jar
+		// and not framework/javalib.jar.
+		//
+		// Although base-dir is outside the rootdir provided for packaging, this action
+		// is hermetic since it uses `manifestGeneratorListPath` to filter the files to be written to build_manifest.pb
+		fsVerityBaseDir = filepath.Dir(rootDir.String())
+	}
+
 	// STEP 2: generate signed BuildManifest.apk
 	// STEP 2-1: generate build_manifest.pb
 	manifestGeneratorListPath := android.PathForModuleOut(ctx, "fsverity_manifest.list")
@@ -96,7 +108,7 @@ func (f *filesystem) buildFsverityMetadataFiles(ctx android.ModuleContext, build
 	builder.Command().
 		BuiltTool("fsverity_manifest_generator").
 		FlagWithInput("--fsverity-path ", fsverityPath).
-		FlagWithArg("--base-dir ", rootDir.String()).
+		FlagWithArg("--base-dir ", fsVerityBaseDir).
 		FlagWithArg("--output ", manifestPbPath.String()).
 		FlagWithInput("@", manifestGeneratorListPath)
 

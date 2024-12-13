@@ -181,7 +181,7 @@ func TestFileSystemFillsLinkerConfigWithStubLibs(t *testing.T) {
 	`)
 
 	module := result.ModuleForTests("myfilesystem", "android_common")
-	output := module.Output("out/soong/.intermediates/myfilesystem/android_common/root/system/etc/linker.config.pb")
+	output := module.Output("out/soong/.intermediates/myfilesystem/android_common/myfilesystem/system/etc/linker.config.pb")
 
 	fullCommand := output.RuleParams.Command
 	startIndex := strings.Index(fullCommand, "conv_linker_config")

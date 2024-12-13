@@ -623,8 +623,10 @@ func (m *moduleContext) installFile(installPath InstallPath, name string, srcPat
 
 	if m.requiresFullInstall() {
 		deps = append(deps, InstallPaths(m.TransitiveInstallFiles.ToList())...)
-		deps = append(deps, m.installedInitRcPaths...)
-		deps = append(deps, m.installedVintfFragmentsPaths...)
+		if m.config.KatiEnabled() {
+			deps = append(deps, m.installedInitRcPaths...)
+			deps = append(deps, m.installedVintfFragmentsPaths...)
+		}
 
 		var implicitDeps, orderOnlyDeps Paths
 

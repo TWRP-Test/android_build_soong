@@ -378,6 +378,7 @@ func (configs *ReleaseConfigs) LoadReleaseConfigMap(path string, ConfigDirIndex 
 			return fmt.Errorf("%s mismatching ReleaseConfigType value %s", path, *releaseConfigType)
 		}
 		config.FilesUsedMap[path] = true
+		config.DisallowLunchUse = config.DisallowLunchUse || releaseConfigContribution.proto.GetDisallowLunchUse()
 		inheritNames := make(map[string]bool)
 		for _, inh := range config.InheritNames {
 			inheritNames[inh] = true

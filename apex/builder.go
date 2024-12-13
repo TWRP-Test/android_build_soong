@@ -544,7 +544,7 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 
 	imageDir := android.PathForModuleOut(ctx, "image"+suffix)
 
-	installSymbolFiles := (!ctx.Config().KatiEnabled() || a.ExportedToMake()) && a.installable()
+	installSymbolFiles := (ctx.Config().KatiEnabled() && a.ExportedToMake()) && a.installable()
 
 	// set of dependency module:location mappings
 	installMapSet := make(map[string]bool)

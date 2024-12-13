@@ -179,6 +179,7 @@ build_prop {
     visibility: [
         "//build/make/target/product/generic",
         "//build/make/target/product/gsi",
+        "//build/soong/fsgen",
         "//packages/modules/Virtualization/build/microdroid",
         "//frameworks/base/ravenwood",
     ],
@@ -190,7 +191,10 @@ build_prop {
     system_ext_specific: true,
     product_config: ":product_config",
     relative_install_path: "etc", // system_ext/etc/build.prop
-    visibility: ["//build/make/target/product/gsi"],
+    visibility: [
+        "//build/make/target/product/gsi",
+        "//build/soong/fsgen",
+    ],
 }
 
 build_prop {
@@ -199,7 +203,10 @@ build_prop {
     product_specific: true,
     product_config: ":product_config",
     relative_install_path: "etc", // product/etc/build.prop
-    visibility: ["//build/make/target/product/gsi"],
+    visibility: [
+        "//build/make/target/product/gsi",
+        "//build/soong/fsgen",
+    ],
 }
 
 build_prop {
@@ -208,7 +215,7 @@ build_prop {
     device_specific: true,
     product_config: ":product_config",
     relative_install_path: "etc", // odm/etc/build.prop
-    visibility: ["//visibility:private"],
+    visibility: ["//build/soong/fsgen"],
 }
 
 build_prop {

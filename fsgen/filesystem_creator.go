@@ -596,6 +596,43 @@ func (f *filesystemCreator) createVendorBuildProp(ctx android.LoadHookContext) {
 	vendorBuildProp.HideFromMake()
 }
 
+func createRecoveryBuildProp(ctx android.LoadHookContext) string {
+	moduleName := generatedModuleName(ctx.Config(), "recovery-prop.default")
+
+	var vendorBuildProp *string
+	if android.InList("vendor", generatedPartitions(ctx)) {
+		vendorBuildProp = proptools.StringPtr(":" + generatedModuleName(ctx.Config(), "vendor-build.prop"))
+	}
+
+	recoveryBuildProps := &struct {
+		Name                  *string
+		System_build_prop     *string
+		Vendor_build_prop     *string
+		Odm_build_prop        *string
+		Product_build_prop    *string
+		System_ext_build_prop *string
+
+		Recovery        *bool
+		No_full_install *bool
+		Visibility      []string
+	}{
+		Name:                  proptools.StringPtr(moduleName),
+		System_build_prop:     proptools.StringPtr(":system-build.prop"),
+		Vendor_build_prop:     vendorBuildProp,
+		Odm_build_prop:        proptools.StringPtr(":odm-build.prop"),
+		Product_build_prop:    proptools.StringPtr(":product-build.prop"),
+		System_ext_build_prop: proptools.StringPtr(":system_ext-build.prop"),
+
+		Recovery:        proptools.BoolPtr(true),
+		No_full_install: proptools.BoolPtr(true),
+		Visibility:      []string{"//visibility:public"},
+	}
+
+	ctx.CreateModule(android.RecoveryBuildPropModuleFactory, recoveryBuildProps)
+
+	return moduleName
+}
+
 // createLinkerConfigSourceFilegroups creates filegroup modules to generate linker.config.pb for the following partitions
 // 1. vendor: Using PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS (space separated file list)
 // 1. product: Using PRODUCT_PRODUCT_LINKER_CONFIG_FRAGMENTS (space separated file list)

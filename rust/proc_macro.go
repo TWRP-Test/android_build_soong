@@ -67,6 +67,7 @@ func (procMacro *procMacroDecorator) compilerProps() []interface{} {
 func (procMacro *procMacroDecorator) compilerFlags(ctx ModuleContext, flags Flags) Flags {
 	flags = procMacro.baseCompiler.compilerFlags(ctx, flags)
 	flags.RustFlags = append(flags.RustFlags, "--extern proc_macro")
+	flags.RustFlags = append(flags.RustFlags, "-C metadata="+ctx.ModuleName())
 	return flags
 }
 

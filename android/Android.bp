@@ -95,6 +95,7 @@ bootstrap_go_package {
         "proto.go",
         "provider.go",
         "raw_files.go",
+        "recovery_build_prop.go",
         "register.go",
         "rule_builder.go",
         "sandbox.go",

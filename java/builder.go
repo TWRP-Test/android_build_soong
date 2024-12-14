@@ -168,7 +168,7 @@ var (
 				"${config.JavaCmd}",
 			},
 			Rspfile:        "$out.rsp",
-			RspfileContent: "$in",
+			RspfileContent: "$in_newline",
 			Restat:         true,
 		},
 		&remoteexec.REParams{Labels: map[string]string{"type": "tool", "name": "turbine"},
@@ -459,7 +459,7 @@ func turbineFlags(ctx android.ModuleContext, flags javaBuilderFlags, dir string,
 	const srcJarArgsLimit = 32 * 1024
 	if len(srcJarArgs) > srcJarArgsLimit {
 		srcJarRspFile := android.PathForModuleOut(ctx, "turbine", "srcjars.rsp")
-		android.WriteFileRule(ctx, srcJarRspFile, srcJarArgs)
+		android.WriteFileRule(ctx, srcJarRspFile, strings.Join(srcJars.Strings(), "\n"))
 		srcJarArgs = "@" + srcJarRspFile.String()
 		implicits = append(implicits, srcJarRspFile)
 		rbeInputs = append(rbeInputs, srcJarRspFile)
@@ -491,7 +491,7 @@ func turbineFlags(ctx android.ModuleContext, flags javaBuilderFlags, dir string,
 	const classpathLimit = 32 * 1024
 	if len(classpathFlags) > classpathLimit {
 		classpathRspFile := android.PathForModuleOut(ctx, dir, "classpath.rsp")
-		android.WriteFileRule(ctx, classpathRspFile, classpathFlags)
+		android.WriteFileRule(ctx, classpathRspFile, strings.Join(classpath.Strings(), "\n"))
 		classpathFlags = "@" + classpathRspFile.String()
 		implicits = append(implicits, classpathRspFile)
 		rspFiles = append(rspFiles, classpathRspFile)

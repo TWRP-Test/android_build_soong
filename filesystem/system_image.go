@@ -49,8 +49,10 @@ func (s *systemImage) BuildLinkerConfigFile(ctx android.ModuleContext, builder *
 	}
 
 	provideModules, requireModules := s.getLibsForLinkerConfig(ctx)
+	intermediateOutput := android.PathForModuleOut(ctx, "linker.config.pb")
+	linkerconfig.BuildLinkerConfig(ctx, android.PathsForModuleSrc(ctx, s.filesystem.properties.Linker_config.Linker_config_srcs), provideModules, requireModules, intermediateOutput)
 	output := rebasedDir.Join(ctx, "etc", "linker.config.pb")
-	linkerconfig.BuildLinkerConfig(ctx, builder, android.PathsForModuleSrc(ctx, s.filesystem.properties.Linker_config.Linker_config_srcs), provideModules, requireModules, output)
+	builder.Command().Text("cp").Input(intermediateOutput).Output(output)
 
 	s.appendToEntry(ctx, output)
 }

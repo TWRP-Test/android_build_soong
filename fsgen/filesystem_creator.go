@@ -573,9 +573,11 @@ func (f *filesystemCreator) createVendorBuildProp(ctx android.LoadHookContext) {
 		Name                  *string
 		Board_info_files      []string
 		Bootloader_board_name *string
+		Stem                  *string
 	}{
-		Name:             proptools.StringPtr(generatedModuleName(ctx.Config(), "android-info.prop")),
+		Name:             proptools.StringPtr(generatedModuleName(ctx.Config(), "android_info.prop")),
 		Board_info_files: partitionVars.BoardInfoFiles,
+		Stem:             proptools.StringPtr("android_info.txt"),
 	}
 	if len(androidInfoProps.Board_info_files) == 0 {
 		androidInfoProps.Bootloader_board_name = proptools.StringPtr(partitionVars.BootLoaderBoardName)

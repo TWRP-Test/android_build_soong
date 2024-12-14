@@ -16,7 +16,6 @@ package filesystem
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"android/soong/android"
@@ -181,11 +180,9 @@ func TestFileSystemFillsLinkerConfigWithStubLibs(t *testing.T) {
 	`)
 
 	module := result.ModuleForTests("myfilesystem", "android_common")
-	output := module.Output("out/soong/.intermediates/myfilesystem/android_common/myfilesystem/system/etc/linker.config.pb")
+	output := module.Output("out/soong/.intermediates/myfilesystem/android_common/linker.config.pb")
 
-	fullCommand := output.RuleParams.Command
-	startIndex := strings.Index(fullCommand, "conv_linker_config")
-	linkerConfigCommand := fullCommand[startIndex:]
+	linkerConfigCommand := output.RuleParams.Command
 
 	android.AssertStringDoesContain(t, "linker.config.pb should have libfoo",
 		linkerConfigCommand, "libfoo.so")
@@ -735,7 +732,7 @@ cc_library {
 }
 	`)
 
-	linkerConfigCmd := result.ModuleForTests("myfilesystem", "android_common").Rule("build_filesystem_image").RuleParams.Command
+	linkerConfigCmd := result.ModuleForTests("myfilesystem", "android_common").Output("out/soong/.intermediates/myfilesystem/android_common/linker.config.pb").RuleParams.Command
 	android.AssertStringDoesContain(t, "Could not find linker.config.json file in cmd", linkerConfigCmd, "conv_linker_config proto --force -s linker.config.json")
 	android.AssertStringDoesContain(t, "Could not find stub in `provideLibs`", linkerConfigCmd, "--key provideLibs --value libfoo_has_stubs.so")
 }

@@ -731,9 +731,6 @@ type libraryDependencyTag struct {
 	Kind  libraryDependencyKind
 	Order libraryDependencyOrder
 
-	// fromStatic is true when the parent module is a static library or binary
-	fromStatic bool
-
 	wholeStatic bool
 
 	reexportFlags       bool
@@ -2555,7 +2552,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	}
 
 	for _, lib := range deps.HeaderLibs {
-		depTag := libraryDependencyTag{Kind: headerLibraryDependency, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: headerLibraryDependency}
 		if inList(lib, deps.ReexportHeaderLibHeaders) {
 			depTag.reexportFlags = true
 		}
@@ -2597,7 +2594,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	}
 
 	for _, lib := range deps.WholeStaticLibs {
-		depTag := libraryDependencyTag{Kind: staticLibraryDependency, wholeStatic: true, reexportFlags: true, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: staticLibraryDependency, wholeStatic: true, reexportFlags: true}
 
 		actx.AddVariationDependencies([]blueprint.Variation{
 			{Mutator: "link", Variation: "static"},
@@ -2606,7 +2603,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 
 	for _, lib := range deps.StaticLibs {
 		// Some dependencies listed in static_libs might actually be rust_ffi rlib variants.
-		depTag := libraryDependencyTag{Kind: staticLibraryDependency, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: staticLibraryDependency}
 
 		if inList(lib, deps.ReexportStaticLibHeaders) {
 			depTag.reexportFlags = true
@@ -2623,7 +2620,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	// so that native libraries/binaries are linked with static unwinder
 	// because Q libc doesn't have unwinder APIs
 	if deps.StaticUnwinderIfLegacy {
-		depTag := libraryDependencyTag{Kind: staticLibraryDependency, staticUnwinder: true, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: staticLibraryDependency, staticUnwinder: true}
 		actx.AddVariationDependencies([]blueprint.Variation{
 			{Mutator: "link", Variation: "static"},
 		}, depTag, staticUnwinder(actx))
@@ -2633,7 +2630,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	var sharedLibNames []string
 
 	for _, lib := range deps.SharedLibs {
-		depTag := libraryDependencyTag{Kind: sharedLibraryDependency, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: sharedLibraryDependency}
 		if inList(lib, deps.ReexportSharedLibHeaders) {
 			depTag.reexportFlags = true
 		}
@@ -2654,14 +2651,14 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	}
 
 	for _, lib := range deps.LateStaticLibs {
-		depTag := libraryDependencyTag{Kind: staticLibraryDependency, Order: lateLibraryDependency, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: staticLibraryDependency, Order: lateLibraryDependency}
 		actx.AddVariationDependencies([]blueprint.Variation{
 			{Mutator: "link", Variation: "static"},
 		}, depTag, lib)
 	}
 
 	for _, lib := range deps.UnexportedStaticLibs {
-		depTag := libraryDependencyTag{Kind: staticLibraryDependency, Order: lateLibraryDependency, unexportedSymbols: true, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: staticLibraryDependency, Order: lateLibraryDependency, unexportedSymbols: true}
 		actx.AddVariationDependencies([]blueprint.Variation{
 			{Mutator: "link", Variation: "static"},
 		}, depTag, lib)
@@ -2674,7 +2671,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 			// linking against both the stubs lib and the non-stubs lib at the same time.
 			continue
 		}
-		depTag := libraryDependencyTag{Kind: sharedLibraryDependency, Order: lateLibraryDependency, fromStatic: c.static()}
+		depTag := libraryDependencyTag{Kind: sharedLibraryDependency, Order: lateLibraryDependency}
 		variations := []blueprint.Variation{
 			{Mutator: "link", Variation: "shared"},
 		}
@@ -2722,7 +2719,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 
 	version := ctx.sdkVersion()
 
-	ndkStubDepTag := libraryDependencyTag{Kind: sharedLibraryDependency, ndk: true, makeSuffix: "." + version, fromStatic: c.static()}
+	ndkStubDepTag := libraryDependencyTag{Kind: sharedLibraryDependency, ndk: true, makeSuffix: "." + version}
 	actx.AddVariationDependencies([]blueprint.Variation{
 		{Mutator: "version", Variation: version},
 		{Mutator: "link", Variation: "shared"},
@@ -2732,7 +2729,7 @@ func (c *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 		{Mutator: "link", Variation: "shared"},
 	}, ndkStubDepTag, apiNdkLibs...)
 
-	ndkLateStubDepTag := libraryDependencyTag{Kind: sharedLibraryDependency, Order: lateLibraryDependency, ndk: true, makeSuffix: "." + version, fromStatic: c.static()}
+	ndkLateStubDepTag := libraryDependencyTag{Kind: sharedLibraryDependency, Order: lateLibraryDependency, ndk: true, makeSuffix: "." + version}
 	actx.AddVariationDependencies([]blueprint.Variation{
 		{Mutator: "version", Variation: version},
 		{Mutator: "link", Variation: "shared"},
@@ -3772,12 +3769,23 @@ func (c *Module) OutgoingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 		// APEX.
 		return false
 	}
+
+	libDepTag, isLibDepTag := depTag.(libraryDependencyTag)
+	if isLibDepTag && c.static() && libDepTag.shared() {
+		// shared_lib dependency from a static lib is considered as crossing
+		// the APEX boundary because the dependency doesn't actually is
+		// linked; the dependency is used only during the compilation phase.
+		return false
+	}
+
+	if isLibDepTag && libDepTag.excludeInApex {
+		return false
+	}
+
 	return true
 }
 
 func (c *Module) IncomingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
-	libDepTag, isLibDepTag := depTag.(libraryDependencyTag)
-
 	if c.HasStubsVariants() {
 		if IsSharedDepTag(depTag) {
 			// dynamic dep to a stubs lib crosses APEX boundary
@@ -3792,16 +3800,6 @@ func (c *Module) IncomingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 		}
 	}
 	if c.IsLlndk() {
-		return false
-	}
-	if isLibDepTag && libDepTag.fromStatic && libDepTag.shared() {
-		// shared_lib dependency from a static lib is considered as crossing
-		// the APEX boundary because the dependency doesn't actually is
-		// linked; the dependency is used only during the compilation phase.
-		return false
-	}
-
-	if isLibDepTag && libDepTag.excludeInApex {
 		return false
 	}
 

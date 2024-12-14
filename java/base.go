@@ -109,6 +109,10 @@ type CommonProperties struct {
 	// if not blank, used as prefix to generate repackage rule
 	Jarjar_prefix *string
 
+	// Number of shards for jarjar. It needs to be an integer represented as a string.
+	// TODO(b/383559945) change it to int, once Configurable supports the type.
+	Jarjar_shards proptools.Configurable[string]
+
 	// If not blank, set the java version passed to javac as -source and -target
 	Java_version *string
 
@@ -1273,7 +1277,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		localHeaderJars, combinedHeaderJarFile := j.compileJavaHeader(ctx, uniqueJavaFiles, srcJars, deps, flags, jarName,
 			extraCombinedJars)
 
-		combinedHeaderJarFile, jarjared := j.jarjarIfNecessary(ctx, combinedHeaderJarFile, jarName, "turbine")
+		combinedHeaderJarFile, jarjared := j.jarjarIfNecessary(ctx, combinedHeaderJarFile, jarName, "turbine", false)
 		if jarjared {
 			localHeaderJars = android.Paths{combinedHeaderJarFile}
 			transitiveStaticLibsHeaderJars = nil
@@ -1409,7 +1413,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		shardingHeaderJars = localHeaderJars
 
 		var jarjared bool
-		j.headerJarFile, jarjared = j.jarjarIfNecessary(ctx, combinedHeaderJarFile, jarName, "turbine")
+		j.headerJarFile, jarjared = j.jarjarIfNecessary(ctx, combinedHeaderJarFile, jarName, "turbine", false)
 		if jarjared {
 			// jarjar modifies transitive static dependencies, use the combined header jar and drop the transitive
 			// static libs header jars.
@@ -1643,7 +1647,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 	}
 
 	// jarjar implementation jar if necessary
-	jarjarFile, jarjarred := j.jarjarIfNecessary(ctx, outputFile, jarName, "")
+	jarjarFile, jarjarred := j.jarjarIfNecessary(ctx, outputFile, jarName, "", true)
 	if jarjarred {
 		localImplementationJars = android.Paths{jarjarFile}
 		completeStaticLibsImplementationJars = depset.New(depset.PREORDER, localImplementationJars, nil)
@@ -1652,7 +1656,7 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 
 	// jarjar resource jar if necessary
 	if combinedResourceJar != nil {
-		resourceJarJarFile, jarjarred := j.jarjarIfNecessary(ctx, combinedResourceJar, jarName, "resource")
+		resourceJarJarFile, jarjarred := j.jarjarIfNecessary(ctx, combinedResourceJar, jarName, "resource", false)
 		combinedResourceJar = resourceJarJarFile
 		if jarjarred {
 			localResourceJars = android.Paths{resourceJarJarFile}
@@ -2941,12 +2945,23 @@ func (j *Module) repackageFlagsIfNecessary(ctx android.ModuleContext, infile and
 	return repackagedJarjarFile, true
 }
 
-func (j *Module) jarjarIfNecessary(ctx android.ModuleContext, infile android.Path, jarName, info string) (android.Path, bool) {
+func (j *Module) jarjarIfNecessary(ctx android.ModuleContext, infile android.Path, jarName, info string, useShards bool) (android.Path, bool) {
 	if j.expandJarjarRules == nil {
 		return infile, false
 	}
 	jarjarFile := android.PathForModuleOut(ctx, "jarjar", info, jarName)
-	TransformJarJar(ctx, jarjarFile, infile, j.expandJarjarRules)
+
+	totalShards := 1
+	if useShards {
+		totalShardsStr := j.properties.Jarjar_shards.GetOrDefault(ctx, "1")
+		ts, err := strconv.Atoi(totalShardsStr)
+		if err != nil {
+			ctx.PropertyErrorf("jarjar_shards", "jarjar_shards must be an integer represented as a string")
+			return infile, false
+		}
+		totalShards = ts
+	}
+	TransformJarJarWithShards(ctx, jarjarFile, infile, j.expandJarjarRules, totalShards)
 	return jarjarFile, true
 
 }

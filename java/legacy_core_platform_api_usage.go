@@ -28,6 +28,9 @@ var legacyCorePlatformApiModules = []string{
 	"FloralClocks",
 	"framework-jobscheduler",
 	"framework-minus-apex",
+	// TODO(b/383559945) Remove "framework-minus-apex_jarjar-sharded" once
+	// we remove this module.
+	"framework-minus-apex_jarjar-sharded",
 	"framework-minus-apex-headers",
 	"framework-minus-apex-intdefs",
 	"FrameworksCoreTests",

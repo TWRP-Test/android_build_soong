@@ -266,6 +266,7 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 		)
 		fsProps.Base_dir = proptools.StringPtr("system")
 		fsProps.Dirs = proptools.NewSimpleConfigurable(commonPartitionDirs)
+		fsProps.Security_patch = proptools.StringPtr(ctx.Config().PlatformSecurityPatch())
 	case "system_ext":
 		if partitionVars.ProductFsverityGenerateMetadata {
 			fsProps.Fsverity.Inputs = []string{
@@ -275,12 +276,14 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 			}
 			fsProps.Fsverity.Libs = []string{":framework-res{.export-package.apk}"}
 		}
+		fsProps.Security_patch = proptools.StringPtr(ctx.Config().PlatformSecurityPatch())
 	case "product":
 		fsProps.Gen_aconfig_flags_pb = proptools.BoolPtr(true)
 		fsProps.Android_filesystem_deps.System = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system"))
 		if ctx.DeviceConfig().SystemExtPath() == "system_ext" {
 			fsProps.Android_filesystem_deps.System_ext = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system_ext"))
 		}
+		fsProps.Security_patch = proptools.StringPtr(ctx.Config().PlatformSecurityPatch())
 	case "vendor":
 		fsProps.Gen_aconfig_flags_pb = proptools.BoolPtr(true)
 		fsProps.Symlinks = []filesystem.SymlinkDefinition{
@@ -297,6 +300,7 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 		if ctx.DeviceConfig().SystemExtPath() == "system_ext" {
 			fsProps.Android_filesystem_deps.System_ext = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system_ext"))
 		}
+		fsProps.Security_patch = proptools.StringPtr(partitionVars.VendorSecurityPatch)
 	case "odm":
 		fsProps.Symlinks = []filesystem.SymlinkDefinition{
 			filesystem.SymlinkDefinition{
@@ -304,6 +308,7 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 				Name:   proptools.StringPtr("lib/modules"),
 			},
 		}
+		fsProps.Security_patch = proptools.StringPtr(partitionVars.OdmSecurityPatch)
 	case "userdata":
 		fsProps.Base_dir = proptools.StringPtr("data")
 	case "ramdisk":
@@ -358,6 +363,12 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 			Target: proptools.StringPtr("prop.default"),
 			Name:   proptools.StringPtr("default.prop"),
 		}), "root")
+	case "system_dlkm":
+		fsProps.Security_patch = proptools.StringPtr(partitionVars.SystemDlkmSecurityPatch)
+	case "vendor_dlkm":
+		fsProps.Security_patch = proptools.StringPtr(partitionVars.VendorDlkmSecurityPatch)
+	case "odm_dlkm":
+		fsProps.Security_patch = proptools.StringPtr(partitionVars.OdmDlkmSecurityPatch)
 	}
 }
 
@@ -746,6 +757,8 @@ func generateFsProps(ctx android.EarlyModuleContext, partitionType string) (*fil
 	}
 
 	fsProps.Is_auto_generated = proptools.BoolPtr(true)
+	// TODO(b/381120092): Verify mount_point for system partition
+	fsProps.Mount_point = proptools.StringPtr(partitionType)
 
 	partitionSpecificFsProps(ctx, fsProps, partitionVars, partitionType)
 

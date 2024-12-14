@@ -618,7 +618,11 @@ type PartitionVariables struct {
 	ProductUseDynamicPartitionSize bool   `json:",omitempty"`
 	CopyImagesForTargetFilesZip    bool   `json:",omitempty"`
 
-	VendorSecurityPatch string `json:",omitempty"`
+	VendorSecurityPatch     string `json:",omitempty"`
+	OdmSecurityPatch        string `json:",omitempty"`
+	SystemDlkmSecurityPatch string `json:",omitempty"`
+	VendorDlkmSecurityPatch string `json:",omitempty"`
+	OdmDlkmSecurityPatch    string `json:",omitempty"`
 
 	// Boot image stuff
 	BuildingRamdiskImage            bool     `json:",omitempty"`

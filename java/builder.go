@@ -238,12 +238,12 @@ var (
 				// for newly repackaged classes. Dropping @UnsupportedAppUsage on repackaged classes
 				// avoids adding new hiddenapis after jarjar'ing.
 				" -DremoveAndroidCompatAnnotations=true" +
-				" -jar ${config.JarjarCmd} process $rulesFile $in $out && " +
+				" -jar ${config.JarjarCmd} process $rulesFile $in $out $total_shards $shard_index && " +
 				// Turn a missing output file into a ninja error
 				`[ -e ${out} ] || (echo "Missing output file"; exit 1)`,
 			CommandDeps: []string{"${config.JavaCmd}", "${config.JarjarCmd}", "$rulesFile"},
 		},
-		"rulesFile")
+		"rulesFile", "total_shards", "shard_index")
 
 	packageCheck = pctx.AndroidStaticRule("packageCheck",
 		blueprint.RuleParams{
@@ -750,16 +750,58 @@ func convertImplementationJarToHeaderJar(ctx android.ModuleContext, implementati
 
 func TransformJarJar(ctx android.ModuleContext, outputFile android.WritablePath,
 	classesJar android.Path, rulesFile android.Path) {
+	TransformJarJarWithShards(ctx, outputFile, classesJar, rulesFile, 1)
+}
+
+func TransformJarJarWithShards(ctx android.ModuleContext, outputFile android.WritablePath,
+	classesJar android.Path, rulesFile android.Path, totalShards int) {
+
+	// If the total number of shards is 1, just run jarjar as-is, with `total_shards` = 1
+	// and `shard_index` == 0, which effectively disables sharding
+	if totalShards == 1 {
+		ctx.Build(pctx, android.BuildParams{
+			Rule:        jarjar,
+			Description: "jarjar",
+			Output:      outputFile,
+			Input:       classesJar,
+			Implicit:    rulesFile,
+			Args: map[string]string{
+				"rulesFile":    rulesFile.String(),
+				"total_shards": "1",
+				"shard_index":  "0",
+			},
+		})
+		return
+	}
+
+	// Otherwise, run multiple jarjar instances and use merge_zips to combine the output.
+	tempJars := make([]android.Path, 0)
+	totalStr := strconv.Itoa(totalShards)
+	for i := 0; i < totalShards; i++ {
+		iStr := strconv.Itoa(i)
+		tempOut := android.PathForOutput(ctx, outputFile.String()+"-"+iStr+".jar")
+		ctx.Build(pctx, android.BuildParams{
+			Rule:        jarjar,
+			Description: "jarjar (" + iStr + "/" + totalStr + ")",
+			Output:      tempOut,
+			Input:       classesJar,
+			Implicit:    rulesFile,
+			Args: map[string]string{
+				"rulesFile":    rulesFile.String(),
+				"total_shards": totalStr,
+				"shard_index":  iStr,
+			},
+		})
+		tempJars = append(tempJars, tempOut)
+	}
+
 	ctx.Build(pctx, android.BuildParams{
-		Rule:        jarjar,
-		Description: "jarjar",
+		Rule:        combineJar,
+		Description: "merge jarjar shards",
 		Output:      outputFile,
-		Input:       classesJar,
-		Implicit:    rulesFile,
-		Args: map[string]string{
-			"rulesFile": rulesFile.String(),
-		},
+		Inputs:      tempJars,
 	})
+
 }
 
 func CheckJarPackages(ctx android.ModuleContext, outputFile android.WritablePath,

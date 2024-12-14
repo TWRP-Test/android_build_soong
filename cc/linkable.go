@@ -294,8 +294,8 @@ func DepTagMakeSuffix(depTag blueprint.DependencyTag) string {
 }
 
 // SharedDepTag returns the dependency tag for any C++ shared libraries.
-func SharedDepTag(fromStatic bool) blueprint.DependencyTag {
-	return libraryDependencyTag{Kind: sharedLibraryDependency, fromStatic: fromStatic}
+func SharedDepTag() blueprint.DependencyTag {
+	return libraryDependencyTag{Kind: sharedLibraryDependency}
 }
 
 // StaticDepTag returns the dependency tag for any C++ static libraries.

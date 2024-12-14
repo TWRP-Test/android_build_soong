@@ -281,7 +281,7 @@ func rustSanitizerRuntimeMutator(mctx android.BottomUpMutatorContext) {
 			} else {
 				variations = append(variations,
 					blueprint.Variation{Mutator: "link", Variation: "shared"})
-				depTag = cc.SharedDepTag(mod.Static())
+				depTag = cc.SharedDepTag()
 				deps = []string{config.LibclangRuntimeLibrary(mod.toolchain(mctx), "asan")}
 			}
 		} else if mod.IsSanitizerEnabled(cc.Hwasan) {
@@ -296,7 +296,7 @@ func rustSanitizerRuntimeMutator(mctx android.BottomUpMutatorContext) {
 			// library during final link if necessary
 			variations = append(variations,
 				blueprint.Variation{Mutator: "link", Variation: "shared"})
-			depTag = cc.SharedDepTag(mod.Static())
+			depTag = cc.SharedDepTag()
 			deps = []string{config.LibclangRuntimeLibrary(mod.toolchain(mctx), "hwasan")}
 		}
 

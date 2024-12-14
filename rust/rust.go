@@ -1683,7 +1683,7 @@ func (mod *Module) DepsMutator(actx android.BottomUpMutatorContext) {
 	}
 
 	for _, lib := range deps.SharedLibs {
-		depTag := cc.SharedDepTag(mod.Static())
+		depTag := cc.SharedDepTag()
 		name, version := cc.StubsLibNameAndVersion(lib)
 
 		variations := []blueprint.Variation{
@@ -1826,6 +1826,13 @@ func (mod *Module) ShouldSupportSdkVersion(ctx android.BaseModuleContext, sdkVer
 // Implements android.ApexModule
 func (mod *Module) OutgoingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 	if depTag == procMacroDepTag || depTag == customBindgenDepTag {
+		return false
+	}
+
+	if mod.Static() && cc.IsSharedDepTag(depTag) {
+		// shared_lib dependency from a static lib is considered as crossing
+		// the APEX boundary because the dependency doesn't actually is
+		// linked; the dependency is used only during the compilation phase.
 		return false
 	}
 

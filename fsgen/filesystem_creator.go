@@ -267,6 +267,10 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 		fsProps.Base_dir = proptools.StringPtr("system")
 		fsProps.Dirs = proptools.NewSimpleConfigurable(commonPartitionDirs)
 		fsProps.Security_patch = proptools.StringPtr(ctx.Config().PlatformSecurityPatch())
+
+		if ctx.DeviceConfig().SystemExtPath() == "system_ext" {
+			fsProps.Import_aconfig_flags_from = []string{generatedModuleNameForPartition(ctx.Config(), "system_ext")}
+		}
 	case "system_ext":
 		if partitionVars.ProductFsverityGenerateMetadata {
 			fsProps.Fsverity.Inputs = []string{

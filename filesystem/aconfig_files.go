@@ -17,26 +17,55 @@ package filesystem
 import (
 	"android/soong/android"
 
+	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 )
 
-func (f *filesystem) buildAconfigFlagsFiles(ctx android.ModuleContext, builder *android.RuleBuilder, specs map[string]android.PackagingSpec, dir android.OutputPath) {
-	if !proptools.Bool(f.properties.Gen_aconfig_flags_pb) {
-		return
-	}
+type installedAconfigFlagsInfo struct {
+	aconfigFiles android.Paths
+}
 
+var installedAconfigFlagsProvider = blueprint.NewProvider[installedAconfigFlagsInfo]()
+
+type importAconfigDepDag struct {
+	blueprint.BaseDependencyTag
+}
+
+var importAconfigDependencyTag = interPartitionDepTag{}
+
+func (f *filesystem) buildAconfigFlagsFiles(ctx android.ModuleContext, builder *android.RuleBuilder, specs map[string]android.PackagingSpec, dir android.OutputPath) {
 	var caches []android.Path
 	for _, ps := range specs {
 		caches = append(caches, ps.GetAconfigPaths()...)
 	}
+
+	ctx.VisitDirectDepsWithTag(importAconfigDependencyTag, func(m android.Module) {
+		info, ok := android.OtherModuleProvider(ctx, m, installedAconfigFlagsProvider)
+		if !ok {
+			ctx.ModuleErrorf("expected dependency %s to have an installedAconfigFlagsProvider", m.Name())
+			return
+		}
+		caches = append(caches, info.aconfigFiles...)
+	})
 	caches = android.SortedUniquePaths(caches)
+
+	android.SetProvider(ctx, installedAconfigFlagsProvider, installedAconfigFlagsInfo{
+		aconfigFiles: caches,
+	})
+
+	if !proptools.Bool(f.properties.Gen_aconfig_flags_pb) {
+		return
+	}
+
+	container := f.PartitionType()
 
 	installAconfigFlagsPath := dir.Join(ctx, "etc", "aconfig_flags.pb")
 	cmd := builder.Command().
 		BuiltTool("aconfig").
 		Text(" dump-cache --dedup --format protobuf --out").
 		Output(installAconfigFlagsPath).
-		Textf("--filter container:%s", f.PartitionType())
+		Textf("--filter container:%s+state:ENABLED", container).
+		Textf("--filter container:%s+permission:READ_WRITE", container)
 	for _, cache := range caches {
 		cmd.FlagWithInput("--cache ", cache)
 	}
@@ -49,7 +78,7 @@ func (f *filesystem) buildAconfigFlagsFiles(ctx android.ModuleContext, builder *
 		outputPath := installAconfigStorageDir.Join(ctx, fileName)
 		builder.Command().
 			BuiltTool("aconfig").
-			FlagWithArg("create-storage --container ", f.PartitionType()).
+			FlagWithArg("create-storage --container ", container).
 			FlagWithArg("--file ", fileType).
 			FlagWithOutput("--out ", outputPath).
 			FlagWithArg("--cache ", installAconfigFlagsPath.String())

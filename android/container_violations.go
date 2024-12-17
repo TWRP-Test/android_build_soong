@@ -981,7 +981,11 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"NfcNciApex": {
+		// TODO(b/383782511): Remove the violations once the infra is fixed.
+		"android.nfc.flags-aconfig-java",        // apex [com.android.nfcservices] -> system
 		"android.permission.flags-aconfig-java", // apex [com.android.nfcservices] -> apex [com.android.permission, test_com.android.permission]
+		// TODO(b/383782511): Remove the violations once the infra is fixed.
+		"framework-nfc.impl",                    // apex [com.android.nfcservices] -> system
 	},
 
 	"okhttp-norepackage": {

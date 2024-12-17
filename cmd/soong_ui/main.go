@@ -197,7 +197,7 @@ func main() {
 	rbeMetricsFile := filepath.Join(logsDir, c.logsPrefix+"rbe_metrics.pb")
 	soongBuildMetricsFile := filepath.Join(logsDir, c.logsPrefix+"soong_build_metrics.pb")
 	buildTraceFile := filepath.Join(logsDir, c.logsPrefix+"build.trace.gz")
-	executionMetricsFile := filepath.Join(logsDir, c.logsPrefix+"soong_execution_metrics.pb")
+	executionMetricsFile := filepath.Join(logsDir, c.logsPrefix+"execution_metrics.pb")
 
 	metricsFiles := []string{
 		buildErrorFile,        // build error strings

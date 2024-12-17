@@ -427,6 +427,7 @@ type PathDeps struct {
 	StaticLibs    android.Paths
 	ProcMacros    RustLibraries
 	AfdoProfiles  android.Paths
+	LinkerDeps    android.Paths
 
 	// depFlags and depLinkFlags are rustc and linker (clang) flags.
 	depFlags     []string

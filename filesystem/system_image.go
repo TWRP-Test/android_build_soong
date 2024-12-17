@@ -16,6 +16,7 @@ package filesystem
 
 import (
 	"android/soong/android"
+	"android/soong/cc"
 	"android/soong/linkerconfig"
 
 	"strings"
@@ -48,11 +49,45 @@ func (s *systemImage) BuildLinkerConfigFile(ctx android.ModuleContext, builder *
 		return
 	}
 
-	provideModules, requireModules := s.getLibsForLinkerConfig(ctx)
-	intermediateOutput := android.PathForModuleOut(ctx, "linker.config.pb")
-	linkerconfig.BuildLinkerConfig(ctx, android.PathsForModuleSrc(ctx, s.filesystem.properties.Linker_config.Linker_config_srcs), provideModules, requireModules, intermediateOutput)
 	output := rebasedDir.Join(ctx, "etc", "linker.config.pb")
-	builder.Command().Text("cp").Input(intermediateOutput).Output(output)
+	if s.filesystem.properties.Linker_config.Linker_config_srcs != nil {
+		provideModules, requireModules := s.getLibsForLinkerConfig(ctx)
+		intermediateOutput := android.PathForModuleOut(ctx, "linker.config.pb")
+		linkerconfig.BuildLinkerConfig(ctx, android.PathsForModuleSrc(ctx, s.filesystem.properties.Linker_config.Linker_config_srcs), provideModules, requireModules, intermediateOutput)
+		builder.Command().Text("cp").Input(intermediateOutput).Output(output)
+	} else {
+		// TODO: This branch is the logic that make uses for the linker config file, which is
+		// different than linkerconfig.BuildLinkerConfig used above. Keeping both branches for now
+		// because microdroid uses the other method and is in theory happy with it. But we should
+		// consider deduping them.
+		stubLibraries := cc.StubLibrariesFile(ctx)
+		llndkMovedToApexLibraries := cc.MovedToApexLlndkLibrariesFile(ctx)
+		outputStep1 := android.PathForModuleOut(ctx, "linker.config.pb.step1")
+		builder.Command().
+			BuiltTool("conv_linker_config").
+			Text("proto --force").
+			FlagWithInput("-s ", android.PathForSource(ctx, "system/core/rootdir/etc/linker.config.json")).
+			FlagWithOutput("-o ", outputStep1)
+		builder.Temporary(outputStep1)
+		builder.Command().
+			BuiltTool("conv_linker_config").
+			Text("systemprovide").
+			FlagWithInput("--source ", outputStep1).
+			FlagWithArg("--output ", output.String()).
+			Textf(`--value "$(cat %s)"`, stubLibraries).
+			Implicit(stubLibraries).
+			FlagWithArg("--system ", rebasedDir.String())
+		builder.Command().
+			BuiltTool("conv_linker_config").
+			Text("append").
+			FlagWithArg("--source ", output.String()).
+			FlagWithOutput("--output ", output).
+			FlagWithArg("--key ", "requireLibs").
+			Textf(`--value "$(cat %s)"`, llndkMovedToApexLibraries).
+			Implicit(llndkMovedToApexLibraries)
+		// TODO: Make also supports adding an extra append command with PRODUCT_EXTRA_STUB_LIBRARIES,
+		// but that variable appears to have no usages.
+	}
 
 	s.appendToEntry(ctx, output)
 }

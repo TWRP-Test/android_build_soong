@@ -204,8 +204,7 @@ func (c *ExecutionMetrics) Dump(path string, args []string) error {
 	if c.MetricsAggregationDir == "" {
 		return nil
 	}
-	msg := c.GetMetrics()
-	msg.CommandArgs = args
+	msg := c.GetMetrics(args)
 
 	if _, err := os.Stat(filepath.Dir(path)); err != nil {
 		if err = os.MkdirAll(filepath.Dir(path), 0775); err != nil {
@@ -219,7 +218,14 @@ func (c *ExecutionMetrics) Dump(path string, args []string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-func (c *ExecutionMetrics) GetMetrics() *soong_metrics_proto.AggregatedFileList {
+func (c *ExecutionMetrics) GetMetrics(args []string) *soong_metrics_proto.ExecutionMetrics {
+	return &soong_metrics_proto.ExecutionMetrics{
+		CommandArgs:  args,
+		ChangedFiles: c.getChangedFiles(),
+	}
+}
+
+func (c *ExecutionMetrics) getChangedFiles() *soong_metrics_proto.AggregatedFileList {
 	fl := c.fileList
 	if fl == nil {
 		return nil

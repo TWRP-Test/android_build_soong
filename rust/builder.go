@@ -30,11 +30,11 @@ var (
 	rustc = pctx.AndroidStaticRule("rustc",
 		blueprint.RuleParams{
 			Command: "$envVars $rustcCmd " +
-				"-C linker=${config.RustLinker} " +
-				"-C link-args=\"${crtBegin} ${earlyLinkFlags} ${linkFlags} ${crtEnd}\" " +
+				"-C linker=${RustcLinkerCmd} " +
+				"-C link-args=\"--android-clang-bin=${config.ClangCmd} ${crtBegin} ${earlyLinkFlags} ${linkFlags} ${crtEnd}\" " +
 				"--emit link -o $out --emit dep-info=$out.d.raw $in ${libFlags} $rustcFlags" +
 				" && grep ^$out: $out.d.raw > $out.d",
-			CommandDeps: []string{"$rustcCmd"},
+			CommandDeps: []string{"$rustcCmd", "${RustcLinkerCmd}", "${config.ClangCmd}"},
 			// Rustc deps-info writes out make compatible dep files: https://github.com/rust-lang/rust/issues/7633
 			// Rustc emits unneeded dependency lines for the .d and input .rs files.
 			// Those extra lines cause ninja warning:
@@ -102,10 +102,10 @@ var (
 				`KYTHE_CANONICALIZE_VNAME_PATHS=prefer-relative ` +
 				`$rustExtractor $envVars ` +
 				`$rustcCmd ` +
-				`-C linker=${config.RustLinker} ` +
-				`-C link-args="${crtBegin} ${linkFlags} ${crtEnd}" ` +
+				`-C linker=${RustcLinkerCmd} ` +
+				`-C link-args="--android-clang-bin=${config.ClangCmd} ${crtBegin} ${linkFlags} ${crtEnd}" ` +
 				`$in ${libFlags} $rustcFlags`,
-			CommandDeps:    []string{"$rustExtractor", "$kytheVnames"},
+			CommandDeps:    []string{"$rustExtractor", "$kytheVnames", "${RustcLinkerCmd}", "${config.ClangCmd}"},
 			Rspfile:        "${out}.rsp",
 			RspfileContent: "$in",
 		},
@@ -119,6 +119,7 @@ type buildOutput struct {
 
 func init() {
 	pctx.HostBinToolVariable("SoongZipCmd", "soong_zip")
+	pctx.HostBinToolVariable("RustcLinkerCmd", "rustc_linker")
 	cc.TransformRlibstoStaticlib = TransformRlibstoStaticlib
 }
 
@@ -411,6 +412,7 @@ func transformSrctoCrate(ctx android.ModuleContext, main android.Path, deps Path
 	implicits = append(implicits, deps.SharedLibDeps...)
 	implicits = append(implicits, deps.srcProviderFiles...)
 	implicits = append(implicits, deps.AfdoProfiles...)
+	implicits = append(implicits, deps.LinkerDeps...)
 
 	implicits = append(implicits, deps.CrtBegin...)
 	implicits = append(implicits, deps.CrtEnd...)

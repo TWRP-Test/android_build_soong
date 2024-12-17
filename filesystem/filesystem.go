@@ -696,6 +696,9 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 			avb_add_hashtree_footer_args += " --rollback_index " + strconv.Itoa(rollbackIndex)
 		}
 		avb_add_hashtree_footer_args += fmt.Sprintf(" --prop com.android.build.%s.os_version:%s", f.partitionName(), ctx.Config().PlatformVersionLastStable())
+		// We're not going to add BuildFingerPrintFile as a dep. If it changed, it's likely because
+		// the build number changed, and we don't want to trigger rebuilds solely based on the build
+		// number.
 		avb_add_hashtree_footer_args += fmt.Sprintf(" --prop com.android.build.%s.fingerprint:{CONTENTS_OF:%s}", f.partitionName(), ctx.Config().BuildFingerprintFile(ctx))
 		if f.properties.Security_patch != nil && proptools.String(f.properties.Security_patch) != "" {
 			avb_add_hashtree_footer_args += fmt.Sprintf(" --prop com.android.build.%s.security_patch:%s", f.partitionName(), proptools.String(f.properties.Security_patch))
@@ -753,10 +756,9 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 	android.WriteFileRuleVerbatim(ctx, propFilePreProcessing, propFileString.String())
 	propFile := android.PathForModuleOut(ctx, "prop")
 	ctx.Build(pctx, android.BuildParams{
-		Rule:     textFileProcessorRule,
-		Input:    propFilePreProcessing,
-		Output:   propFile,
-		Implicit: ctx.Config().BuildFingerprintFile(ctx),
+		Rule:   textFileProcessorRule,
+		Input:  propFilePreProcessing,
+		Output: propFile,
 	})
 	return propFile, deps
 }

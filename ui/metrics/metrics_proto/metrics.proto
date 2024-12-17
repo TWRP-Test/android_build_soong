@@ -452,13 +452,19 @@ message OptimizedBuildMetrics {
   }
 }
 
+// This is created by soong_ui from SoongExexcutionMetrics files.
+message ExecutionMetrics {
+  // The arguments provided on the command line.
+  repeated string command_args = 1;
+
+  // Changed files detected by the build.
+  optional AggregatedFileList changed_files = 2;
+}
+
 // This is created by soong_ui from the various
 // android.find_input_delta_proto.FileList metrics provided to it by
 // find_input_delta.
 message AggregatedFileList {
-  // The arguments provided on the command line.
-  repeated string command_args = 1;
-
   // The (possibly truncated list of) added files.
   repeated string additions = 2;
 
@@ -473,6 +479,8 @@ message AggregatedFileList {
 
   // Counts by extension.
   repeated FileCount counts = 6;
+
+  reserved 1;
 }
 
 message FileCount {

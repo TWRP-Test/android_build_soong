@@ -63,23 +63,52 @@ type llndkLibraryProperties struct {
 }
 
 func makeLlndkVars(ctx android.MakeVarsContext) {
-	// Make uses LLNDK_MOVED_TO_APEX_LIBRARIES to generate the linker config.
-	movedToApexLlndkLibraries := make(map[string]bool)
-	ctx.VisitAllModules(func(module android.Module) {
-		if library := moduleLibraryInterface(module); library != nil && library.hasLLNDKStubs() {
-			if library.isLLNDKMovedToApex() {
-				name := library.implementationModuleName(module.(*Module).BaseModuleName())
-				movedToApexLlndkLibraries[name] = true
-			}
-		}
-	})
 
-	ctx.Strict("LLNDK_MOVED_TO_APEX_LIBRARIES",
-		strings.Join(android.SortedKeys(movedToApexLlndkLibraries), " "))
 }
 
 func init() {
 	RegisterLlndkLibraryTxtType(android.InitRegistrationContext)
+	android.RegisterParallelSingletonType("movedToApexLlndkLibraries", movedToApexLlndkLibrariesFactory)
+}
+
+func movedToApexLlndkLibrariesFactory() android.Singleton {
+	return &movedToApexLlndkLibraries{}
+}
+
+type movedToApexLlndkLibraries struct {
+	movedToApexLlndkLibraries []string
+}
+
+func (s *movedToApexLlndkLibraries) GenerateBuildActions(ctx android.SingletonContext) {
+	// Make uses LLNDK_MOVED_TO_APEX_LIBRARIES to generate the linker config.
+	movedToApexLlndkLibrariesMap := make(map[string]bool)
+	ctx.VisitAllModules(func(module android.Module) {
+		if library := moduleLibraryInterface(module); library != nil && library.hasLLNDKStubs() {
+			if library.isLLNDKMovedToApex() {
+				name := library.implementationModuleName(module.(*Module).BaseModuleName())
+				movedToApexLlndkLibrariesMap[name] = true
+			}
+		}
+	})
+	s.movedToApexLlndkLibraries = android.SortedKeys(movedToApexLlndkLibrariesMap)
+
+	var sb strings.Builder
+	for i, l := range s.movedToApexLlndkLibraries {
+		if i > 0 {
+			sb.WriteRune(' ')
+		}
+		sb.WriteString(l)
+		sb.WriteString(".so")
+	}
+	android.WriteFileRule(ctx, MovedToApexLlndkLibrariesFile(ctx), sb.String())
+}
+
+func MovedToApexLlndkLibrariesFile(ctx android.PathContext) android.WritablePath {
+	return android.PathForIntermediates(ctx, "moved_to_apex_llndk_libraries.txt")
+}
+
+func (s *movedToApexLlndkLibraries) MakeVars(ctx android.MakeVarsContext) {
+	ctx.Strict("LLNDK_MOVED_TO_APEX_LIBRARIES", strings.Join(s.movedToApexLlndkLibraries, " "))
 }
 
 func RegisterLlndkLibraryTxtType(ctx android.RegistrationContext) {

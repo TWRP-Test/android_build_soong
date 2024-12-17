@@ -69,6 +69,18 @@ type LibraryCompilerProperties struct {
 	// path to include directories to export to cc_* modules, only relevant for static/shared variants.
 	Export_include_dirs []string `android:"path,arch_variant"`
 
+	// Version script to pass to the linker. By default this will replace the
+	// implicit rustc emitted version script to mirror expected behavior in CC.
+	// This is only relevant for rust_ffi_shared modules which are exposing a
+	// versioned C API.
+	Version_script *string `android:"path,arch_variant"`
+
+	// A version_script formatted text file with additional symbols to export
+	// for rust shared or dylibs which the rustc compiler does not automatically
+	// export, e.g. additional symbols from whole_static_libs. Unlike
+	// Version_script, this is not meant to imply a stable API.
+	Extra_exported_symbols *string `android:"path,arch_variant"`
+
 	// Whether this library is part of the Rust toolchain sysroot.
 	Sysroot *bool
 
@@ -576,7 +588,31 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 	flags.LinkFlags = append(flags.LinkFlags, deps.depLinkFlags...)
 	flags.LinkFlags = append(flags.LinkFlags, deps.linkObjects...)
 
+	if String(library.Properties.Version_script) != "" {
+		if String(library.Properties.Extra_exported_symbols) != "" {
+			ctx.ModuleErrorf("version_script and extra_exported_symbols cannot both be set.")
+		}
+
+		if library.shared() {
+			// "-Wl,--android-version-script" signals to the rustcLinker script
+			// that the default version script should be removed.
+			flags.LinkFlags = append(flags.LinkFlags, "-Wl,--android-version-script="+android.PathForModuleSrc(ctx, String(library.Properties.Version_script)).String())
+			deps.LinkerDeps = append(deps.LinkerDeps, android.PathForModuleSrc(ctx, String(library.Properties.Version_script)))
+		} else if !library.static() && !library.rlib() {
+			// We include rlibs here because rust_ffi produces rlib variants
+			ctx.PropertyErrorf("version_script", "can only be set for rust_ffi modules")
+		}
+	}
+
+	if String(library.Properties.Extra_exported_symbols) != "" {
+		// Passing a second version script (rustc calculates and emits a
+		// default version script) will concatenate the first version script.
+		flags.LinkFlags = append(flags.LinkFlags, "-Wl,--version-script="+android.PathForModuleSrc(ctx, String(library.Properties.Extra_exported_symbols)).String())
+		deps.LinkerDeps = append(deps.LinkerDeps, android.PathForModuleSrc(ctx, String(library.Properties.Extra_exported_symbols)))
+	}
+
 	if library.dylib() {
+
 		// We need prefer-dynamic for now to avoid linking in the static stdlib. See:
 		// https://github.com/rust-lang/rust/issues/19680
 		// https://github.com/rust-lang/rust/issues/34909

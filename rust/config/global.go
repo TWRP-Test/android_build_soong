@@ -121,7 +121,7 @@ func init() {
 	pctx.StaticVariable("RustBin", "${RustPath}/bin")
 
 	pctx.ImportAs("cc_config", "android/soong/cc/config")
-	pctx.StaticVariable("RustLinker", "${cc_config.ClangBin}/clang++")
+	pctx.StaticVariable("ClangCmd", "${cc_config.ClangBin}/clang++")
 
 	pctx.StaticVariable("DeviceGlobalLinkFlags", strings.Join(deviceGlobalLinkFlags, " "))
 

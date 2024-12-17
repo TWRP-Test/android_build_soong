@@ -110,7 +110,6 @@ var (
 	// filesystem module.
 	commonPartitionDirs = []string{
 		// From generic_rootdirs in build/make/target/product/generic/Android.bp
-		"acct",
 		"apex",
 		"bootstrap-apex",
 		"config",

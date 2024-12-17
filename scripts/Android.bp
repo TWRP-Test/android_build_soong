@@ -319,3 +319,11 @@ python_binary_host {
     main: "extra_install_zips_file_list.py",
     srcs: ["extra_install_zips_file_list.py"],
 }
+
+python_binary_host {
+    name: "rustc_linker",
+    main: "rustc_linker.py",
+    srcs: [
+        "rustc_linker.py",
+    ],
+}

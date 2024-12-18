@@ -1194,11 +1194,6 @@ func (c *Module) BuildRlibVariant() bool {
 	return false
 }
 
-func (c *Module) IsRustFFI() bool {
-	// cc modules are not Rust modules
-	return false
-}
-
 func (c *Module) Module() android.Module {
 	return c
 }

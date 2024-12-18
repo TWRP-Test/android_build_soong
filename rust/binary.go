@@ -165,11 +165,11 @@ func (binary *binaryDecorator) autoDep(ctx android.BottomUpMutatorContext) autoD
 	}
 }
 
-func (binary *binaryDecorator) stdLinkage(ctx *depsContext) RustLinkage {
+func (binary *binaryDecorator) stdLinkage(device bool) RustLinkage {
 	if binary.preferRlib() {
 		return RlibLinkage
 	}
-	return binary.baseCompiler.stdLinkage(ctx)
+	return binary.baseCompiler.stdLinkage(device)
 }
 
 func (binary *binaryDecorator) binary() bool {

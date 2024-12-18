@@ -102,9 +102,6 @@ type LinkableInterface interface {
 	IsPrebuilt() bool
 	Toc() android.OptionalPath
 
-	// IsRustFFI returns true if this is a Rust FFI library.
-	IsRustFFI() bool
-
 	// IsFuzzModule returns true if this a *_fuzz module.
 	IsFuzzModule() bool
 

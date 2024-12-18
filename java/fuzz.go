@@ -107,7 +107,7 @@ func (j *JavaFuzzTest) DepsMutator(ctx android.BottomUpMutatorContext) {
 }
 
 func (j *JavaFuzzTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
-	j.fuzzPackagedModule = cc.PackageFuzzModule(ctx, j.fuzzPackagedModule, pctx)
+	j.fuzzPackagedModule = cc.PackageFuzzModule(ctx, j.fuzzPackagedModule)
 
 	_, sharedDeps := cc.CollectAllSharedDependencies(ctx)
 	for _, dep := range sharedDeps {

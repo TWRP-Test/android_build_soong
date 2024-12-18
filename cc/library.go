@@ -2122,7 +2122,7 @@ func (linkageTransitionMutator) Split(ctx android.BaseModuleContext) []string {
 		} else {
 			// Header only
 		}
-	} else if library, ok := ctx.Module().(LinkableInterface); ok && (library.CcLibraryInterface() || library.RustLibraryInterface()) {
+	} else if library, ok := ctx.Module().(LinkableInterface); ok && (library.CcLibraryInterface()) {
 		// Non-cc.Modules may need an empty variant for their mutators.
 		variations := []string{}
 		if library.NonCcVariants() {
@@ -2177,7 +2177,7 @@ func (linkageTransitionMutator) IncomingTransition(ctx android.IncomingTransitio
 		}
 		buildStatic := library.BuildStaticVariant() && !isLLNDK
 		buildShared := library.BuildSharedVariant()
-		if library.BuildRlibVariant() && library.IsRustFFI() && !buildStatic && (incomingVariation == "static" || incomingVariation == "") {
+		if library.BuildRlibVariant() && !buildStatic && (incomingVariation == "static" || incomingVariation == "") {
 			// Rust modules do not build static libs, but rlibs are used as if they
 			// were via `static_libs`. Thus we need to alias the BuildRlibVariant
 			// to "static" for Rust FFI libraries.

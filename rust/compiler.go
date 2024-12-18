@@ -30,9 +30,8 @@ import (
 type RustLinkage int
 
 const (
-	DefaultLinkage RustLinkage = iota
+	DylibLinkage RustLinkage = iota
 	RlibLinkage
-	DylibLinkage
 )
 
 type compiler interface {
@@ -69,7 +68,7 @@ type compiler interface {
 	Disabled() bool
 	SetDisabled()
 
-	stdLinkage(ctx *depsContext) RustLinkage
+	stdLinkage(device bool) RustLinkage
 	noStdlibs() bool
 
 	unstrippedOutputFilePath() android.Path
@@ -316,11 +315,11 @@ func (compiler *baseCompiler) Aliases() map[string]string {
 	return aliases
 }
 
-func (compiler *baseCompiler) stdLinkage(ctx *depsContext) RustLinkage {
+func (compiler *baseCompiler) stdLinkage(device bool) RustLinkage {
 	// For devices, we always link stdlibs in as dylibs by default.
 	if compiler.preferRlib() {
 		return RlibLinkage
-	} else if ctx.Device() {
+	} else if device {
 		return DylibLinkage
 	} else {
 		return RlibLinkage

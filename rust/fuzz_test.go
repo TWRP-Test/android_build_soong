@@ -145,6 +145,6 @@ func TestCCFuzzDepBundling(t *testing.T) {
 		t.Errorf("cc_fuzz does not contain the expected bundled transitive shared libs from rust_ffi_static ('libcc_transitive_dep'): %#v", fuzz_static_libtest.FuzzSharedLibraries().String())
 	}
 	if !strings.Contains(fuzz_staticffi_libtest.FuzzSharedLibraries().String(), ":libcc_transitive_dep.so") {
-		t.Errorf("cc_fuzz does not contain the expected bundled transitive shared libs from rust_ffi_rlib ('libcc_transitive_dep'): %#v", fuzz_staticffi_libtest.FuzzSharedLibraries().String())
+		t.Errorf("cc_fuzz does not contain the expected bundled transitive shared libs from rust_ffi_static ('libcc_transitive_dep'): %#v", fuzz_staticffi_libtest.FuzzSharedLibraries().String())
 	}
 }

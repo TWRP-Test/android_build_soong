@@ -1157,7 +1157,7 @@ func AndroidMkEntriesForTest(t *testing.T, ctx *TestContext, mod blueprint.Modul
 	var p AndroidMkEntriesProvider
 	var ok bool
 	if p, ok = mod.(AndroidMkEntriesProvider); !ok {
-		t.Errorf("module does not implement AndroidMkEntriesProvider: " + mod.Name())
+		t.Error("module does not implement AndroidMkEntriesProvider: " + mod.Name())
 	}
 
 	entriesList := p.AndroidMkEntries()
@@ -1177,7 +1177,7 @@ func AndroidMkInfoForTest(t *testing.T, ctx *TestContext, mod blueprint.Module) 
 	t.Helper()
 	var ok bool
 	if _, ok = mod.(AndroidMkProviderInfoProducer); !ok {
-		t.Errorf("module does not implement AndroidMkProviderInfoProducer: " + mod.Name())
+		t.Error("module does not implement AndroidMkProviderInfoProducer: " + mod.Name())
 	}
 
 	info := OtherModuleProviderOrDefault(ctx, mod, AndroidMkInfoProvider)
@@ -1197,7 +1197,7 @@ func AndroidMkDataForTest(t *testing.T, ctx *TestContext, mod blueprint.Module) 
 	var p AndroidMkDataProvider
 	var ok bool
 	if p, ok = mod.(AndroidMkDataProvider); !ok {
-		t.Fatalf("module does not implement AndroidMkDataProvider: " + mod.Name())
+		t.Fatal("module does not implement AndroidMkDataProvider: " + mod.Name())
 	}
 	data := p.AndroidMk()
 	data.fillInData(ctx, mod)

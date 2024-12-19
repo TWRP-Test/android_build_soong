@@ -53,9 +53,58 @@ type CcObjectInfo struct {
 
 var CcObjectInfoProvider = blueprint.NewProvider[CcObjectInfo]()
 
+type AidlInterfaceInfo struct {
+	// list of aidl_interface sources
+	Sources []string
+	// root directory of AIDL sources
+	AidlRoot string
+	// AIDL backend language (e.g. "cpp", "ndk")
+	Lang string
+	// list of flags passed to AIDL generator
+	Flags []string
+}
+
+type CompilerInfo struct {
+	Srcs android.Paths
+	// list of module-specific flags that will be used for C and C++ compiles.
+	Cflags               proptools.Configurable[[]string]
+	AidlInterfaceInfo    AidlInterfaceInfo
+	LibraryDecoratorInfo *LibraryDecoratorInfo
+}
+
+type LinkerInfo struct {
+	Whole_static_libs proptools.Configurable[[]string]
+	// list of modules that should be statically linked into this module.
+	Static_libs proptools.Configurable[[]string]
+	// list of modules that should be dynamically linked into this module.
+	Shared_libs proptools.Configurable[[]string]
+	// list of modules that should only provide headers for this module.
+	Header_libs proptools.Configurable[[]string]
+
+	BinaryDecoratorInfo    *BinaryDecoratorInfo
+	LibraryDecoratorInfo   *LibraryDecoratorInfo
+	TestBinaryInfo         *TestBinaryInfo
+	BenchmarkDecoratorInfo *BenchmarkDecoratorInfo
+	ObjectLinkerInfo       *ObjectLinkerInfo
+}
+
+type BinaryDecoratorInfo struct{}
+type LibraryDecoratorInfo struct {
+	Export_include_dirs proptools.Configurable[[]string]
+}
+type TestBinaryInfo struct {
+	Gtest bool
+}
+type BenchmarkDecoratorInfo struct{}
+type ObjectLinkerInfo struct{}
+
 // Common info about the cc module.
 type CcInfo struct {
-	HasStubsVariants bool
+	HasStubsVariants       bool
+	IsPrebuilt             bool
+	CmakeSnapshotSupported bool
+	CompilerInfo           *CompilerInfo
+	LinkerInfo             *LinkerInfo
 }
 
 var CcInfoProvider = blueprint.NewProvider[CcInfo]()
@@ -2131,9 +2180,52 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		StaticExecutable: c.StaticExecutable(),
 	})
 
-	android.SetProvider(ctx, CcInfoProvider, CcInfo{
-		HasStubsVariants: c.HasStubsVariants(),
-	})
+	ccInfo := CcInfo{
+		HasStubsVariants:       c.HasStubsVariants(),
+		IsPrebuilt:             c.IsPrebuilt(),
+		CmakeSnapshotSupported: proptools.Bool(c.Properties.Cmake_snapshot_supported),
+	}
+	if c.compiler != nil {
+		ccInfo.CompilerInfo = &CompilerInfo{
+			Srcs:   c.compiler.(CompiledInterface).Srcs(),
+			Cflags: c.compiler.baseCompilerProps().Cflags,
+			AidlInterfaceInfo: AidlInterfaceInfo{
+				Sources:  c.compiler.baseCompilerProps().AidlInterface.Sources,
+				AidlRoot: c.compiler.baseCompilerProps().AidlInterface.AidlRoot,
+				Lang:     c.compiler.baseCompilerProps().AidlInterface.Lang,
+				Flags:    c.compiler.baseCompilerProps().AidlInterface.Flags,
+			},
+		}
+		switch decorator := c.compiler.(type) {
+		case *libraryDecorator:
+			ccInfo.CompilerInfo.LibraryDecoratorInfo = &LibraryDecoratorInfo{
+				Export_include_dirs: decorator.flagExporter.Properties.Export_include_dirs,
+			}
+		}
+	}
+	if c.linker != nil {
+		ccInfo.LinkerInfo = &LinkerInfo{
+			Whole_static_libs: c.linker.baseLinkerProps().Whole_static_libs,
+			Static_libs:       c.linker.baseLinkerProps().Static_libs,
+			Shared_libs:       c.linker.baseLinkerProps().Shared_libs,
+			Header_libs:       c.linker.baseLinkerProps().Header_libs,
+		}
+		switch decorator := c.linker.(type) {
+		case *binaryDecorator:
+			ccInfo.LinkerInfo.BinaryDecoratorInfo = &BinaryDecoratorInfo{}
+		case *libraryDecorator:
+			ccInfo.LinkerInfo.LibraryDecoratorInfo = &LibraryDecoratorInfo{}
+		case *testBinary:
+			ccInfo.LinkerInfo.TestBinaryInfo = &TestBinaryInfo{
+				Gtest: decorator.testDecorator.gtest(),
+			}
+		case *benchmarkDecorator:
+			ccInfo.LinkerInfo.BenchmarkDecoratorInfo = &BenchmarkDecoratorInfo{}
+		case *objectLinker:
+			ccInfo.LinkerInfo.ObjectLinkerInfo = &ObjectLinkerInfo{}
+		}
+	}
+	android.SetProvider(ctx, CcInfoProvider, ccInfo)
 
 	c.setOutputFiles(ctx)
 
@@ -2167,7 +2259,7 @@ func buildComplianceMetadataInfo(ctx ModuleContext, c *Module, deps PathDeps) {
 	complianceMetadataInfo.SetStringValue(android.ComplianceMetadataProp.BUILT_FILES, c.outputFile.String())
 
 	// Static deps
-	staticDeps := ctx.GetDirectDepsWithTag(StaticDepTag(false))
+	staticDeps := ctx.GetDirectDepsProxyWithTag(StaticDepTag(false))
 	staticDepNames := make([]string, 0, len(staticDeps))
 	for _, dep := range staticDeps {
 		staticDepNames = append(staticDepNames, dep.Name())
@@ -2181,7 +2273,7 @@ func buildComplianceMetadataInfo(ctx ModuleContext, c *Module, deps PathDeps) {
 	complianceMetadataInfo.SetListValue(android.ComplianceMetadataProp.STATIC_DEP_FILES, android.FirstUniqueStrings(staticDepPaths))
 
 	// Whole static deps
-	wholeStaticDeps := ctx.GetDirectDepsWithTag(StaticDepTag(true))
+	wholeStaticDeps := ctx.GetDirectDepsProxyWithTag(StaticDepTag(true))
 	wholeStaticDepNames := make([]string, 0, len(wholeStaticDeps))
 	for _, dep := range wholeStaticDeps {
 		wholeStaticDepNames = append(wholeStaticDepNames, dep.Name())

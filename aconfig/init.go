@@ -73,11 +73,11 @@ var (
 
 	CreateStorageRule = pctx.AndroidStaticRule("aconfig_create_storage",
 		blueprint.RuleParams{
-			Command: `${aconfig} create-storage --container ${container} --file ${file_type} --out ${out} ${cache_files}`,
+			Command: `${aconfig} create-storage --container ${container} --file ${file_type} --out ${out} ${cache_files} --version ${version}`,
 			CommandDeps: []string{
 				"${aconfig}",
 			},
-		}, "container", "file_type", "cache_files")
+		}, "container", "file_type", "cache_files", "version")
 
 	// For exported_java_aconfig_library: Generate a JAR from all
 	// java_aconfig_libraries to be consumed by apps built outside the

@@ -1046,6 +1046,8 @@ func (a *AndroidLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) 
 		AconfigTextFiles: aconfigTextFilePaths,
 	})
 
+	android.SetProvider(ctx, AndroidLibraryInfoProvider, AndroidLibraryInfo{})
+
 	a.setOutputFiles(ctx)
 }
 
@@ -1573,6 +1575,8 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	android.SetProvider(ctx, JniPackageProvider, JniPackageInfo{
 		JniPackages: a.jniPackages,
 	})
+
+	android.SetProvider(ctx, AndroidLibraryInfoProvider, AndroidLibraryInfo{})
 
 	ctx.SetOutputFiles([]android.Path{a.implementationAndResourcesJarFile}, "")
 	ctx.SetOutputFiles([]android.Path{a.aarPath}, ".aar")

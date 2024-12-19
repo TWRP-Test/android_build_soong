@@ -77,7 +77,7 @@ Did you mean to use an annotation of ",omitempty"?
 func TestProductConfigAnnotations(t *testing.T) {
 	err := validateConfigAnnotations(&ProductVariables{})
 	if err != nil {
-		t.Errorf(err.Error())
+		t.Error(err.Error())
 	}
 }
 

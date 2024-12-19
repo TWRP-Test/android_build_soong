@@ -92,11 +92,11 @@ func VerifyAconfigBuildMode(ctx ModuleContext, container string, module blueprin
 				if asError {
 					ctx.ModuleErrorf(msg)
 				} else {
-					fmt.Printf("WARNING: " + msg)
+					fmt.Print("WARNING: " + msg)
 				}
 			} else {
 				if !asError {
-					fmt.Printf("PASSED: " + msg)
+					fmt.Print("PASSED: " + msg)
 				}
 			}
 		}

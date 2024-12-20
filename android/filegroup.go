@@ -104,7 +104,6 @@ func (fg *fileGroup) GenerateAndroidBuildActions(ctx ModuleContext) {
 	if fg.properties.Path != nil {
 		srcs = PathsWithModuleSrcSubDir(ctx, srcs, String(fg.properties.Path))
 	}
-	SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: srcs.Strings()})
 
 	var aconfigDeclarations []string
 	var intermediateCacheOutputPaths Paths

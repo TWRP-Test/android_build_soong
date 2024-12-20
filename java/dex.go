@@ -412,6 +412,10 @@ func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams, 
 		artProfileOutput = profileOutput
 	}
 
+	if ctx.Config().UseR8StoreStoreFenceConstructorInlining() {
+		r8Flags = append(r8Flags, "--store-store-fence-constructor-inlining")
+	}
+
 	return r8Flags, r8Deps, artProfileOutput
 }
 

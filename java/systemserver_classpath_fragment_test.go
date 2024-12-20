@@ -50,7 +50,7 @@ func TestPlatformSystemServerClasspath_ClasspathFragmentPaths(t *testing.T) {
 
 	p := result.Module("platform-systemserverclasspath", "android_common").(*platformSystemServerClasspathModule)
 	android.AssertStringEquals(t, "output filepath", "systemserverclasspath.pb", p.ClasspathFragmentBase.outputFilepath.Base())
-	android.AssertPathRelativeToTopEquals(t, "install filepath", "out/soong/target/product/test_device/system/etc/classpaths", p.ClasspathFragmentBase.installDirPath)
+	android.AssertPathRelativeToTopEquals(t, "install filepath", "out/target/product/test_device/system/etc/classpaths", p.ClasspathFragmentBase.installDirPath)
 }
 
 func TestPlatformSystemServerClasspathModule_AndroidMkEntries(t *testing.T) {

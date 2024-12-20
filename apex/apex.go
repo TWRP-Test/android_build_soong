@@ -988,17 +988,12 @@ func (a *apexBundle) ApexInfoMutator(mctx android.TopDownMutatorContext) {
 	}
 
 	a.properties.ApexVariationName = apexVariationName
-	testApexes := []string{}
-	if a.testApex {
-		testApexes = []string{apexVariationName}
-	}
 	apexInfo := android.ApexInfo{
 		ApexVariationName: apexVariationName,
 		MinSdkVersion:     minSdkVersion,
 		Updatable:         a.Updatable(),
 		UsePlatformApis:   a.UsePlatformApis(),
 		InApexVariants:    []string{apexVariationName},
-		TestApexes:        testApexes,
 		BaseApexName:      mctx.ModuleName(),
 		ApexAvailableName: proptools.String(a.properties.Apex_available_name),
 	}
@@ -1049,7 +1044,7 @@ var (
 		"com.android.appsearch",
 		"com.android.art",
 		"com.android.art.debug",
-		"com.android.btservices",
+		"com.android.bt",
 		"com.android.cellbroadcast",
 		"com.android.configinfrastructure",
 		"com.android.conscrypt",

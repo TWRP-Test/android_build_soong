@@ -100,7 +100,7 @@ var prepareRavenwoodRuntime = android.GroupFixturePreparers(
 	`),
 )
 
-var installPathPrefix = "out/soong/host/linux-x86/testcases"
+var installPathPrefix = "out/host/linux-x86/testcases"
 
 func TestRavenwoodRuntime(t *testing.T) {
 	if runtime.GOOS != "linux" {

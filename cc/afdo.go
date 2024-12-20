@@ -65,8 +65,8 @@ func (afdo *afdo) isAfdoCompile(ctx ModuleContext) bool {
 }
 
 func getFdoProfilePathFromDep(ctx ModuleContext) string {
-	fdoProfileDeps := ctx.GetDirectDepsWithTag(FdoProfileTag)
-	if len(fdoProfileDeps) > 0 && fdoProfileDeps[0] != nil {
+	fdoProfileDeps := ctx.GetDirectDepsProxyWithTag(FdoProfileTag)
+	if len(fdoProfileDeps) > 0 {
 		if info, ok := android.OtherModuleProvider(ctx, fdoProfileDeps[0], FdoProfileProvider); ok {
 			return info.Path.String()
 		}

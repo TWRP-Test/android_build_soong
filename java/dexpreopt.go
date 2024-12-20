@@ -211,20 +211,19 @@ func disableSourceApexVariant(ctx android.BaseModuleContext) bool {
 	})
 
 	// Find the apex variant for this module
-	apexVariantsWithoutTestApexes := []string{}
+	apexVariants := []string{}
 	if apexInfo.BaseApexName != "" {
 		// This is a transitive dependency of an override_apex
-		apexVariantsWithoutTestApexes = append(apexVariantsWithoutTestApexes, apexInfo.BaseApexName)
+		apexVariants = append(apexVariants, apexInfo.BaseApexName)
 	} else {
-		_, variants, _ := android.ListSetDifference(apexInfo.InApexVariants, apexInfo.TestApexes)
-		apexVariantsWithoutTestApexes = append(apexVariantsWithoutTestApexes, variants...)
+		apexVariants = append(apexVariants, apexInfo.InApexVariants...)
 	}
 	if apexInfo.ApexAvailableName != "" {
-		apexVariantsWithoutTestApexes = append(apexVariantsWithoutTestApexes, apexInfo.ApexAvailableName)
+		apexVariants = append(apexVariants, apexInfo.ApexAvailableName)
 	}
 	disableSource := false
 	// find the selected apexes
-	for _, apexVariant := range apexVariantsWithoutTestApexes {
+	for _, apexVariant := range apexVariants {
 		if len(psi.GetSelectedModulesForApiDomain(apexVariant)) > 0 {
 			// If the apex_contribution for this api domain is non-empty, disable the source variant
 			disableSource = true

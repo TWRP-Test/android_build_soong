@@ -314,8 +314,6 @@ func (s *ShBinary) generateAndroidBuildActions(ctx android.ModuleContext) {
 
 	s.properties.SubName = s.GetSubname(ctx)
 
-	android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: []string{s.sourceFilePath.String()}})
-
 	ctx.SetOutputFiles(android.Paths{s.outputFilePath}, "")
 }
 

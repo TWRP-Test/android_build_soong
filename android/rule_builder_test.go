@@ -358,7 +358,7 @@ func TestRuleBuilder(t *testing.T) {
 			"command3 input3 out_local/soong/module/output2 out_local/soong/module/output3 input3 out_local/soong/module/output2",
 		}
 
-		wantDepMergerCommand := "out_local/soong/host/" + ctx.Config().PrebuiltOS() + "/bin/dep_fixer " +
+		wantDepMergerCommand := "out_local/host/" + ctx.Config().PrebuiltOS() + "/bin/dep_fixer " +
 			"out_local/soong/module/DepFile out_local/soong/module/depfile out_local/soong/module/ImplicitDepFile out_local/soong/module/depfile2"
 
 		AssertDeepEquals(t, "rule.Commands()", wantCommands, rule.Commands())
@@ -388,7 +388,7 @@ func TestRuleBuilder(t *testing.T) {
 			"command3 input3 __SBOX_SANDBOX_DIR__/out/output2 __SBOX_SANDBOX_DIR__/out/output3 input3 __SBOX_SANDBOX_DIR__/out/output2",
 		}
 
-		wantDepMergerCommand := "out_local/soong/host/" + ctx.Config().PrebuiltOS() + "/bin/dep_fixer __SBOX_SANDBOX_DIR__/out/DepFile __SBOX_SANDBOX_DIR__/out/depfile __SBOX_SANDBOX_DIR__/out/ImplicitDepFile __SBOX_SANDBOX_DIR__/out/depfile2"
+		wantDepMergerCommand := "out_local/host/" + ctx.Config().PrebuiltOS() + "/bin/dep_fixer __SBOX_SANDBOX_DIR__/out/DepFile __SBOX_SANDBOX_DIR__/out/depfile __SBOX_SANDBOX_DIR__/out/ImplicitDepFile __SBOX_SANDBOX_DIR__/out/depfile2"
 
 		AssertDeepEquals(t, "rule.Commands()", wantCommands, rule.Commands())
 
@@ -664,7 +664,7 @@ func TestRuleBuilder_Build(t *testing.T) {
 		rspFile := filepath.Join(outDir, "rsp")
 		rspFile2 := filepath.Join(outDir, "rsp2")
 		manifest := filepath.Join(outDir, "sbox.textproto")
-		sbox := filepath.Join("out", "soong", "host", result.Config.PrebuiltOS(), "bin/sbox")
+		sbox := filepath.Join("out", "host", result.Config.PrebuiltOS(), "bin/sbox")
 		sandboxPath := shared.TempDirForOutDir("out/soong")
 
 		cmd := sbox + ` --sandbox-path ` + sandboxPath + ` --output-dir ` + sboxOutDir + ` --manifest ` + manifest
@@ -680,7 +680,7 @@ func TestRuleBuilder_Build(t *testing.T) {
 		rspFile := filepath.Join(outDir, "rsp")
 		rspFile2 := filepath.Join(outDir, "rsp2")
 		manifest := filepath.Join(outDir, "sbox.textproto")
-		sbox := filepath.Join("out", "soong", "host", result.Config.PrebuiltOS(), "bin/sbox")
+		sbox := filepath.Join("out", "host", result.Config.PrebuiltOS(), "bin/sbox")
 		sandboxPath := shared.TempDirForOutDir("out/soong")
 
 		cmd := sbox + ` --sandbox-path ` + sandboxPath + ` --output-dir ` + sboxOutDir + ` --manifest ` + manifest

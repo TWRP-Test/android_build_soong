@@ -1216,7 +1216,7 @@ func (library *libraryDecorator) linkShared(ctx ModuleContext,
 // Visits the stub variants of the library and returns a struct containing the stub .so paths
 func addStubDependencyProviders(ctx ModuleContext) []SharedStubLibrary {
 	stubsInfo := []SharedStubLibrary{}
-	stubs := ctx.GetDirectDepsWithTag(stubImplDepTag)
+	stubs := ctx.GetDirectDepsProxyWithTag(stubImplDepTag)
 	if len(stubs) > 0 {
 		for _, stub := range stubs {
 			stubInfo, ok := android.OtherModuleProvider(ctx, stub, SharedLibraryInfoProvider)
@@ -1225,8 +1225,12 @@ func addStubDependencyProviders(ctx ModuleContext) []SharedStubLibrary {
 				continue
 			}
 			flagInfo, _ := android.OtherModuleProvider(ctx, stub, FlagExporterInfoProvider)
+			ccInfo, ok := android.OtherModuleProvider(ctx, stub, CcInfoProvider)
+			if !ok || ccInfo.LibraryInfo == nil {
+				panic(fmt.Errorf("couldn't find library info for %s", stub))
+			}
 			stubsInfo = append(stubsInfo, SharedStubLibrary{
-				Version:           moduleLibraryInterface(stub).stubsVersion(),
+				Version:           ccInfo.LibraryInfo.StubsVersion,
 				SharedLibraryInfo: stubInfo,
 				FlagExporterInfo:  flagInfo,
 			})

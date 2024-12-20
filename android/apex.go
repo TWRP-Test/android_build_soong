@@ -69,9 +69,6 @@ type ApexInfo struct {
 	// See Prebuilt.ApexInfoMutator for more information.
 	ForPrebuiltApex bool
 
-	// Returns the name of the test apexes that this module is included in.
-	TestApexes []string
-
 	// Returns the name of the overridden apex (com.android.foo)
 	BaseApexName string
 
@@ -283,9 +280,6 @@ type ApexProperties struct {
 
 	// See ApexModule.UniqueApexVariants()
 	UniqueApexVariationsForDeps bool `blueprint:"mutated"`
-
-	// The test apexes that includes this apex variant
-	TestApexes []string `blueprint:"mutated"`
 }
 
 // Marker interface that identifies dependencies that are excluded from APEX contents.
@@ -387,11 +381,6 @@ func (m *ApexModuleBase) IsInstallableToApex() bool {
 	// If needed, this will bel overridden by concrete types inheriting
 	// ApexModuleBase
 	return false
-}
-
-// Returns the test apexes that this module is included in.
-func (m *ApexModuleBase) TestApexes() []string {
-	return m.ApexProperties.TestApexes
 }
 
 // Implements ApexModule
@@ -547,12 +536,10 @@ func mergeApexVariations(apexInfos []ApexInfo) (merged []ApexInfo, aliases [][2]
 			// Platform APIs is allowed for this module only when all APEXes containing
 			// the module are with `use_platform_apis: true`.
 			merged[index].UsePlatformApis = merged[index].UsePlatformApis && apexInfo.UsePlatformApis
-			merged[index].TestApexes = append(merged[index].TestApexes, apexInfo.TestApexes...)
 		} else {
 			seen[mergedName] = len(merged)
 			apexInfo.ApexVariationName = mergedName
 			apexInfo.InApexVariants = CopyOf(apexInfo.InApexVariants)
-			apexInfo.TestApexes = CopyOf(apexInfo.TestApexes)
 			merged = append(merged, apexInfo)
 		}
 		aliases = append(aliases, [2]string{variantName, mergedName})
@@ -660,15 +647,6 @@ func MutateApexTransition(ctx BaseModuleContext, variation string) {
 
 		SetProvider(ctx, ApexInfoProvider, thisApexInfo)
 	}
-
-	// Set the value of TestApexes in every single apex variant.
-	// This allows each apex variant to be aware of the test apexes in the user provided apex_available.
-	var testApexes []string
-	for _, a := range apexInfos {
-		testApexes = append(testApexes, a.TestApexes...)
-	}
-	base.ApexProperties.TestApexes = testApexes
-
 }
 
 func ApexInfoMutator(ctx TopDownMutatorContext, module ApexModule) {

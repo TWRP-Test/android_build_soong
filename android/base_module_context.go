@@ -117,6 +117,8 @@ type BaseModuleContext interface {
 	// dependencies that are not an android.Module.
 	GetDirectDepWithTag(name string, tag blueprint.DependencyTag) Module
 
+	GetDirectDepProxyWithTag(name string, tag blueprint.DependencyTag) *ModuleProxy
+
 	// VisitDirectDeps calls visit for each direct dependency.  If there are multiple
 	// direct dependencies on the same module visit will be called multiple times on that module
 	// and OtherModuleDependencyTag will return a different tag for each.  It raises an error if any of the
@@ -311,6 +313,13 @@ func (b *baseModuleContext) GetDirectDepWithTag(name string, tag blueprint.Depen
 	return nil
 }
 
+func (b *baseModuleContext) GetDirectDepProxyWithTag(name string, tag blueprint.DependencyTag) *ModuleProxy {
+	if module := b.bp.GetDirectDepProxyWithTag(name, tag); module != nil {
+		return &ModuleProxy{*module}
+	}
+	return nil
+}
+
 func (b *baseModuleContext) blueprintBaseModuleContext() blueprint.BaseModuleContext {
 	return b.bp
 }
@@ -399,34 +408,30 @@ func (b *baseModuleContext) validateAndroidModuleProxy(
 	return &aModule
 }
 
-type dep struct {
-	mod blueprint.Module
-	tag blueprint.DependencyTag
-}
-
-func (b *baseModuleContext) getDirectDepsInternal(name string, tag blueprint.DependencyTag) []dep {
-	var deps []dep
+func (b *baseModuleContext) getDirectDepsInternal(name string, tag blueprint.DependencyTag) []Module {
+	var deps []Module
 	b.VisitDirectDeps(func(module Module) {
 		if module.base().BaseModuleName() == name {
 			returnedTag := b.bp.OtherModuleDependencyTag(module)
 			if tag == nil || returnedTag == tag {
-				deps = append(deps, dep{module, returnedTag})
+				deps = append(deps, module)
 			}
 		}
 	})
 	return deps
 }
 
-func (b *baseModuleContext) getDirectDepInternal(name string, tag blueprint.DependencyTag) (blueprint.Module, blueprint.DependencyTag) {
-	deps := b.getDirectDepsInternal(name, tag)
-	if len(deps) == 1 {
-		return deps[0].mod, deps[0].tag
-	} else if len(deps) >= 2 {
-		panic(fmt.Errorf("Multiple dependencies having same BaseModuleName() %q found from %q",
-			name, b.ModuleName()))
-	} else {
-		return nil, nil
-	}
+func (b *baseModuleContext) getDirectDepsProxyInternal(name string, tag blueprint.DependencyTag) []ModuleProxy {
+	var deps []ModuleProxy
+	b.VisitDirectDepsProxy(func(module ModuleProxy) {
+		if OtherModuleProviderOrDefault(b, module, CommonModuleInfoKey).BaseModuleName == name {
+			returnedTag := b.OtherModuleDependencyTag(module)
+			if tag == nil || returnedTag == tag {
+				deps = append(deps, module)
+			}
+		}
+	})
+	return deps
 }
 
 func (b *baseModuleContext) GetDirectDepsWithTag(tag blueprint.DependencyTag) []Module {

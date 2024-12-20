@@ -537,6 +537,12 @@ func (f *filesystem) buildNonDepsFiles(ctx android.ModuleContext, builder *andro
 		builder.Command().Text("ln -sf").Text(proptools.ShellEscape(target)).Text(dst.String())
 		f.appendToEntry(ctx, dst)
 	}
+
+	// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/Makefile;l=2835;drc=b186569ef00ff2f2a1fab28aedc75ebc32bcd67b
+	if f.partitionName() == "recovery" {
+		builder.Command().Text("mkdir -p").Text(rootDir.Join(ctx, "root/linkerconfig").String())
+		builder.Command().Text("touch").Text(rootDir.Join(ctx, "root/linkerconfig/ld.config.txt").String())
+	}
 }
 
 func (f *filesystem) copyPackagingSpecs(ctx android.ModuleContext, builder *android.RuleBuilder, specs map[string]android.PackagingSpec, rootDir, rebasedDir android.WritablePath) []string {

@@ -46,9 +46,9 @@ type CcMakeVarsInfo struct {
 var CcMakeVarsInfoProvider = blueprint.NewProvider[*CcMakeVarsInfo]()
 
 type CcObjectInfo struct {
-	objFiles   android.Paths
-	tidyFiles  android.Paths
-	kytheFiles android.Paths
+	ObjFiles   android.Paths
+	TidyFiles  android.Paths
+	KytheFiles android.Paths
 }
 
 var CcObjectInfoProvider = blueprint.NewProvider[CcObjectInfo]()
@@ -73,13 +73,14 @@ type CompilerInfo struct {
 }
 
 type LinkerInfo struct {
-	Whole_static_libs proptools.Configurable[[]string]
+	WholeStaticLibs proptools.Configurable[[]string]
 	// list of modules that should be statically linked into this module.
-	Static_libs proptools.Configurable[[]string]
+	StaticLibs proptools.Configurable[[]string]
 	// list of modules that should be dynamically linked into this module.
-	Shared_libs proptools.Configurable[[]string]
+	SharedLibs proptools.Configurable[[]string]
 	// list of modules that should only provide headers for this module.
-	Header_libs proptools.Configurable[[]string]
+	HeaderLibs           proptools.Configurable[[]string]
+	UnstrippedOutputFile android.Path
 
 	BinaryDecoratorInfo    *BinaryDecoratorInfo
 	LibraryDecoratorInfo   *LibraryDecoratorInfo
@@ -90,8 +91,13 @@ type LinkerInfo struct {
 
 type BinaryDecoratorInfo struct{}
 type LibraryDecoratorInfo struct {
-	Export_include_dirs proptools.Configurable[[]string]
+	ExportIncludeDirs proptools.Configurable[[]string]
 }
+
+type LibraryInfo struct {
+	StubsVersion string
+}
+
 type TestBinaryInfo struct {
 	Gtest bool
 }
@@ -105,6 +111,7 @@ type CcInfo struct {
 	CmakeSnapshotSupported bool
 	CompilerInfo           *CompilerInfo
 	LinkerInfo             *LinkerInfo
+	LibraryInfo            *LibraryInfo
 }
 
 var CcInfoProvider = blueprint.NewProvider[CcInfo]()
@@ -1948,13 +1955,13 @@ func (c *Module) stubLibraryMultipleApexViolation(ctx android.ModuleContext) boo
 		return false
 	}
 
-	_, aaWithoutTestApexes, _ := android.ListSetDifference(c.ApexAvailable(), c.TestApexes())
 	// Stub libraries should not have more than one apex_available
-	if len(aaWithoutTestApexes) > 1 {
+	apexAvailable := android.FirstUniqueStrings(c.ApexAvailable())
+	if len(apexAvailable) > 1 {
 		return true
 	}
 	// Stub libraries should not use the wildcard
-	if aaWithoutTestApexes[0] == android.AvailableToAnyApex {
+	if apexAvailable[0] == android.AvailableToAnyApex {
 		return true
 	}
 	// Default: no violation
@@ -2113,8 +2120,6 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		})
 	}
 
-	android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: deps.GeneratedSources.Strings()})
-
 	if Bool(c.Properties.Cmake_snapshot_supported) {
 		android.SetProvider(ctx, cmakeSnapshotSourcesProvider, android.GlobFiles(ctx, ctx.ModuleDir()+"/**/*", nil))
 	}
@@ -2166,13 +2171,13 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 	}
 
 	ccObjectInfo := CcObjectInfo{
-		kytheFiles: objs.kytheFiles,
+		KytheFiles: objs.kytheFiles,
 	}
 	if !ctx.Config().KatiEnabled() || !android.ShouldSkipAndroidMkProcessing(ctx, c) {
-		ccObjectInfo.objFiles = objs.objFiles
-		ccObjectInfo.tidyFiles = objs.tidyFiles
+		ccObjectInfo.ObjFiles = objs.objFiles
+		ccObjectInfo.TidyFiles = objs.tidyFiles
 	}
-	if len(ccObjectInfo.kytheFiles)+len(ccObjectInfo.objFiles)+len(ccObjectInfo.tidyFiles) > 0 {
+	if len(ccObjectInfo.KytheFiles)+len(ccObjectInfo.ObjFiles)+len(ccObjectInfo.TidyFiles) > 0 {
 		android.SetProvider(ctx, CcObjectInfoProvider, ccObjectInfo)
 	}
 
@@ -2199,16 +2204,17 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		switch decorator := c.compiler.(type) {
 		case *libraryDecorator:
 			ccInfo.CompilerInfo.LibraryDecoratorInfo = &LibraryDecoratorInfo{
-				Export_include_dirs: decorator.flagExporter.Properties.Export_include_dirs,
+				ExportIncludeDirs: decorator.flagExporter.Properties.Export_include_dirs,
 			}
 		}
 	}
 	if c.linker != nil {
 		ccInfo.LinkerInfo = &LinkerInfo{
-			Whole_static_libs: c.linker.baseLinkerProps().Whole_static_libs,
-			Static_libs:       c.linker.baseLinkerProps().Static_libs,
-			Shared_libs:       c.linker.baseLinkerProps().Shared_libs,
-			Header_libs:       c.linker.baseLinkerProps().Header_libs,
+			WholeStaticLibs:      c.linker.baseLinkerProps().Whole_static_libs,
+			StaticLibs:           c.linker.baseLinkerProps().Static_libs,
+			SharedLibs:           c.linker.baseLinkerProps().Shared_libs,
+			HeaderLibs:           c.linker.baseLinkerProps().Header_libs,
+			UnstrippedOutputFile: c.UnstrippedOutputFile(),
 		}
 		switch decorator := c.linker.(type) {
 		case *binaryDecorator:
@@ -2223,6 +2229,11 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			ccInfo.LinkerInfo.BenchmarkDecoratorInfo = &BenchmarkDecoratorInfo{}
 		case *objectLinker:
 			ccInfo.LinkerInfo.ObjectLinkerInfo = &ObjectLinkerInfo{}
+		}
+	}
+	if c.library != nil {
+		ccInfo.LibraryInfo = &LibraryInfo{
+			StubsVersion: c.library.stubsVersion(),
 		}
 	}
 	android.SetProvider(ctx, CcInfoProvider, ccInfo)
@@ -4080,7 +4091,7 @@ type kytheExtractAllSingleton struct {
 func (ks *kytheExtractAllSingleton) GenerateBuildActions(ctx android.SingletonContext) {
 	var xrefTargets android.Paths
 	ctx.VisitAllModuleProxies(func(module android.ModuleProxy) {
-		files := android.OtherModuleProviderOrDefault(ctx, module, CcObjectInfoProvider).kytheFiles
+		files := android.OtherModuleProviderOrDefault(ctx, module, CcObjectInfoProvider).KytheFiles
 		if len(files) > 0 {
 			xrefTargets = append(xrefTargets, files...)
 		}

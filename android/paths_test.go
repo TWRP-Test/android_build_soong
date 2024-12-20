@@ -1561,7 +1561,7 @@ func TestPathRelativeToTop(t *testing.T) {
 
 	t.Run("install for soong", func(t *testing.T) {
 		p := PathForModuleInstall(ctx, "install/path")
-		AssertPathRelativeToTopEquals(t, "install path for soong", "out/soong/target/product/test_device/system/install/path", p)
+		AssertPathRelativeToTopEquals(t, "install path for soong", "out/target/product/test_device/system/install/path", p)
 	})
 	t.Run("install for make", func(t *testing.T) {
 		p := PathForModuleInstall(ctx, "install/path")
@@ -1584,7 +1584,7 @@ func TestPathRelativeToTop(t *testing.T) {
 		}
 
 		expected := []string{
-			"out/soong/target/product/test_device/system/install/path",
+			"out/target/product/test_device/system/install/path",
 			"out/soong/output/path",
 			"source/path",
 		}

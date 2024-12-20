@@ -1321,11 +1321,16 @@ func (c *config) UseRemoteBuild() bool {
 }
 
 func (c *config) RunErrorProne() bool {
-	return c.IsEnvTrue("RUN_ERROR_PRONE")
+	return c.IsEnvTrue("RUN_ERROR_PRONE") || c.RunErrorProneInline()
 }
 
+// Returns if the errorprone build should be run "inline", that is, using errorprone as part
+// of the main javac compilation instead of its own separate compilation. This is good for CI
+// but bad for local development, because if you toggle errorprone+inline on/off it will repeatedly
+// clobber java files from the old configuration.
 func (c *config) RunErrorProneInline() bool {
-	return c.IsEnvTrue("RUN_ERROR_PRONE_INLINE")
+	value := strings.ToLower(c.Getenv("RUN_ERROR_PRONE"))
+	return c.IsEnvTrue("RUN_ERROR_PRONE_INLINE") || value == "inline"
 }
 
 // XrefCorpusName returns the Kythe cross-reference corpus name.
@@ -2167,6 +2172,10 @@ func (c *config) UseTransitiveJarsInClasspath() bool {
 	return c.productVariables.GetBuildFlagBool("RELEASE_USE_TRANSITIVE_JARS_IN_CLASSPATH")
 }
 
+func (c *config) UseR8StoreStoreFenceConstructorInlining() bool {
+	return c.productVariables.GetBuildFlagBool("RELEASE_R8_STORE_STORE_FENCE_CONSTRUCTOR_INLINING")
+}
+
 func (c *config) UseDexV41() bool {
 	return c.productVariables.GetBuildFlagBool("RELEASE_USE_DEX_V41")
 }
@@ -2177,7 +2186,7 @@ var (
 		"RELEASE_APEX_CONTRIBUTIONS_ADSERVICES":              "com.android.adservices",
 		"RELEASE_APEX_CONTRIBUTIONS_APPSEARCH":               "com.android.appsearch",
 		"RELEASE_APEX_CONTRIBUTIONS_ART":                     "com.android.art",
-		"RELEASE_APEX_CONTRIBUTIONS_BLUETOOTH":               "com.android.btservices",
+		"RELEASE_APEX_CONTRIBUTIONS_BLUETOOTH":               "com.android.bt",
 		"RELEASE_APEX_CONTRIBUTIONS_CAPTIVEPORTALLOGIN":      "",
 		"RELEASE_APEX_CONTRIBUTIONS_CELLBROADCAST":           "com.android.cellbroadcast",
 		"RELEASE_APEX_CONTRIBUTIONS_CONFIGINFRASTRUCTURE":    "com.android.configinfrastructure",

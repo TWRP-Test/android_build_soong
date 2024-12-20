@@ -653,7 +653,7 @@ func TestPlatformBootclasspath_IncludesRemainingApexJars(t *testing.T) {
 		true,         // proto should be generated
 		"myapex:foo", // apex doesn't generate its own config, so must be in platform_bootclasspath
 		"bootclasspath.pb",
-		"out/soong/target/product/test_device/system/etc/classpaths",
+		"out/target/product/test_device/system/etc/classpaths",
 	)
 }
 

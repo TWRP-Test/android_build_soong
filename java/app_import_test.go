@@ -664,17 +664,17 @@ func TestAndroidAppImport_relativeInstallPath(t *testing.T) {
 	}{
 		{
 			name:                "no_relative_install_path",
-			expectedInstallPath: "out/soong/target/product/test_device/system/app/no_relative_install_path/no_relative_install_path.apk",
+			expectedInstallPath: "out/target/product/test_device/system/app/no_relative_install_path/no_relative_install_path.apk",
 			errorMessage:        "Install path is not correct when relative_install_path is missing",
 		},
 		{
 			name:                "relative_install_path",
-			expectedInstallPath: "out/soong/target/product/test_device/system/app/my/path/relative_install_path/relative_install_path.apk",
+			expectedInstallPath: "out/target/product/test_device/system/app/my/path/relative_install_path/relative_install_path.apk",
 			errorMessage:        "Install path is not correct for app when relative_install_path is present",
 		},
 		{
 			name:                "privileged_relative_install_path",
-			expectedInstallPath: "out/soong/target/product/test_device/system/priv-app/my/path/privileged_relative_install_path/privileged_relative_install_path.apk",
+			expectedInstallPath: "out/target/product/test_device/system/priv-app/my/path/privileged_relative_install_path/privileged_relative_install_path.apk",
 			errorMessage:        "Install path is not correct for privileged app when relative_install_path is present",
 		},
 	}

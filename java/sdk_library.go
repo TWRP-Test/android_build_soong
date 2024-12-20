@@ -1479,7 +1479,6 @@ func (module *SdkLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext)
 				ctx.CheckbuildFile(installFilesInfo.CheckbuildTarget)
 			}
 		}
-		android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: module.implLibraryModule.uniqueSrcFiles.Strings()})
 	}
 
 	// Make the set of components exported by this module available for use elsewhere.

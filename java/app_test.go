@@ -2476,7 +2476,7 @@ func TestPackageNameOverride(t *testing.T) {
 			packageNameOverride: "",
 			expected: []string{
 				"out/soong/.intermediates/foo/android_common/foo.apk",
-				"out/soong/target/product/test_device/system/app/foo/foo.apk",
+				"out/target/product/test_device/system/app/foo/foo.apk",
 			},
 		},
 		{
@@ -2492,7 +2492,7 @@ func TestPackageNameOverride(t *testing.T) {
 			expected: []string{
 				// The package apk should be still be the original name for test dependencies.
 				"out/soong/.intermediates/foo/android_common/bar.apk",
-				"out/soong/target/product/test_device/system/app/bar/bar.apk",
+				"out/target/product/test_device/system/app/bar/bar.apk",
 			},
 		},
 		{
@@ -2508,7 +2508,7 @@ func TestPackageNameOverride(t *testing.T) {
 			packageNameOverride: "",
 			expected: []string{
 				"out/soong/.intermediates/foo/android_common/bar.apk",
-				"out/soong/target/product/test_device/system/app/bar/bar.apk",
+				"out/target/product/test_device/system/app/bar/bar.apk",
 			},
 		},
 	}
@@ -2651,7 +2651,7 @@ func TestOverrideAndroidApp(t *testing.T) {
 			name:             "foo",
 			moduleName:       "foo",
 			variantName:      "android_common",
-			apkPath:          "out/soong/target/product/test_device/system/app/foo/foo.apk",
+			apkPath:          "out/target/product/test_device/system/app/foo/foo.apk",
 			certFlag:         "build/make/target/product/security/expiredkey.x509.pem build/make/target/product/security/expiredkey.pk8",
 			certSigningFlags: "",
 			overrides:        []string{"qux"},
@@ -2663,7 +2663,7 @@ func TestOverrideAndroidApp(t *testing.T) {
 			name:             "foo",
 			moduleName:       "bar",
 			variantName:      "android_common_bar",
-			apkPath:          "out/soong/target/product/test_device/system/app/bar/bar.apk",
+			apkPath:          "out/target/product/test_device/system/app/bar/bar.apk",
 			certFlag:         "cert/new_cert.x509.pem cert/new_cert.pk8",
 			certSigningFlags: "--lineage lineage.bin --rotation-min-sdk-version 32",
 			overrides:        []string{"qux", "foo"},
@@ -2675,7 +2675,7 @@ func TestOverrideAndroidApp(t *testing.T) {
 			name:             "foo",
 			moduleName:       "baz",
 			variantName:      "android_common_baz",
-			apkPath:          "out/soong/target/product/test_device/system/app/baz/baz.apk",
+			apkPath:          "out/target/product/test_device/system/app/baz/baz.apk",
 			certFlag:         "build/make/target/product/security/expiredkey.x509.pem build/make/target/product/security/expiredkey.pk8",
 			certSigningFlags: "",
 			overrides:        []string{"qux", "foo"},
@@ -2687,7 +2687,7 @@ func TestOverrideAndroidApp(t *testing.T) {
 			name:             "foo",
 			moduleName:       "baz_no_rename_resources",
 			variantName:      "android_common_baz_no_rename_resources",
-			apkPath:          "out/soong/target/product/test_device/system/app/baz_no_rename_resources/baz_no_rename_resources.apk",
+			apkPath:          "out/target/product/test_device/system/app/baz_no_rename_resources/baz_no_rename_resources.apk",
 			certFlag:         "build/make/target/product/security/expiredkey.x509.pem build/make/target/product/security/expiredkey.pk8",
 			certSigningFlags: "",
 			overrides:        []string{"qux", "foo"},
@@ -2699,7 +2699,7 @@ func TestOverrideAndroidApp(t *testing.T) {
 			name:             "foo_no_rename_resources",
 			moduleName:       "baz_base_no_rename_resources",
 			variantName:      "android_common_baz_base_no_rename_resources",
-			apkPath:          "out/soong/target/product/test_device/system/app/baz_base_no_rename_resources/baz_base_no_rename_resources.apk",
+			apkPath:          "out/target/product/test_device/system/app/baz_base_no_rename_resources/baz_base_no_rename_resources.apk",
 			certFlag:         "build/make/target/product/security/expiredkey.x509.pem build/make/target/product/security/expiredkey.pk8",
 			certSigningFlags: "",
 			overrides:        []string{"qux", "foo_no_rename_resources"},
@@ -2711,7 +2711,7 @@ func TestOverrideAndroidApp(t *testing.T) {
 			name:             "foo_no_rename_resources",
 			moduleName:       "baz_override_base_rename_resources",
 			variantName:      "android_common_baz_override_base_rename_resources",
-			apkPath:          "out/soong/target/product/test_device/system/app/baz_override_base_rename_resources/baz_override_base_rename_resources.apk",
+			apkPath:          "out/target/product/test_device/system/app/baz_override_base_rename_resources/baz_override_base_rename_resources.apk",
 			certFlag:         "build/make/target/product/security/expiredkey.x509.pem build/make/target/product/security/expiredkey.pk8",
 			certSigningFlags: "",
 			overrides:        []string{"qux", "foo_no_rename_resources"},
@@ -2888,33 +2888,33 @@ func TestOverrideAndroidAppStem(t *testing.T) {
 		{
 			moduleName:  "foo",
 			variantName: "android_common",
-			apkPath:     "out/soong/target/product/test_device/system/app/foo/foo.apk",
+			apkPath:     "out/target/product/test_device/system/app/foo/foo.apk",
 		},
 		{
 			moduleName:  "foo",
 			variantName: "android_common_bar",
-			apkPath:     "out/soong/target/product/test_device/system/app/bar/bar.apk",
+			apkPath:     "out/target/product/test_device/system/app/bar/bar.apk",
 		},
 		{
 			moduleName:  "foo",
 			variantName: "android_common_baz",
-			apkPath:     "out/soong/target/product/test_device/system/app/baz_stem/baz_stem.apk",
+			apkPath:     "out/target/product/test_device/system/app/baz_stem/baz_stem.apk",
 		},
 		{
 			moduleName:  "foo2",
 			variantName: "android_common",
-			apkPath:     "out/soong/target/product/test_device/system/app/foo2_stem/foo2_stem.apk",
+			apkPath:     "out/target/product/test_device/system/app/foo2_stem/foo2_stem.apk",
 		},
 		{
 			moduleName:  "foo2",
 			variantName: "android_common_bar2",
 			// Note that this may cause the duplicate output error.
-			apkPath: "out/soong/target/product/test_device/system/app/foo2_stem/foo2_stem.apk",
+			apkPath: "out/target/product/test_device/system/app/foo2_stem/foo2_stem.apk",
 		},
 		{
 			moduleName:  "foo2",
 			variantName: "android_common_baz2",
-			apkPath:     "out/soong/target/product/test_device/system/app/baz2_stem/baz2_stem.apk",
+			apkPath:     "out/target/product/test_device/system/app/baz2_stem/baz2_stem.apk",
 		},
 	} {
 		variant := ctx.ModuleForTests(expected.moduleName, expected.variantName)
@@ -3024,7 +3024,7 @@ func TestOverrideAndroidTest(t *testing.T) {
 		variant := ctx.ModuleForTests("foo_test", expected.variantName)
 
 		// Check the final apk name
-		variant.Output("out/soong" + expected.apkPath)
+		variant.Output("out" + expected.apkPath)
 
 		// Check if the overrides field values are correctly aggregated.
 		mod := variant.Module().(*AndroidTest)
@@ -4305,8 +4305,8 @@ func TestPrivappAllowlist(t *testing.T) {
 	}
 
 	// verify that permissions are copied to device
-	app.Output("out/soong/target/product/test_device/system/etc/permissions/foo.xml")
-	overrideApp.Output("out/soong/target/product/test_device/system/etc/permissions/bar.xml")
+	app.Output("out/target/product/test_device/system/etc/permissions/foo.xml")
+	overrideApp.Output("out/target/product/test_device/system/etc/permissions/bar.xml")
 }
 
 func TestPrivappAllowlistAndroidMk(t *testing.T) {

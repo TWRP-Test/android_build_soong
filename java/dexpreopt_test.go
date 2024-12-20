@@ -296,7 +296,7 @@ func TestDex2oatToolDeps(t *testing.T) {
 		})
 	}
 
-	sourceDex2oatPath := "host/linux-x86/bin/dex2oatd"
+	sourceDex2oatPath := "../host/linux-x86/bin/dex2oatd"
 	prebuiltDex2oatPath := ".intermediates/prebuilt_dex2oatd/linux_glibc_x86_64/dex2oatd"
 
 	testDex2oatToolDep(true, false, false, sourceDex2oatPath)

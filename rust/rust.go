@@ -946,7 +946,6 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			mod.sourceProvider.setOutputFiles(sourceLib.sourceProvider.Srcs())
 		}
 		ctx.CheckbuildFile(mod.sourceProvider.Srcs()...)
-		android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: mod.sourceProvider.Srcs().Strings()})
 	}
 
 	if mod.compiler != nil && !mod.compiler.Disabled() {

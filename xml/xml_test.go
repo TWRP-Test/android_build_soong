@@ -80,5 +80,5 @@ func TestPrebuiltEtcXml(t *testing.T) {
 	}
 
 	m := result.ModuleForTests("foo.xml", "android_arm64_armv8-a").Module().(*prebuiltEtcXml)
-	android.AssertPathRelativeToTopEquals(t, "installDir", "out/soong/target/product/test_device/system/etc", m.InstallDirPath())
+	android.AssertPathRelativeToTopEquals(t, "installDir", "out/target/product/test_device/system/etc", m.InstallDirPath())
 }

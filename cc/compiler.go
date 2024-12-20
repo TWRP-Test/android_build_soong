@@ -367,7 +367,7 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
 	modulePath := ctx.ModuleDir()
 
 	reuseObjs := false
-	if len(ctx.GetDirectDepsWithTag(reuseObjTag)) > 0 {
+	if len(ctx.GetDirectDepsProxyWithTag(reuseObjTag)) > 0 {
 		reuseObjs = true
 	}
 

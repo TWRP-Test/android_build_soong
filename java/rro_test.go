@@ -216,7 +216,7 @@ func TestOverrideRuntimeResourceOverlay(t *testing.T) {
 	}{
 		{
 			variantName:       "android_common",
-			apkPath:           "out/soong/target/product/test_device/product/overlay/foo_overlay.apk",
+			apkPath:           "out/target/product/test_device/product/overlay/foo_overlay.apk",
 			overrides:         nil,
 			targetVariant:     "android_common",
 			packageFlag:       "",
@@ -224,7 +224,7 @@ func TestOverrideRuntimeResourceOverlay(t *testing.T) {
 		},
 		{
 			variantName:       "android_common_bar_overlay",
-			apkPath:           "out/soong/target/product/test_device/product/overlay/bar_overlay.apk",
+			apkPath:           "out/target/product/test_device/product/overlay/bar_overlay.apk",
 			overrides:         []string{"foo_overlay"},
 			targetVariant:     "android_common_bar",
 			packageFlag:       "com.android.bar.overlay",
@@ -283,23 +283,23 @@ func TestRuntimeResourceOverlayPartition(t *testing.T) {
 	}{
 		{
 			name:         "device_specific",
-			expectedPath: "out/soong/target/product/test_device/odm/overlay",
+			expectedPath: "out/target/product/test_device/odm/overlay",
 		},
 		{
 			name:         "soc_specific",
-			expectedPath: "out/soong/target/product/test_device/vendor/overlay",
+			expectedPath: "out/target/product/test_device/vendor/overlay",
 		},
 		{
 			name:         "system_ext_specific",
-			expectedPath: "out/soong/target/product/test_device/system_ext/overlay",
+			expectedPath: "out/target/product/test_device/system_ext/overlay",
 		},
 		{
 			name:         "product_specific",
-			expectedPath: "out/soong/target/product/test_device/product/overlay",
+			expectedPath: "out/target/product/test_device/product/overlay",
 		},
 		{
 			name:         "default",
-			expectedPath: "out/soong/target/product/test_device/product/overlay",
+			expectedPath: "out/target/product/test_device/product/overlay",
 		},
 	}
 	for _, testCase := range testCases {

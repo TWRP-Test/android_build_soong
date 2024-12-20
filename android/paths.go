@@ -2076,7 +2076,7 @@ func pathForInstall(ctx PathContext, os OsType, arch ArchType, partition string,
 		reportPathError(ctx, err)
 	}
 
-	base := pathForPartitionInstallDir(ctx, partition, partitionPath, ctx.Config().KatiEnabled())
+	base := pathForPartitionInstallDir(ctx, partition, partitionPath, true)
 	return base.Join(ctx, pathComponents...)
 }
 

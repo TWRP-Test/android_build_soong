@@ -447,7 +447,6 @@ func (p *PythonLibraryModule) AddDepsOnPythonLauncherAndStdlib(ctx android.Botto
 // GenerateAndroidBuildActions performs build actions common to all Python modules
 func (p *PythonLibraryModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	expandedSrcs := android.PathsForModuleSrcExcludes(ctx, p.properties.Srcs, p.properties.Exclude_srcs)
-	android.SetProvider(ctx, blueprint.SrcsFileProviderKey, blueprint.SrcsFileProviderData{SrcPaths: expandedSrcs.Strings()})
 	// Keep before any early returns.
 	android.SetProvider(ctx, android.TestOnlyProviderKey, android.TestModuleInformation{
 		TestOnly:       Bool(p.sourceProperties.Test_only),

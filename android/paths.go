@@ -1353,7 +1353,7 @@ func PathForSource(ctx PathContext, pathComponents ...string) SourcePath {
 
 // PathForArbitraryOutput creates a path for the given components. Unlike PathForOutput,
 // the path is relative to the root of the output folder, not the out/soong folder.
-func PathForArbitraryOutput(ctx PathContext, pathComponents ...string) Path {
+func PathForArbitraryOutput(ctx PathContext, pathComponents ...string) WritablePath {
 	path, err := validatePath(pathComponents...)
 	if err != nil {
 		reportPathError(ctx, err)

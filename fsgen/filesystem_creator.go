@@ -507,7 +507,8 @@ func (f *filesystemCreator) createPrebuiltKernelModules(ctx android.LoadHookCont
 		Options_file         *string
 		Strip_debug_symbols  *bool
 	}{
-		Name: proptools.StringPtr(name),
+		Name:                proptools.StringPtr(name),
+		Strip_debug_symbols: proptools.BoolPtr(false),
 	}
 	switch partitionType {
 	case "system_dlkm":
@@ -521,7 +522,6 @@ func (f *filesystemCreator) createPrebuiltKernelModules(ctx android.LoadHookCont
 		if blocklistFile := ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.SystemKernelBlocklistFile; blocklistFile != "" {
 			props.Blocklist_file = proptools.StringPtr(blocklistFile)
 		}
-		props.Strip_debug_symbols = proptools.BoolPtr(false)
 	case "vendor_dlkm":
 		props.Srcs = android.ExistentPathsForSources(ctx, ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.VendorKernelModules).Strings()
 		if len(ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.SystemKernelModules) > 0 {
@@ -531,14 +531,12 @@ func (f *filesystemCreator) createPrebuiltKernelModules(ctx android.LoadHookCont
 		if blocklistFile := ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.VendorKernelBlocklistFile; blocklistFile != "" {
 			props.Blocklist_file = proptools.StringPtr(blocklistFile)
 		}
-		props.Strip_debug_symbols = proptools.BoolPtr(false)
 	case "odm_dlkm":
 		props.Srcs = android.ExistentPathsForSources(ctx, ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.OdmKernelModules).Strings()
 		props.Odm_dlkm_specific = proptools.BoolPtr(true)
 		if blocklistFile := ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.OdmKernelBlocklistFile; blocklistFile != "" {
 			props.Blocklist_file = proptools.StringPtr(blocklistFile)
 		}
-		props.Strip_debug_symbols = proptools.BoolPtr(false)
 	case "vendor_ramdisk":
 		props.Srcs = android.ExistentPathsForSources(ctx, ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse.VendorRamdiskKernelModules).Strings()
 		props.Vendor_ramdisk = proptools.BoolPtr(true)

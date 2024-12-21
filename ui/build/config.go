@@ -308,16 +308,13 @@ func NewConfig(ctx Context, args ...string) Config {
 
 	// If SOONG_USE_PARTIAL_COMPILE is set, make it one of "true" or the empty string.
 	// This simplifies the generated Ninja rules, so that they only need to check for the empty string.
-	if value, ok := os.LookupEnv("SOONG_USE_PARTIAL_COMPILE"); ok {
+	if value, ok := ret.environ.Get("SOONG_USE_PARTIAL_COMPILE"); ok {
 		if value == "true" || value == "1" || value == "y" || value == "yes" {
 			value = "true"
 		} else {
 			value = ""
 		}
-		err = os.Setenv("SOONG_USE_PARTIAL_COMPILE", value)
-		if err != nil {
-			ctx.Fatalln("Failed to set SOONG_USE_PARTIAL_COMPILE: %v", err)
-		}
+		ret.environ.Set("SOONG_USE_PARTIAL_COMPILE", value)
 	}
 
 	ret.ninjaCommand = NINJA_NINJA
@@ -598,11 +595,26 @@ func getNinjaWeightListSourceInMetric(s NinjaWeightListSource) *smpb.BuildConfig
 }
 
 func buildConfig(config Config) *smpb.BuildConfig {
+	var soongEnvVars *smpb.SoongEnvVars
+	ensure := func() *smpb.SoongEnvVars {
+		// Create soongEnvVars if it doesn't already exist.
+		if soongEnvVars == nil {
+			soongEnvVars = &smpb.SoongEnvVars{}
+		}
+		return soongEnvVars
+	}
+	if value, ok := config.environ.Get("SOONG_PARTIAL_COMPILE"); ok {
+		ensure().PartialCompile = proto.String(value)
+	}
+	if value, ok := config.environ.Get("SOONG_USE_PARTIAL_COMPILE"); ok {
+		ensure().UsePartialCompile = proto.String(value)
+	}
 	c := &smpb.BuildConfig{
 		ForceUseGoma:          proto.Bool(config.ForceUseGoma()),
 		UseGoma:               proto.Bool(config.UseGoma()),
 		UseRbe:                proto.Bool(config.UseRBE()),
 		NinjaWeightListSource: getNinjaWeightListSourceInMetric(config.NinjaWeightListSource()),
+		SoongEnvVars:          soongEnvVars,
 	}
 	c.Targets = append(c.Targets, config.arguments...)
 

@@ -177,6 +177,17 @@ message BuildConfig {
   // EXTERNAL_FILE - ninja uses an external custom weight list
   // HINT_FROM_SOONG - ninja uses a prioritized module list from Soong
   optional NinjaWeightListSource ninja_weight_list_source = 8 [default = NOT_USED];
+
+  // Values of some build-affecting environment variables.
+  optional SoongEnvVars soong_env_vars = 9;
+}
+
+message SoongEnvVars {
+  // SOONG_PARTIAL_COMPILE
+  optional string partial_compile = 1;
+
+  // SOONG_USE_PARTIAL_COMPILE
+  optional string use_partial_compile = 2;
 }
 
 message SystemResourceInfo {

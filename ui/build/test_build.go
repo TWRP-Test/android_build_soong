@@ -151,7 +151,7 @@ func testForDanglingRules(ctx Context, config Config) {
 
 		ts.FinishAction(status.ActionResult{
 			Action: action,
-			Error:  fmt.Errorf(title),
+			Error:  fmt.Errorf("%s", title),
 			Output: sb.String(),
 		})
 		ctx.Fatal("stopping")

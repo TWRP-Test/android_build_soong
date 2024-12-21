@@ -79,5 +79,39 @@ func (a *androidDevice) DepsMutator(ctx android.BottomUpMutatorContext) {
 }
 
 func (a *androidDevice) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+	a.buildTargetFilesZip(ctx)
+}
 
+func (a *androidDevice) buildTargetFilesZip(ctx android.ModuleContext) {
+	targetFilesDir := android.PathForModuleOut(ctx, "target_files_dir")
+	targetFilesZip := android.PathForModuleOut(ctx, "target_files.zip")
+
+	builder := android.NewRuleBuilder(pctx, ctx)
+	builder.Command().Textf("rm -rf %s", targetFilesDir.String())
+	builder.Command().Textf("mkdir -p %s", targetFilesDir.String())
+	if a.partitionProps.Vendor_partition_name != nil {
+		fsInfo := a.getFilesystemInfo(ctx, *a.partitionProps.Vendor_partition_name)
+		builder.Command().Textf("mkdir -p %s/VENDOR", targetFilesDir.String())
+		builder.Command().
+			BuiltTool("acp").
+			Textf("-rd %s/. %s/VENDOR", fsInfo.RootDir, targetFilesDir).
+			Implicit(fsInfo.Output) // so that the staging dir is built
+	}
+	builder.Command().
+		BuiltTool("soong_zip").
+		Text("-d").
+		FlagWithOutput("-o ", targetFilesZip).
+		FlagWithArg("-C ", targetFilesDir.String()).
+		FlagWithArg("-D ", targetFilesDir.String()).
+		Text("-sha256")
+	builder.Build("target_files_"+ctx.ModuleName(), "Build target_files.zip")
+}
+
+func (a *androidDevice) getFilesystemInfo(ctx android.ModuleContext, depName string) FilesystemInfo {
+	fsMod := ctx.GetDirectDepWithTag(depName, filesystemDepTag)
+	fsInfo, ok := android.OtherModuleProvider(ctx, fsMod, FilesystemProvider)
+	if !ok {
+		ctx.ModuleErrorf("Expected dependency %s to be a filesystem", depName)
+	}
+	return fsInfo
 }

@@ -165,7 +165,7 @@ def generate_common_build_props(args):
   print(f"ro.{partition}.build.version.release={config['Platform_version_last_stable']}")
   print(f"ro.{partition}.build.version.release_or_codename={config['Platform_version_name']}")
   print(f"ro.{partition}.build.version.sdk={config['Platform_sdk_version']}")
-  print(f"ro.{partition}.build.version.sdk_minor={build_flags['RELEASE_PLATFORM_SDK_MINOR_VERSION']}")
+  print(f"ro.{partition}.build.version.sdk_full={config['Platform_sdk_version_full']}")
 
 def generate_build_info(args):
   print()
@@ -198,7 +198,7 @@ def generate_build_info(args):
     print(f"ro.build.display.id?={config['BuildDesc']}")
   print(f"ro.build.version.incremental={config['BuildNumber']}")
   print(f"ro.build.version.sdk={config['Platform_sdk_version']}")
-  print(f"ro.build.version.sdk_minor={build_flags['RELEASE_PLATFORM_SDK_MINOR_VERSION']}")
+  print(f"ro.build.version.sdk_full={config['Platform_sdk_version_full']}")
   print(f"ro.build.version.preview_sdk={config['Platform_preview_sdk_version']}")
   print(f"ro.build.version.preview_sdk_fingerprint={config['PlatformPreviewSdkFingerprint']}")
   print(f"ro.build.version.codename={config['Platform_sdk_codename']}")

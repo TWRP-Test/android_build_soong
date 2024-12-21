@@ -15,9 +15,10 @@
 package dexpreopt
 
 import (
-	"android/soong/android"
 	"fmt"
 	"testing"
+
+	"android/soong/android"
 )
 
 func testSystemModuleConfig(ctx android.PathContext, name string) *ModuleConfig {
@@ -403,6 +404,7 @@ func TestUffdGcFlagDefault(t *testing.T) {
 	preparers := android.GroupFixturePreparers(
 		PrepareForTestWithFakeDex2oatd,
 		PrepareForTestWithDexpreoptConfig,
+		android.FixtureModifyConfig(android.SetKatiEnabledForTests),
 		FixtureSetEnableUffdGc("default"),
 	)
 

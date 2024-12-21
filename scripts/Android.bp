@@ -327,11 +327,3 @@ python_binary_host {
         "rustc_linker.py",
     ],
 }
-
-python_binary_host {
-    name: "calculate_directory_hash",
-    main: "calculate_directory_hash.py",
-    srcs: [
-        "calculate_directory_hash.py",
-    ],
-}

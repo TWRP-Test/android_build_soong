@@ -91,7 +91,12 @@ var (
 			Command: `rm -rf ${out}.tmp` +
 				`&& for cache in ${cache_files}; do ` +
 				`  if [ -n "$$(${aconfig} dump-cache --dedup --cache $$cache --filter=is_exported:true --format='{fully_qualified_name}')" ]; then ` +
-				`    ${aconfig} create-java-lib --cache $$cache --mode=exported --out ${out}.tmp; ` +
+				`    ${aconfig} create-java-lib` +
+				`        --cache $$cache` +
+				`        --mode=exported` +
+				`        --allow-instrumentation ${use_new_storage}` +
+				`        --new-exported ${use_new_exported}` +
+				`        --out ${out}.tmp; ` +
 				`  fi ` +
 				`done` +
 				`&& $soong_zip -write_if_changed -jar -o ${out} -C ${out}.tmp -D ${out}.tmp` +
@@ -100,7 +105,7 @@ var (
 				"$aconfig",
 				"$soong_zip",
 			},
-		}, "cache_files")
+		}, "cache_files", "use_new_storage", "use_new_exported")
 )
 
 func init() {

@@ -83,8 +83,10 @@ func (r *recoveryBuildPropModule) getBuildProps(ctx ModuleContext) Paths {
 		r.properties.Product_build_prop,
 		r.properties.System_ext_build_prop,
 	} {
-		if buildPropPath := PathForModuleSrc(ctx, proptools.String(buildProp)); buildPropPath != nil {
-			buildProps = append(buildProps, buildPropPath)
+		if buildProp != nil {
+			if buildPropPath := PathForModuleSrc(ctx, proptools.String(buildProp)); buildPropPath != nil {
+				buildProps = append(buildProps, buildPropPath)
+			}
 		}
 	}
 	return buildProps

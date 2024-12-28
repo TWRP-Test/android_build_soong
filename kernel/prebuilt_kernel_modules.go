@@ -247,6 +247,8 @@ func modulesDirForAndroidDlkm(ctx android.ModuleContext, modulesDir android.Outp
 		return modulesDir.Join(ctx, "vendor", "lib", "modules")
 	} else if ctx.InstallInOdmDlkm() {
 		return modulesDir.Join(ctx, "odm", "lib", "modules")
+	} else if ctx.InstallInVendorRamdisk() {
+		return modulesDir.Join(ctx, "lib", "modules")
 	} else {
 		// not an android dlkm module.
 		return modulesDir
@@ -309,8 +311,8 @@ func (pkm *prebuiltKernelModules) runDepmod(ctx android.ModuleContext, modules a
 	builder.Build("depmod", fmt.Sprintf("depmod %s", ctx.ModuleName()))
 
 	finalModulesDep := modulesDep
-	// Add a leading slash to paths in modules.dep of android dlkm
-	if ctx.InstallInSystemDlkm() || ctx.InstallInVendorDlkm() || ctx.InstallInOdmDlkm() {
+	// Add a leading slash to paths in modules.dep of android dlkm and vendor ramdisk
+	if ctx.InstallInSystemDlkm() || ctx.InstallInVendorDlkm() || ctx.InstallInOdmDlkm() || ctx.InstallInVendorRamdisk() {
 		finalModulesDep = modulesDep.ReplaceExtension(ctx, "intermediates")
 		ctx.Build(pctx, android.BuildParams{
 			Rule:   addLeadingSlashToPaths,

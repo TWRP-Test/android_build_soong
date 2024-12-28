@@ -41,6 +41,7 @@ var robolectricDefaultLibs = []string{
 }
 
 const robolectricCurrentLib = "Robolectric_all-target"
+const clearcutJunitLib = "ClearcutJunitListenerAar"
 const robolectricPrebuiltLibPattern = "platform-robolectric-%s-prebuilt"
 
 var (
@@ -105,6 +106,8 @@ func (r *robolectricTest) DepsMutator(ctx android.BottomUpMutatorContext) {
 	} else {
 		ctx.PropertyErrorf("instrumentation_for", "missing required instrumented module")
 	}
+
+	ctx.AddVariationDependencies(nil, staticLibTag, clearcutJunitLib)
 
 	if v := String(r.robolectricProperties.Robolectric_prebuilt_version); v != "" {
 		ctx.AddVariationDependencies(nil, staticLibTag, fmt.Sprintf(robolectricPrebuiltLibPattern, v))

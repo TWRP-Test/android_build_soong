@@ -44,6 +44,12 @@ var prepareRobolectricRuntime = android.GroupFixturePreparers(
 	java_library {
 		name: "junitxml",
 		srcs: ["JUnitXml.java"]
+
+	}
+
+	java_library {
+		name: "ClearcutJunitListenerAar",
+		srcs: ["Runtime.java"]
 	}
 
 	java_library_host {

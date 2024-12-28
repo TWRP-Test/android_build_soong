@@ -78,7 +78,7 @@ func filesystemCreatorFactory() android.Module {
 	return module
 }
 
-func generatedPartitions(ctx android.LoadHookContext) []string {
+func generatedPartitions(ctx android.EarlyModuleContext) []string {
 	partitionVars := ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse
 	generatedPartitions := []string{"system"}
 	if ctx.DeviceConfig().SystemExtPath() == "system_ext" {
@@ -373,6 +373,10 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 		fsProps.Security_patch = proptools.StringPtr(partitionVars.VendorDlkmSecurityPatch)
 	case "odm_dlkm":
 		fsProps.Security_patch = proptools.StringPtr(partitionVars.OdmDlkmSecurityPatch)
+	case "vendor_ramdisk":
+		if android.InList("recovery", generatedPartitions(ctx)) {
+			fsProps.Include_files_of = []string{generatedModuleNameForPartition(ctx.Config(), "recovery")}
+		}
 	}
 }
 

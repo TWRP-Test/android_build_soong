@@ -1049,7 +1049,7 @@ func addRequiredDeps(ctx BottomUpMutatorContext) {
 	hostTargets = append(hostTargets, ctx.Config().BuildOSCommonTarget)
 
 	if ctx.Device() {
-		for _, depName := range ctx.Module().RequiredModuleNames(ctx) {
+		for _, depName := range append(ctx.Module().RequiredModuleNames(ctx), ctx.Module().VintfFragmentModuleNames(ctx)...) {
 			for _, target := range deviceTargets {
 				addDep(target, depName)
 			}
@@ -1062,7 +1062,7 @@ func addRequiredDeps(ctx BottomUpMutatorContext) {
 	}
 
 	if ctx.Host() {
-		for _, depName := range ctx.Module().RequiredModuleNames(ctx) {
+		for _, depName := range append(ctx.Module().RequiredModuleNames(ctx), ctx.Module().VintfFragmentModuleNames(ctx)...) {
 			for _, target := range hostTargets {
 				// When a host module requires another host module, don't make a
 				// dependency if they have different OSes (i.e. hostcross).

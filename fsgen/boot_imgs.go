@@ -119,7 +119,6 @@ func createVendorBootImage(ctx android.LoadHookContext, dtbImg dtbImg) bool {
 			Avb_mode:           avbInfo.avbMode,
 			Avb_private_key:    avbInfo.avbkeyFilegroup,
 			Avb_rollback_index: avbInfo.avbRollbackIndex,
-			Avb_algorithm:      avbInfo.avbAlgorithm,
 			Dtb_prebuilt:       dtbPrebuilt,
 			Cmdline:            cmdline,
 			Bootconfig:         vendorBootConfigImg,

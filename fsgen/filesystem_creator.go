@@ -339,22 +339,7 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 		}
 	case "recovery":
 		dirs := append(commonPartitionDirs, []string{
-			"odm_file_contexts",
-			"odm_property_contexts",
-			"plat_file_contexts",
-			"plat_property_contexts",
-			"plat_service_contexts",
-			"product_file_contexts",
-			"product_property_contexts",
-			"product_service_contexts",
 			"sdcard",
-			"sepolicy",
-			"system_ext_file_contexts",
-			"system_ext_property_contexts",
-			"system_ext_service_contexts",
-			"vendor_file_contexts",
-			"vendor_property_contexts",
-			"vendor_service_contexts",
 		}...)
 
 		dirsWithRoot := make([]string, len(dirs))

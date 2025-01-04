@@ -888,7 +888,19 @@ func (a *apexBundle) DepsMutator(ctx android.BottomUpMutatorContext) {
 	ctx.AddFarVariationDependencies(commonVariation, javaLibTag, a.properties.Java_libs...)
 	ctx.AddFarVariationDependencies(commonVariation, fsTag, a.properties.Filesystems...)
 	ctx.AddFarVariationDependencies(commonVariation, compatConfigTag, a.properties.Compat_configs...)
+
+	// Add a reverse dependency to all_apex_certs singleton module.
+	// all_apex_certs will use this dependency to collect the certificate of this apex.
+	ctx.AddReverseDependency(ctx.Module(), allApexCertsDepTag, "all_apex_certs")
 }
+
+type allApexCertsDependencyTag struct {
+	blueprint.DependencyTag
+}
+
+func (_ allApexCertsDependencyTag) ExcludeFromVisibilityEnforcement() {}
+
+var allApexCertsDepTag = allApexCertsDependencyTag{}
 
 // DepsMutator for the overridden properties.
 func (a *apexBundle) OverridablePropertiesDepsMutator(ctx android.BottomUpMutatorContext) {

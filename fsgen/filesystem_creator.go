@@ -211,6 +211,18 @@ func (f *filesystemCreator) createDeviceModule(
 	if android.InList("userdata", f.properties.Generated_partition_types) {
 		partitionProps.Userdata_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "userdata"))
 	}
+	if android.InList("recovery", f.properties.Generated_partition_types) {
+		partitionProps.Recovery_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "recovery"))
+	}
+	if f.properties.Boot_image != "" {
+		partitionProps.Boot_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "boot"))
+	}
+	if f.properties.Vendor_boot_image != "" {
+		partitionProps.Vendor_boot_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor_boot"))
+	}
+	if f.properties.Init_boot_image != "" {
+		partitionProps.Init_boot_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "init_boot"))
+	}
 	partitionProps.Vbmeta_partitions = vbmetaPartitions
 
 	ctx.CreateModule(filesystem.AndroidDeviceFactory, baseProps, partitionProps)

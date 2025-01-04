@@ -253,3 +253,8 @@ build_prop {
     relative_install_path: "etc/ramdisk", // ramdisk/system/etc/ramdisk/build.prop
     visibility: ["//visibility:private"],
 }
+
+all_apex_certs {
+    name: "all_apex_certs",
+    visibility: ["//cts/tests/tests/security"],
+}

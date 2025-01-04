@@ -109,12 +109,23 @@ func createVendorBootImage(ctx android.LoadHookContext, dtbImg dtbImg) bool {
 		vendorBootConfigImg = proptools.StringPtr(":" + name)
 	}
 
+	var partitionSize *int64
+	if partitionVariables.BoardVendorBootimagePartitionSize != "" {
+		// Base of zero will allow base 10 or base 16 if starting with 0x
+		parsed, err := strconv.ParseInt(partitionVariables.BoardVendorBootimagePartitionSize, 0, 64)
+		if err != nil {
+			ctx.ModuleErrorf("BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE must be an int, got %s", partitionVariables.BoardVendorBootimagePartitionSize)
+		}
+		partitionSize = &parsed
+	}
+
 	ctx.CreateModule(
 		filesystem.BootimgFactory,
 		&filesystem.BootimgProperties{
 			Boot_image_type:    proptools.StringPtr("vendor_boot"),
 			Ramdisk_module:     proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor_ramdisk")),
 			Header_version:     proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
+			Partition_size:     partitionSize,
 			Use_avb:            avbInfo.avbEnable,
 			Avb_mode:           avbInfo.avbMode,
 			Avb_private_key:    avbInfo.avbkeyFilegroup,

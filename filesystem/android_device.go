@@ -22,21 +22,27 @@ import (
 )
 
 type PartitionNameProperties struct {
-	// Name of the Boot_partition_name partition filesystem module
+	// Name of the boot partition filesystem module
 	Boot_partition_name *string
-	// Name of the System partition filesystem module
+	// Name of the vendor boot partition filesystem module
+	Vendor_boot_partition_name *string
+	// Name of the init boot partition filesystem module
+	Init_boot_partition_name *string
+	// Name of the system partition filesystem module
 	System_partition_name *string
-	// Name of the System_ext partition filesystem module
+	// Name of the system_ext partition filesystem module
 	System_ext_partition_name *string
-	// Name of the Product partition filesystem module
+	// Name of the product partition filesystem module
 	Product_partition_name *string
-	// Name of the Vendor partition filesystem module
+	// Name of the vendor partition filesystem module
 	Vendor_partition_name *string
-	// Name of the Odm partition filesystem module
+	// Name of the odm partition filesystem module
 	Odm_partition_name *string
+	// Name of the recovery partition filesystem module
+	Recovery_partition_name *string
 	// The vbmeta partition and its "chained" partitions
 	Vbmeta_partitions []string
-	// Name of the Userdata partition filesystem module
+	// Name of the userdata partition filesystem module
 	Userdata_partition_name *string
 }
 
@@ -62,7 +68,7 @@ var filesystemDepTag partitionDepTagType
 func (a *androidDevice) DepsMutator(ctx android.BottomUpMutatorContext) {
 	addDependencyIfDefined := func(dep *string) {
 		if dep != nil {
-			ctx.AddDependency(ctx.Module(), filesystemDepTag, proptools.String(dep))
+			ctx.AddFarVariationDependencies(nil, filesystemDepTag, proptools.String(dep))
 		}
 	}
 

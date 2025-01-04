@@ -3585,7 +3585,11 @@ func TestCertificate(t *testing.T) {
 				name: "myapex.key",
 				public_key: "testkey.avbpubkey",
 				private_key: "testkey.pem",
-			}`)
+			}`,
+			android.MockFS{
+				"vendor/foo/devkeys/testkey.x509.pem": nil,
+			}.AddToFixture(),
+		)
 		rule := ctx.ModuleForTests("myapex", "android_common_myapex").Rule("signapk")
 		expected := "vendor/foo/devkeys/testkey.x509.pem vendor/foo/devkeys/testkey.pk8"
 		if actual := rule.Args["certificates"]; actual != expected {

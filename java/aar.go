@@ -1644,5 +1644,5 @@ func AARImportFactory() android.Module {
 }
 
 func (a *AARImport) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
-	dpInfo.Jars = append(dpInfo.Jars, a.headerJarFile.String(), a.rJar.String())
+	dpInfo.Jars = append(dpInfo.Jars, a.implementationJarFile.String(), a.rJar.String())
 }

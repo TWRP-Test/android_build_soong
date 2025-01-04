@@ -2643,18 +2643,11 @@ const (
 	RenameUseExclude
 )
 
-type RenameUseElement struct {
-	DepName   string
-	RenameUse DependencyUse
-	Why       string // token for determining where in the logic the decision was made.
-}
-
 type JarJarProviderData struct {
 	// Mapping of class names: original --> renamed.  If the value is "", the class will be
 	// renamed by the next rdep that has the jarjar_prefix attribute (or this module if it has
 	// attribute). Rdeps of that module will inherit the renaming.
-	Rename    map[string]string
-	RenameUse []RenameUseElement
+	Rename map[string]string
 }
 
 func (this JarJarProviderData) GetDebugString() string {
@@ -2733,33 +2726,33 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 		//
 		// Note well: there are probably cases that are getting to the unconditional return
 		// and are therefore wrong.
-		shouldIncludeRenames := func() (DependencyUse, string) {
+		shouldIncludeRenames := func() DependencyUse {
 			if moduleName == m.Name() {
-				return RenameUseInclude, "name" // If we have the same module name, include the renames.
+				return RenameUseInclude // If we have the same module name, include the renames.
 			}
 			if sc, ok := module.(android.SdkContext); ok {
 				if ctx.Device() {
 					sdkDep := decodeSdkDep(ctx, sc)
 					if !sdkDep.invalidVersion && sdkDep.useFiles {
-						return RenameUseExclude, "useFiles"
+						return RenameUseExclude
 					}
 				}
 			}
 			if IsJniDepTag(tag) || tag == certificateTag || tag == proguardRaiseTag {
-				return RenameUseExclude, "tags"
+				return RenameUseExclude
 			}
 			if _, ok := android.OtherModuleProvider(ctx, m, SdkLibraryInfoProvider); ok {
 				switch tag {
 				case sdkLibTag, libTag:
-					return RenameUseExclude, "sdklibdep" // matches collectDeps()
+					return RenameUseExclude // matches collectDeps()
 				}
-				return RenameUseInvalid, "sdklibdep" // dep is not used in collectDeps()
+				return RenameUseInvalid // dep is not used in collectDeps()
 			} else if ji, ok := android.OtherModuleProvider(ctx, m, JavaInfoProvider); ok {
 				switch ji.StubsLinkType {
 				case Stubs:
-					return RenameUseExclude, "info"
+					return RenameUseExclude
 				case Implementation:
-					return RenameUseInclude, "info"
+					return RenameUseInclude
 				default:
 					//fmt.Printf("collectDirectDepsProviders: %v -> %v StubsLinkType unknown\n", module, m)
 					// Fall through to the heuristic logic.
@@ -2768,58 +2761,56 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 				case "*java.GeneratedJavaLibraryModule":
 					// Probably a java_aconfig_library module.
 					// TODO: make this check better.
-					return RenameUseInclude, "reflect"
+					return RenameUseInclude
 				}
 				switch tag {
 				case bootClasspathTag:
-					return RenameUseExclude, "tagswitch"
+					return RenameUseExclude
 				case sdkLibTag, libTag, instrumentationForTag:
-					return RenameUseInclude, "tagswitch"
+					return RenameUseInclude
 				case java9LibTag:
-					return RenameUseExclude, "tagswitch"
+					return RenameUseExclude
 				case staticLibTag:
-					return RenameUseInclude, "tagswitch"
+					return RenameUseInclude
 				case pluginTag:
-					return RenameUseInclude, "tagswitch"
+					return RenameUseInclude
 				case errorpronePluginTag:
-					return RenameUseInclude, "tagswitch"
+					return RenameUseInclude
 				case exportedPluginTag:
-					return RenameUseInclude, "tagswitch"
+					return RenameUseInclude
 				case kotlinPluginTag:
-					return RenameUseInclude, "tagswitch"
+					return RenameUseInclude
 				default:
-					return RenameUseExclude, "tagswitch"
+					return RenameUseExclude
 				}
 			} else if _, ok := m.(android.SourceFileProducer); ok {
 				switch tag {
 				case sdkLibTag, libTag, staticLibTag:
-					return RenameUseInclude, "srcfile"
+					return RenameUseInclude
 				default:
-					return RenameUseExclude, "srcfile"
+					return RenameUseExclude
 				}
 			} else if _, ok := android.OtherModuleProvider(ctx, m, android.CodegenInfoProvider); ok {
-				return RenameUseInclude, "aconfig_declarations_group"
+				return RenameUseInclude
 			} else {
 				switch tag {
 				case bootClasspathTag:
-					return RenameUseExclude, "else"
+					return RenameUseExclude
 				case systemModulesTag:
-					return RenameUseInclude, "else"
+					return RenameUseInclude
 				}
 			}
 			// If we got here, choose the safer option, which may lead to a build failure, rather
 			// than runtime failures on the device.
-			return RenameUseExclude, "end"
+			return RenameUseExclude
 		}
 
 		if result == nil {
 			result = &JarJarProviderData{
-				Rename:    make(map[string]string),
-				RenameUse: make([]RenameUseElement, 0),
+				Rename: make(map[string]string),
 			}
 		}
-		how, why := shouldIncludeRenames()
-		result.RenameUse = append(result.RenameUse, RenameUseElement{DepName: m.Name(), RenameUse: how, Why: why})
+		how := shouldIncludeRenames()
 		if how != RenameUseInclude {
 			// Nothing to merge.
 			return

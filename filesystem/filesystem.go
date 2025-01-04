@@ -648,7 +648,6 @@ func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (andro
 		Input(propFile).
 		Implicits(toolDeps).
 		Implicit(fec).
-		FlagWithArg("--build_datetime_file ", ctx.Config().Getenv("BUILD_DATETIME_FILE")).
 		Output(output).
 		Text(rootDir.String()) // directory where to find fs_config_files|dirs
 

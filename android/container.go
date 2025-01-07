@@ -198,9 +198,7 @@ var unstableInfoProvider = blueprint.NewProvider[unstableInfo]()
 func determineUnstableModule(mctx ModuleContext) bool {
 	module := mctx.Module()
 
-	// TODO(b/383559945) Remove "framework-minus-apex_jarjar-sharded" once
-	// we remove this module.
-	unstableModule := module.Name() == "framework-minus-apex" || module.Name() == "framework-minus-apex_jarjar-sharded"
+	unstableModule := module.Name() == "framework-minus-apex"
 	if installable, ok := module.(InstallableModule); ok {
 		for _, staticDepTag := range installable.StaticDependencyTags() {
 			mctx.VisitDirectDepsWithTag(staticDepTag, func(dep Module) {

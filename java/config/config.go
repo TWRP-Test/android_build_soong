@@ -42,9 +42,6 @@ var (
 	InstrumentFrameworkModules = []string{
 		"framework",
 		"framework-minus-apex",
-		// TODO(b/383559945) Remove "framework-minus-apex_jarjar-sharded" once
-		// we remove this module.
-		"framework-minus-apex_jarjar-sharded",
 		"ims-common",
 		"telephony-common",
 		"services",

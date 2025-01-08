@@ -88,7 +88,7 @@ func TestDroidstubs(t *testing.T) {
 		cmdline := String(sboxProto.Commands[0].Command)
 		android.AssertStringContainsEquals(t, "api-versions generation flag", cmdline, "--generate-api-levels", c.generate_xml)
 		if c.expectedJarFilename != "" {
-			expected := "--android-jar-pattern ./%/public/" + c.expectedJarFilename
+			expected := "--android-jar-pattern ./{version:level}/public/" + c.expectedJarFilename
 			if !strings.Contains(cmdline, expected) {
 				t.Errorf("For %q, expected metalava argument %q, but was not found %q", c.moduleName, expected, cmdline)
 			}
@@ -142,8 +142,8 @@ func TestPublicDroidstubs(t *testing.T) {
 	patterns := getAndroidJarPatternsForDroidstubs(t, "public")
 
 	android.AssertArrayString(t, "order of patterns", []string{
-		"--android-jar-pattern somedir/%/public/android.jar",
-		"--android-jar-pattern someotherdir/%/public/android.jar",
+		"--android-jar-pattern somedir/{version:level}/public/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/public/android.jar",
 	}, patterns)
 }
 
@@ -151,10 +151,10 @@ func TestSystemDroidstubs(t *testing.T) {
 	patterns := getAndroidJarPatternsForDroidstubs(t, "system")
 
 	android.AssertArrayString(t, "order of patterns", []string{
-		"--android-jar-pattern somedir/%/system/android.jar",
-		"--android-jar-pattern someotherdir/%/system/android.jar",
-		"--android-jar-pattern somedir/%/public/android.jar",
-		"--android-jar-pattern someotherdir/%/public/android.jar",
+		"--android-jar-pattern somedir/{version:level}/system/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/system/android.jar",
+		"--android-jar-pattern somedir/{version:level}/public/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/public/android.jar",
 	}, patterns)
 }
 
@@ -162,12 +162,12 @@ func TestModuleLibDroidstubs(t *testing.T) {
 	patterns := getAndroidJarPatternsForDroidstubs(t, "module-lib")
 
 	android.AssertArrayString(t, "order of patterns", []string{
-		"--android-jar-pattern somedir/%/module-lib/android.jar",
-		"--android-jar-pattern someotherdir/%/module-lib/android.jar",
-		"--android-jar-pattern somedir/%/system/android.jar",
-		"--android-jar-pattern someotherdir/%/system/android.jar",
-		"--android-jar-pattern somedir/%/public/android.jar",
-		"--android-jar-pattern someotherdir/%/public/android.jar",
+		"--android-jar-pattern somedir/{version:level}/module-lib/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/module-lib/android.jar",
+		"--android-jar-pattern somedir/{version:level}/system/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/system/android.jar",
+		"--android-jar-pattern somedir/{version:level}/public/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/public/android.jar",
 	}, patterns)
 }
 
@@ -175,14 +175,14 @@ func TestSystemServerDroidstubs(t *testing.T) {
 	patterns := getAndroidJarPatternsForDroidstubs(t, "system-server")
 
 	android.AssertArrayString(t, "order of patterns", []string{
-		"--android-jar-pattern somedir/%/system-server/android.jar",
-		"--android-jar-pattern someotherdir/%/system-server/android.jar",
-		"--android-jar-pattern somedir/%/module-lib/android.jar",
-		"--android-jar-pattern someotherdir/%/module-lib/android.jar",
-		"--android-jar-pattern somedir/%/system/android.jar",
-		"--android-jar-pattern someotherdir/%/system/android.jar",
-		"--android-jar-pattern somedir/%/public/android.jar",
-		"--android-jar-pattern someotherdir/%/public/android.jar",
+		"--android-jar-pattern somedir/{version:level}/system-server/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/system-server/android.jar",
+		"--android-jar-pattern somedir/{version:level}/module-lib/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/module-lib/android.jar",
+		"--android-jar-pattern somedir/{version:level}/system/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/system/android.jar",
+		"--android-jar-pattern somedir/{version:level}/public/android.jar",
+		"--android-jar-pattern someotherdir/{version:level}/public/android.jar",
 	}, patterns)
 }
 

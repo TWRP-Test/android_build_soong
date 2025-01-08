@@ -162,6 +162,7 @@ type variableProperties struct {
 			Optimize struct {
 				Enabled *bool
 			}
+			Aaptflags []string
 		}
 
 		Uml struct {

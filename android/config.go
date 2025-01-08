@@ -768,11 +768,7 @@ func (c *config) SetAllowMissingDependencies() {
 // BlueprintToolLocation returns the directory containing build system tools
 // from Blueprint, like soong_zip and merge_zips.
 func (c *config) HostToolDir() string {
-	if c.KatiEnabled() {
-		return filepath.Join(c.outDir, "host", c.PrebuiltOS(), "bin")
-	} else {
-		return filepath.Join(c.soongOutDir, "host", c.PrebuiltOS(), "bin")
-	}
+	return filepath.Join(c.outDir, "host", c.PrebuiltOS(), "bin")
 }
 
 func (c *config) HostToolPath(ctx PathContext, tool string) Path {

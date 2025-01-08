@@ -629,8 +629,8 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 					cmd.Implicit(dep)
 				} else if filename != "android.jar" && depBase == "android.jar" {
 					// Metalava implicitly searches these patterns:
-					//  prebuilts/tools/common/api-versions/android-%/android.jar
-					//  prebuilts/sdk/%/public/android.jar
+					//  prebuilts/tools/common/api-versions/android-{version:level}/android.jar
+					//  prebuilts/sdk/{version:level}/public/android.jar
 					// Add android.jar files from the api_levels_annotations_dirs directories to try
 					// to satisfy these patterns.  If Metalava can't find a match for an API level
 					// between 1 and 28 in at least one pattern it will fail.
@@ -646,11 +646,11 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 	})
 
 	// Generate the list of --android-jar-pattern options. The order matters so the first one which
-	// matches will be the one that is used for a specific api level..
+	// matches will be the one that is used for a specific api level.
 	for _, sdkDir := range sdkDirs {
 		for _, dir := range dirs {
 			addPattern := func(jarFilename string) {
-				cmd.FlagWithArg("--android-jar-pattern ", fmt.Sprintf("%s/%%/%s/%s", dir, sdkDir, jarFilename))
+				cmd.FlagWithArg("--android-jar-pattern ", fmt.Sprintf("%s/{version:level}/%s/%s", dir, sdkDir, jarFilename))
 			}
 
 			if sdkDir == "module-lib" || sdkDir == "system-server" {

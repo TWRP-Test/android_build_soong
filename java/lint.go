@@ -470,7 +470,7 @@ func (l *linter) lint(ctx android.ModuleContext) {
 
 	cmd := rule.Command()
 
-	cmd.Flag(`JAVA_OPTS="-Xmx3072m --add-opens java.base/java.util=ALL-UNNAMED"`).
+	cmd.Flag(`JAVA_OPTS="-Xmx4096m --add-opens java.base/java.util=ALL-UNNAMED"`).
 		FlagWithArg("ANDROID_SDK_HOME=", lintPaths.homeDir.String()).
 		FlagWithInput("SDK_ANNOTATIONS=", annotationsZipPath).
 		FlagWithInput("LINT_OPTS=-DLINT_API_DATABASE=", apiVersionsXMLPath)

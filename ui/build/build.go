@@ -87,6 +87,17 @@ func SetupOutDir(ctx Context, config Config) {
 	// without changing the command line every time.  Avoids rebuilds
 	// when using ninja.
 	writeValueIfChanged(ctx, config, config.SoongOutDir(), "build_number.txt", buildNumber)
+
+	hostname, ok := config.environ.Get("BUILD_HOSTNAME")
+	if !ok {
+		var err error
+		hostname, err = os.Hostname()
+		if err != nil {
+			ctx.Println("Failed to read hostname:", err)
+			hostname = "unknown"
+		}
+	}
+	writeValueIfChanged(ctx, config, config.SoongOutDir(), "build_hostname.txt", hostname)
 }
 
 var combinedBuildNinjaTemplate = template.Must(template.New("combined").Parse(`

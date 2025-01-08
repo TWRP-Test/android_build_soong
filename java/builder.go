@@ -56,7 +56,7 @@ var (
 				`$zipTemplate${config.SoongZipCmd} -jar -o $out.tmp -C $outDir -D $outDir && ` +
 				`if ! cmp -s "$out.tmp" "$out"; then mv "$out.tmp" "$out"; fi && ` +
 				`if ! cmp -s "$annoSrcJar.tmp" "$annoSrcJar"; then mv "$annoSrcJar.tmp" "$annoSrcJar"; fi && ` +
-				`if [[ -f "$out.pc_state.new" ]]; then mv "$out.pc_state.new" "$out.pc_state"; fi && ` +
+				`if [ -f "$out.pc_state.new" ]; then mv "$out.pc_state.new" "$out.pc_state"; fi && ` +
 				`rm -rf "$srcJarDir" "$outDir"`,
 			CommandDeps: []string{
 				"${config.FindInputDeltaCmd}",

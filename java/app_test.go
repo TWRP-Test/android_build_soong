@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -4587,6 +4588,75 @@ func TestTestOnlyApp(t *testing.T) {
 	}
 
 	assertTestOnlyAndTopLevel(t, ctx, expectedTestOnly, expectedTopLevel)
+}
+
+func TestTestConfigTemplate(t *testing.T) {
+	t.Parallel()
+	ctx := android.GroupFixturePreparers(
+		prepareForJavaTest,
+	).RunTestWithBp(t, `
+		android_test {
+			name: "android-test",
+			test_config_template: "AndroidTestTemplate.xml",
+			test_options: {
+				tradefed_options: [
+					{
+						name: "name1",
+						key: "key1",
+						value: "value1",
+					},
+					{
+						name: "name2",
+						key: "key2",
+						value: "value2",
+					},
+				],
+				test_runner_options: [
+					{
+						name: "name3",
+						key: "key3",
+						value: "value3",
+					},
+					{
+						name: "name4",
+						key: "key4",
+						value: "value4",
+					},
+				],
+			},
+		}
+	`)
+	type option struct {
+		name  string
+		key   string
+		value string
+	}
+	re := regexp.MustCompile(`<option name="(.*)" key="(.*)" value="(.*)" />`)
+	parse_options := func(optionsString string) []option {
+		lines := strings.Split(optionsString, `\n`)
+		var ret []option
+		for _, l := range lines {
+			sm := re.FindStringSubmatch(l)
+			if sm == nil {
+				continue
+			}
+			ret = append(ret, option{sm[1], sm[2], sm[3]})
+		}
+		return ret
+	}
+	rule := ctx.ModuleForTests("android-test", "android_common").Rule("autogenInstrumentationTest")
+	android.AssertSameArray(t, "extraConfigs mismatch",
+		[]option{
+			{"name1", "key1", "value1"},
+			{"name2", "key2", "value2"},
+		},
+		parse_options(rule.Args["extraConfigs"]))
+	android.AssertSameArray(t, "extraTestRunnerConfigs mismatch",
+		[]option{
+			{"name3", "key3", "value3"},
+			{"name4", "key4", "value4"},
+		},
+		parse_options(rule.Args["extraTestRunnerConfigs"]))
 }
 
 func TestAppStem(t *testing.T) {

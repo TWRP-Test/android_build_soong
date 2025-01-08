@@ -1195,7 +1195,7 @@ func (library *libraryDecorator) linkShared(ctx ModuleContext,
 	library.linkSAbiDumpFiles(ctx, deps, objs, fileName, unstrippedOutputFile)
 
 	var transitiveStaticLibrariesForOrdering depset.DepSet[android.Path]
-	if static := ctx.GetDirectDepsWithTag(staticVariantTag); len(static) > 0 {
+	if static := ctx.GetDirectDepsProxyWithTag(staticVariantTag); len(static) > 0 {
 		s, _ := android.OtherModuleProvider(ctx, static[0], StaticLibraryInfoProvider)
 		transitiveStaticLibrariesForOrdering = s.TransitiveStaticLibrariesForOrdering
 	}
@@ -2409,13 +2409,11 @@ func maybeInjectBoringSSLHash(ctx android.ModuleContext, outputFile android.Modu
 	inject *bool, fileName string) android.ModuleOutPath {
 	// TODO(b/137267623): Remove this in favor of a cc_genrule when they support operating on shared libraries.
 	injectBoringSSLHash := Bool(inject)
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		if tag, ok := ctx.OtherModuleDependencyTag(dep).(libraryDependencyTag); ok && tag.static() {
-			if cc, ok := dep.(*Module); ok {
-				if library, ok := cc.linker.(*libraryDecorator); ok {
-					if Bool(library.Properties.Inject_bssl_hash) {
-						injectBoringSSLHash = true
-					}
+			if ccInfo, ok := android.OtherModuleProvider(ctx, dep, CcInfoProvider); ok && ccInfo.LinkerInfo.LibraryDecoratorInfo != nil {
+				if ccInfo.LinkerInfo.LibraryDecoratorInfo.InjectBsslHash {
+					injectBoringSSLHash = true
 				}
 			}
 		}

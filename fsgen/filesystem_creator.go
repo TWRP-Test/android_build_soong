@@ -214,6 +214,15 @@ func (f *filesystemCreator) createDeviceModule(
 	if android.InList("recovery", f.properties.Generated_partition_types) {
 		partitionProps.Recovery_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "recovery"))
 	}
+	if android.InList("system_dlkm", f.properties.Generated_partition_types) {
+		partitionProps.System_dlkm_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system_dlkm"))
+	}
+	if android.InList("vendor_dlkm", f.properties.Generated_partition_types) {
+		partitionProps.Vendor_dlkm_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor_dlkm"))
+	}
+	if android.InList("odm_dlkm", f.properties.Generated_partition_types) {
+		partitionProps.Odm_dlkm_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "odm_dlkm"))
+	}
 	if f.properties.Boot_image != "" {
 		partitionProps.Boot_partition_name = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "boot"))
 	}

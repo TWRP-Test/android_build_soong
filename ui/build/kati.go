@@ -200,18 +200,10 @@ func runKati(ctx Context, config Config, extraSuffix string, args []string, envF
 	//     fi
 	cmd.Environment.Unset("SOONG_USE_PARTIAL_COMPILE")
 
-	hostname, ok := cmd.Environment.Get("BUILD_HOSTNAME")
 	// Unset BUILD_HOSTNAME during kati run to avoid kati rerun, kati will use BUILD_HOSTNAME from a file.
 	cmd.Environment.Unset("BUILD_HOSTNAME")
-	if !ok {
-		hostname, err = os.Hostname()
-		if err != nil {
-			ctx.Println("Failed to read hostname:", err)
-			hostname = "unknown"
-		}
-	}
-	writeValueIfChanged(ctx, config, config.SoongOutDir(), "build_hostname.txt", hostname)
-	_, ok = cmd.Environment.Get("BUILD_NUMBER")
+
+	_, ok := cmd.Environment.Get("BUILD_NUMBER")
 	// Unset BUILD_NUMBER during kati run to avoid kati rerun, kati will use BUILD_NUMBER from a file.
 	cmd.Environment.Unset("BUILD_NUMBER")
 	if ok {

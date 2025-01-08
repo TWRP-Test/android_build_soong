@@ -92,6 +92,7 @@ type LinkerInfo struct {
 type BinaryDecoratorInfo struct{}
 type LibraryDecoratorInfo struct {
 	ExportIncludeDirs proptools.Configurable[[]string]
+	InjectBsslHash    bool
 }
 
 type LibraryInfo struct {
@@ -2220,7 +2221,9 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		case *binaryDecorator:
 			ccInfo.LinkerInfo.BinaryDecoratorInfo = &BinaryDecoratorInfo{}
 		case *libraryDecorator:
-			ccInfo.LinkerInfo.LibraryDecoratorInfo = &LibraryDecoratorInfo{}
+			ccInfo.LinkerInfo.LibraryDecoratorInfo = &LibraryDecoratorInfo{
+				InjectBsslHash: Bool(c.linker.(*libraryDecorator).Properties.Inject_bssl_hash),
+			}
 		case *testBinary:
 			ccInfo.LinkerInfo.TestBinaryInfo = &TestBinaryInfo{
 				Gtest: decorator.testDecorator.gtest(),

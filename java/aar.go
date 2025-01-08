@@ -391,8 +391,9 @@ func (a *aapt) aapt2Flags(ctx android.ModuleContext, sdkContext android.SdkConte
 		versionName = proptools.NinjaEscape(versionName)
 		linkFlags = append(linkFlags, "--version-name ", versionName)
 	}
-
-	linkFlags, compileFlags = android.FilterList(linkFlags, []string{"--legacy"})
+	// Split the flags by prefix, as --png-compression-level has the "=value" suffix.
+	linkFlags, compileFlags = android.FilterListByPrefix(linkFlags,
+		[]string{"--legacy", "--png-compression-level"})
 
 	// Always set --pseudo-localize, it will be stripped out later for release
 	// builds that don't want it.

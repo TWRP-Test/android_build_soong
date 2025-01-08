@@ -198,7 +198,7 @@ var kaptStubs = pctx.AndroidRemoteStaticRule("kaptStubs", android.RemoteRuleSupp
 			`$kaptProcessor ` +
 			`-Xbuild-file=$kotlinBuildFile && ` +
 			`${config.SoongZipCmd} -jar -write_if_changed -o $out -C $kaptDir/stubs -D $kaptDir/stubs && ` +
-			`if [[ -f "$out.pc_state.new" ]]; then mv "$out.pc_state.new" "$out.pc_state"; fi && ` +
+			`if [ -f "$out.pc_state.new" ]; then mv "$out.pc_state.new" "$out.pc_state"; fi && ` +
 			`rm -rf "$srcJarDir"`,
 		CommandDeps: []string{
 			"${config.FindInputDeltaCmd}",

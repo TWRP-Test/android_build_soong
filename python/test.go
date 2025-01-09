@@ -68,6 +68,11 @@ type TestProperties struct {
 	// device.
 	Device_common_data []string `android:"path_device_common"`
 
+	// Same as data, but will add dependencies on modules via a device os variation and the
+	// device's first supported arch's variation. Useful for a host test that wants to embed a
+	// module built for device.
+	Device_first_data []string `android:"path_device_first"`
+
 	// list of java modules that provide data that should be installed alongside the test.
 	Java_data []string
 
@@ -187,6 +192,9 @@ func (p *PythonTestModule) GenerateAndroidBuildActions(ctx android.ModuleContext
 		p.data = append(p.data, android.DataPath{SrcPath: dataSrcPath})
 	}
 	for _, dataSrcPath := range android.PathsForModuleSrc(ctx, p.testProperties.Device_common_data) {
+		p.data = append(p.data, android.DataPath{SrcPath: dataSrcPath})
+	}
+	for _, dataSrcPath := range android.PathsForModuleSrc(ctx, p.testProperties.Device_first_data) {
 		p.data = append(p.data, android.DataPath{SrcPath: dataSrcPath})
 	}
 

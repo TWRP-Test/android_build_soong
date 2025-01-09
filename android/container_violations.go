@@ -414,10 +414,6 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 		"framework", // cts -> unstable
 	},
 
-	"CtsMediaBetterTogetherTestCases": {
-		"framework", // cts -> unstable
-	},
-
 	"CtsMediaCodecTestCases": {
 		"framework", // cts -> unstable
 	},
@@ -478,6 +474,11 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 		"framework", // cts -> unstable
 	},
 
+	// TODO(b/387499846): Remove once migrated to sdk_version.
+	"CtsMediaRouterTestCases": {
+		"framework", // cts -> unstable
+	},
+
 	"CtsMediaRouterHostSideTestBluetoothPermissionsApp": {
 		"framework", // cts -> unstable
 	},
@@ -487,6 +488,11 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"CtsMediaRouterHostSideTestModifyAudioRoutingApp": {
+		"framework", // cts -> unstable
+	},
+
+	// TODO(b/387500109): Remove once migrated to sdk_version.
+	"CtsMediaSessionTestCases": {
 		"framework", // cts -> unstable
 	},
 
@@ -907,10 +913,6 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 		"libnativeloader_vendor_shared_lib", // system -> vendor
 	},
 
-	"MctsMediaBetterTogetherTestCases": {
-		"framework", // cts -> unstable
-	},
-
 	"MctsMediaCodecTestCases": {
 		"framework", // cts -> unstable
 	},
@@ -944,6 +946,16 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"MctsMediaRecorderTestCases": {
+		"framework", // cts -> unstable
+	},
+
+	// TODO(b/387499846): Remove once migrated to sdk_version.
+	"MctsMediaRouterTestCases": {
+		"framework", // cts -> unstable
+	},
+
+	// TODO(b/387500109): Remove once migrated to sdk_version.
+	"MctsMediaSessionTestCases": {
 		"framework", // cts -> unstable
 	},
 

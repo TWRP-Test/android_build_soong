@@ -264,7 +264,7 @@ func makeLibFlags(deps PathDeps) []string {
 		libFlags = append(libFlags, "--extern "+lib.CrateName+"="+lib.Path.String())
 	}
 	for _, lib := range deps.DyLibs {
-		libFlags = append(libFlags, "--extern "+lib.CrateName+"="+lib.Path.String())
+		libFlags = append(libFlags, "--extern force:"+lib.CrateName+"="+lib.Path.String())
 	}
 	for _, proc_macro := range deps.ProcMacros {
 		libFlags = append(libFlags, "--extern "+proc_macro.CrateName+"="+proc_macro.Path.String())

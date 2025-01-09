@@ -211,10 +211,10 @@ var (
 
 	apexSepolicyTestsRule = pctx.StaticRule("apexSepolicyTestsRule", blueprint.RuleParams{
 		Command: `${deapexer} --debugfs_path ${debugfs_static} list -Z ${in} > ${out}.fc` +
-			` && ${apex_sepolicy_tests} -f ${out}.fc && touch ${out}`,
+			` && ${apex_sepolicy_tests} -f ${out}.fc --partition ${partition_tag} && touch ${out}`,
 		CommandDeps: []string{"${apex_sepolicy_tests}", "${deapexer}", "${debugfs_static}"},
 		Description: "run apex_sepolicy_tests",
-	})
+	}, "partition_tag")
 
 	apexLinkerconfigValidationRule = pctx.StaticRule("apexLinkerconfigValidationRule", blueprint.RuleParams{
 		Command:     `${conv_linker_config} validate --type apex ${image_dir} && touch ${out}`,
@@ -920,7 +920,7 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 	validations = append(validations, runApexLinkerconfigValidation(ctx, unsignedOutputFile, imageDir))
 	// TODO(b/279688635) deapexer supports [ext4]
 	if !a.skipValidation(apexSepolicyTests) && suffix == imageApexSuffix && ext4 == a.payloadFsType {
-		validations = append(validations, runApexSepolicyTests(ctx, unsignedOutputFile))
+		validations = append(validations, runApexSepolicyTests(ctx, a, unsignedOutputFile))
 	}
 	if !a.testApex && len(a.properties.Unwanted_transitive_deps) > 0 {
 		validations = append(validations,
@@ -1206,12 +1206,15 @@ func runApexLinkerconfigValidation(ctx android.ModuleContext, apexFile android.P
 //
 // $ deapexer list -Z {apex_file} > {file_contexts}
 // $ apex_sepolicy_tests -f {file_contexts}
-func runApexSepolicyTests(ctx android.ModuleContext, apexFile android.Path) android.Path {
+func runApexSepolicyTests(ctx android.ModuleContext, a *apexBundle, apexFile android.Path) android.Path {
 	timestamp := android.PathForModuleOut(ctx, "apex_sepolicy_tests.timestamp")
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   apexSepolicyTestsRule,
 		Input:  apexFile,
 		Output: timestamp,
+		Args: map[string]string{
+			"partition_tag": a.PartitionTag(ctx.DeviceConfig()),
+		},
 	})
 	return timestamp
 }

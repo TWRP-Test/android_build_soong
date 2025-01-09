@@ -61,7 +61,7 @@ type androidDevice struct {
 func AndroidDeviceFactory() android.Module {
 	module := &androidDevice{}
 	module.AddProperties(&module.partitionProps)
-	android.InitAndroidMultiTargetsArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	android.InitAndroidMultiTargetsArchModule(module, android.DeviceSupported, android.MultilibFirst)
 	return module
 }
 
@@ -74,7 +74,7 @@ var filesystemDepTag partitionDepTagType
 func (a *androidDevice) DepsMutator(ctx android.BottomUpMutatorContext) {
 	addDependencyIfDefined := func(dep *string) {
 		if dep != nil {
-			ctx.AddFarVariationDependencies(nil, filesystemDepTag, proptools.String(dep))
+			ctx.AddDependency(ctx.Module(), filesystemDepTag, proptools.String(dep))
 		}
 	}
 

@@ -65,15 +65,16 @@ func (this *allAconfigDeclarationsSingleton) GenerateBuildActions(ctx android.Si
 		})
 
 		var numOffendingPkg = 0
+		offendingPkgsMessage := ""
 		for pkg, cnt := range packages {
 			if cnt > 1 {
-				fmt.Printf("%d aconfig_declarations found for package %s\n", cnt, pkg)
+				offendingPkgsMessage += fmt.Sprintf("%d aconfig_declarations found for package %s\n", cnt, pkg)
 				numOffendingPkg++
 			}
 		}
 
 		if numOffendingPkg > 0 {
-			panic(fmt.Errorf("Only one aconfig_declarations allowed for each package."))
+			panic("Only one aconfig_declarations allowed for each package.\n" + offendingPkgsMessage)
 		}
 
 		// Generate build action for aconfig (binary proto output)

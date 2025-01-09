@@ -589,7 +589,7 @@ func (f *filesystemCreator) createVendorBuildProp(ctx android.LoadHookContext) {
 	}{
 		Name:             proptools.StringPtr(generatedModuleName(ctx.Config(), "android_info.prop")),
 		Board_info_files: partitionVars.BoardInfoFiles,
-		Stem:             proptools.StringPtr("android_info.txt"),
+		Stem:             proptools.StringPtr("android-info.txt"),
 	}
 	if len(androidInfoProps.Board_info_files) == 0 {
 		androidInfoProps.Bootloader_board_name = proptools.StringPtr(partitionVars.BootLoaderBoardName)
@@ -858,8 +858,8 @@ func getAvbInfo(config android.Config, partitionType string) avbInfo {
 
 func (f *filesystemCreator) createFileListDiffTest(ctx android.ModuleContext, partitionType string) android.Path {
 	partitionModuleName := generatedModuleNameForPartition(ctx.Config(), partitionType)
-	systemImage := ctx.GetDirectDepWithTag(partitionModuleName, generatedFilesystemDepTag)
-	filesystemInfo, ok := android.OtherModuleProvider(ctx, systemImage, filesystem.FilesystemProvider)
+	partitionImage := ctx.GetDirectDepWithTag(partitionModuleName, generatedFilesystemDepTag)
+	filesystemInfo, ok := android.OtherModuleProvider(ctx, partitionImage, filesystem.FilesystemProvider)
 	if !ok {
 		ctx.ModuleErrorf("Expected module %s to provide FileysystemInfo", partitionModuleName)
 	}
@@ -914,12 +914,12 @@ func createDiffTest(ctx android.ModuleContext, diffTestResultFile android.Writab
 	builder.Build("diff test "+diffTestResultFile.String(), "diff test")
 }
 
-type systemImageDepTagType struct {
+type imageDepTagType struct {
 	blueprint.BaseDependencyTag
 }
 
-var generatedFilesystemDepTag systemImageDepTagType
-var generatedVbmetaPartitionDepTag systemImageDepTagType
+var generatedFilesystemDepTag imageDepTagType
+var generatedVbmetaPartitionDepTag imageDepTagType
 
 func (f *filesystemCreator) DepsMutator(ctx android.BottomUpMutatorContext) {
 	for _, partitionType := range f.properties.Generated_partition_types {

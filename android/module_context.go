@@ -688,7 +688,6 @@ func (m *moduleContext) installFile(installPath InstallPath, name string, srcPat
 				Input:       srcPath,
 				Implicits:   implicitDeps,
 				OrderOnly:   orderOnlyDeps,
-				Default:     !m.Config().KatiEnabled(),
 				Args: map[string]string{
 					"extraCmds": extraCmds,
 				},
@@ -735,7 +734,6 @@ func (m *moduleContext) InstallSymlink(installPath InstallPath, name string, src
 				Description: "install symlink " + fullInstallPath.Base(),
 				Output:      fullInstallPath,
 				Input:       srcPath,
-				Default:     !m.Config().KatiEnabled(),
 				Args: map[string]string{
 					"fromPath": relPath,
 				},
@@ -782,7 +780,6 @@ func (m *moduleContext) InstallAbsoluteSymlink(installPath InstallPath, name str
 				Rule:        Symlink,
 				Description: "install symlink " + fullInstallPath.Base() + " -> " + absPath,
 				Output:      fullInstallPath,
-				Default:     !m.Config().KatiEnabled(),
 				Args: map[string]string{
 					"fromPath": absPath,
 				},

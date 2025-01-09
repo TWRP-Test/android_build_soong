@@ -95,6 +95,11 @@ type BaseProperties struct {
 	// device.
 	Device_common_data []string `android:"path_device_common"`
 
+	// Same as data, but will add dependencies on modules via a device os variation and the
+	// device's first supported arch's variation. Useful for a host test that wants to embed a
+	// module built for device.
+	Device_first_data []string `android:"path_device_first"`
+
 	// list of java modules that provide data that should be installed alongside the test.
 	Java_data []string
 
@@ -456,6 +461,7 @@ func (p *PythonLibraryModule) GenerateAndroidBuildActions(ctx android.ModuleCont
 	// expand data files from "data" property.
 	expandedData := android.PathsForModuleSrc(ctx, p.properties.Data)
 	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, p.properties.Device_common_data)...)
+	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, p.properties.Device_first_data)...)
 
 	// Emulate the data property for java_data dependencies.
 	for _, javaData := range ctx.GetDirectDepsWithTag(javaDataTag) {

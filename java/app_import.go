@@ -43,6 +43,12 @@ var (
 		Description: "Uncompress embedded JNI libs",
 	})
 
+	stripEmbeddedJniLibsUnusedArchRule = pctx.AndroidStaticRule("strip-embedded-jni-libs-from-unused-arch", blueprint.RuleParams{
+		Command:     `${config.Zip2ZipCmd} -i $in -o $out -x 'lib/**/*.so' $extraArgs`,
+		CommandDeps: []string{"${config.Zip2ZipCmd}"},
+		Description: "Remove all JNI libs from unused architectures",
+	}, "extraArgs")
+
 	uncompressDexRule = pctx.AndroidStaticRule("uncompress-dex", blueprint.RuleParams{
 		Command: `if (zipinfo $in '*.dex' 2>/dev/null | grep -v ' stor ' >/dev/null) ; then ` +
 			`${config.Zip2ZipCmd} -i $in -o $out -0 'classes*.dex'` +
@@ -149,6 +155,9 @@ type AndroidAppImportProperties struct {
 	// If unspecified, follows the naming convention that the source module of
 	// the prebuilt is Name() without "prebuilt_" prefix
 	Source_module_name *string
+
+	// Whether stripping all libraries from unused architectures.
+	Strip_unused_jni_arch *bool
 
 	// Path to the .prebuilt_info file of the prebuilt app.
 	// In case of mainline modules, the .prebuilt_info file contains the build_id that was used
@@ -292,6 +301,26 @@ func (a *AndroidAppImport) shouldUncompressDex(ctx android.ModuleContext) bool {
 	return shouldUncompressDex(ctx, android.RemoveOptionalPrebuiltPrefix(ctx.ModuleName()), &a.dexpreopter)
 }
 
+func (a *AndroidAppImport) stripEmbeddedJniLibsUnusedArch(
+	ctx android.ModuleContext, inputPath android.Path, outputPath android.WritablePath) {
+	var wantedJniLibSlice []string
+	for _, target := range ctx.MultiTargets() {
+		supported_abis := target.Arch.Abi
+		for _, arch := range supported_abis {
+			wantedJniLibSlice = append(wantedJniLibSlice, " -X lib/"+arch+"/*.so")
+		}
+	}
+	wantedJniLibString := strings.Join(wantedJniLibSlice, " ")
+	ctx.Build(pctx, android.BuildParams{
+		Rule:   stripEmbeddedJniLibsUnusedArchRule,
+		Input:  inputPath,
+		Output: outputPath,
+		Args: map[string]string{
+			"extraArgs": wantedJniLibString,
+		},
+	})
+}
+
 func (a *AndroidAppImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	a.generateAndroidBuildActions(ctx)
 }
@@ -346,6 +375,13 @@ func (a *AndroidAppImport) generateAndroidBuildActions(ctx android.ModuleContext
 	// Uncompress JNI libraries in the apk
 	jnisUncompressed := android.PathForModuleOut(ctx, "jnis-uncompressed", ctx.ModuleName()+".apk")
 	a.uncompressEmbeddedJniLibs(ctx, srcApk, jnisUncompressed)
+
+	// Strip all embedded JNI libs and include only required ones accordingly to the module's compile_multilib
+	if Bool(a.properties.Strip_unused_jni_arch) {
+		jnisStripped := android.PathForModuleOut(ctx, "jnis-stripped", ctx.ModuleName()+".apk")
+		a.stripEmbeddedJniLibsUnusedArch(ctx, jnisUncompressed, jnisStripped)
+		jnisUncompressed = jnisStripped
+	}
 
 	var pathFragments []string
 	relInstallPath := String(a.properties.Relative_install_path)

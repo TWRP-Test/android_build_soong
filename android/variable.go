@@ -698,6 +698,8 @@ type PartitionVariables struct {
 	TargetScreenDensity string `json:",omitempty"`
 
 	PrivateRecoveryUiProperties map[string]string `json:",omitempty"`
+
+	PrebuiltBootloader string `json:",omitempty"`
 }
 
 func boolPtr(v bool) *bool {

@@ -230,7 +230,7 @@ func createCcStubsRule() Rule {
 func createUncompressDexRules() []Rule {
 	return []Rule{
 		NeverAllow().
-			NotIn("art").
+			NotIn("art", "cts/hostsidetests/compilation").
 			WithMatcher("uncompress_dex", isSetMatcherInstance).
 			Because("uncompress_dex is only allowed for certain jars for test in art."),
 	}

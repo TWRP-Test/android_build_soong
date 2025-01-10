@@ -281,6 +281,10 @@ func (v *vbmeta) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		FlagWithArg("-s ", strconv.Itoa(vbmetaMaxSize)).
 		Output(output)
 
+	if !ctx.Config().KatiEnabled() {
+		copyImageFileToProductOut(ctx, builder, v.partitionName(), output)
+	}
+
 	builder.Build("vbmeta", fmt.Sprintf("vbmeta %s", ctx.ModuleName()))
 
 	v.installDir = android.PathForModuleInstall(ctx, "etc")

@@ -197,6 +197,8 @@ func getGlobPathNameFromPrimaryBuilderFactory(config Config, pb PrimaryBuilderFa
 func (pb PrimaryBuilderFactory) primaryBuilderInvocation(config Config) bootstrap.PrimaryBuilderInvocation {
 	commonArgs := make([]string, 0, 0)
 
+	commonArgs = append(commonArgs, "--kati_suffix", config.KatiSuffix())
+
 	if !pb.config.skipSoongTests {
 		commonArgs = append(commonArgs, "-t")
 	}

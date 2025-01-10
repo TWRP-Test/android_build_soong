@@ -107,8 +107,11 @@ builddir = {{.OutDir}}
 {{end -}}
 pool highmem_pool
  depth = {{.HighmemParallel}}
-{{if and (not .SkipKatiNinja) .HasKatiSuffix}}subninja {{.KatiBuildNinjaFile}}
+{{if and (not .SkipKatiNinja) .HasKatiSuffix}}
+subninja {{.KatiBuildNinjaFile}}
 subninja {{.KatiPackageNinjaFile}}
+{{else}}
+subninja {{.KatiSoongOnlyPackageNinjaFile}}
 {{end -}}
 subninja {{.SoongNinjaFile}}
 `))
@@ -346,24 +349,30 @@ func Build(ctx Context, config Config) {
 		return
 	}
 
+	// Still generate the kati suffix in soong-only builds because soong-only still uses kati for
+	// the packaging step. Also, the kati suffix is used for the combined ninja file.
+	genKatiSuffix(ctx, config)
+
 	if what&RunSoong != 0 {
 		runSoong(ctx, config)
 	}
 
 	if what&RunKati != 0 {
-		genKatiSuffix(ctx, config)
 		runKatiCleanSpec(ctx, config)
 		runKatiBuild(ctx, config)
-		runKatiPackage(ctx, config)
+		runKatiPackage(ctx, config, false)
 
-		ioutil.WriteFile(config.LastKatiSuffixFile(), []byte(config.KatiSuffix()), 0666) // a+rw
 	} else if what&RunKatiNinja != 0 {
 		// Load last Kati Suffix if it exists
-		if katiSuffix, err := ioutil.ReadFile(config.LastKatiSuffixFile()); err == nil {
+		if katiSuffix, err := os.ReadFile(config.LastKatiSuffixFile()); err == nil {
 			ctx.Verboseln("Loaded previous kati config:", string(katiSuffix))
 			config.SetKatiSuffix(string(katiSuffix))
 		}
+	} else if what&RunSoong != 0 {
+		runKatiPackage(ctx, config, true)
 	}
+
+	os.WriteFile(config.LastKatiSuffixFile(), []byte(config.KatiSuffix()), 0666) // a+rw
 
 	// Write combined ninja file
 	createCombinedBuildNinjaFile(ctx, config)

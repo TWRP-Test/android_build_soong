@@ -26,6 +26,7 @@ func TestPlatformCompatConfig(t *testing.T) {
 		android.FixtureWithRootAndroidBp(`
 			platform_compat_config {
 				name: "myconfig2",
+				include_in_merged_xml: false,
 			}
 			platform_compat_config {
 				name: "myconfig1",
@@ -38,7 +39,6 @@ func TestPlatformCompatConfig(t *testing.T) {
 
 	CheckMergedCompatConfigInputs(t, result, "myconfig",
 		"out/soong/.intermediates/myconfig1/myconfig1_meta.xml",
-		"out/soong/.intermediates/myconfig2/myconfig2_meta.xml",
 		"out/soong/.intermediates/myconfig3/myconfig3_meta.xml",
 	)
 }

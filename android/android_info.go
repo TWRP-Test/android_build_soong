@@ -58,17 +58,19 @@ func (p *androidInfoModule) GenerateAndroidBuildActions(ctx ModuleContext) {
 	androidInfoTxtName := proptools.StringDefault(p.properties.Stem, ctx.ModuleName()+".txt")
 	androidInfoTxt := PathForModuleOut(ctx, androidInfoTxtName)
 	androidInfoProp := androidInfoTxt.ReplaceExtension(ctx, "prop")
+	timestamp := PathForModuleOut(ctx, "timestamp")
 
 	if boardInfoFiles := PathsForModuleSrc(ctx, p.properties.Board_info_files); len(boardInfoFiles) > 0 {
 		ctx.Build(pctx, BuildParams{
-			Rule:   mergeAndRemoveComments,
-			Inputs: boardInfoFiles,
-			Output: androidInfoTxt,
+			Rule:       mergeAndRemoveComments,
+			Inputs:     boardInfoFiles,
+			Output:     androidInfoTxt,
+			Validation: timestamp,
 		})
 	} else if bootloaderBoardName := proptools.String(p.properties.Bootloader_board_name); bootloaderBoardName != "" {
-		WriteFileRule(ctx, androidInfoTxt, "board="+bootloaderBoardName)
+		WriteFileRule(ctx, androidInfoTxt, "board="+bootloaderBoardName, timestamp)
 	} else {
-		WriteFileRule(ctx, androidInfoTxt, "")
+		WriteFileRule(ctx, androidInfoTxt, "", timestamp)
 	}
 
 	// Create android_info.prop
@@ -79,6 +81,18 @@ func (p *androidInfoModule) GenerateAndroidBuildActions(ctx ModuleContext) {
 	})
 
 	ctx.SetOutputFiles(Paths{androidInfoProp}, "")
+
+	builder := NewRuleBuilder(pctx, ctx)
+	builder.Command().Text("touch").Output(timestamp)
+	if !ctx.Config().KatiEnabled() {
+		cpPath := PathForModuleInPartitionInstall(ctx, "").Join(ctx, androidInfoTxtName)
+		builder.Command().
+			Text("rsync").
+			Flag("-a").
+			Input(androidInfoTxt).
+			Text(cpPath.String())
+	}
+	builder.Build("copy_android_info", "Copy android-info.txt")
 }
 
 // android_info module generate a file named android-info.txt that contains various information
@@ -86,6 +100,6 @@ func (p *androidInfoModule) GenerateAndroidBuildActions(ctx ModuleContext) {
 func AndroidInfoFactory() Module {
 	module := &androidInfoModule{}
 	module.AddProperties(&module.properties)
-	InitAndroidModule(module)
+	InitAndroidArchModule(module, DeviceSupported, MultilibCommon)
 	return module
 }

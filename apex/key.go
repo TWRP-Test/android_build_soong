@@ -182,6 +182,7 @@ type allApexCerts struct {
 }
 
 func (_ *allApexCerts) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+	var avbpubkeys android.Paths
 	var certificatesPem android.Paths
 	ctx.VisitDirectDeps(func(m android.Module) {
 		if apex, ok := m.(*apexBundle); ok {
@@ -194,9 +195,12 @@ func (_ *allApexCerts) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 				}
 			}
 			certificatesPem = append(certificatesPem, pem)
+			// avbpubkey for signing the apex payload
+			avbpubkeys = append(avbpubkeys, apex.publicKeyFile)
 		}
 	})
 	certificatesPem = android.SortedUniquePaths(certificatesPem) // For hermiticity
+	avbpubkeys = android.SortedUniquePaths(avbpubkeys)           // For hermiticity
 	var certificatesDer android.Paths
 	for index, certificatePem := range certificatesPem {
 		certificateDer := android.PathForModuleOut(ctx, fmt.Sprintf("x509.%v.der", index))
@@ -209,6 +213,7 @@ func (_ *allApexCerts) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 	ctx.SetOutputFiles(certificatesPem, ".pem")
 	ctx.SetOutputFiles(certificatesDer, ".der")
+	ctx.SetOutputFiles(avbpubkeys, ".avbpubkey")
 }
 
 func (_ *allApexCerts) GenerateSingletonBuildActions(ctx android.SingletonContext) {

@@ -1679,14 +1679,13 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 		}
 	})
 
-	var deps Paths
-
 	var namespacePrefix string
 	nameSpace := ctx.Namespace().Path
 	if nameSpace != "." {
 		namespacePrefix = strings.ReplaceAll(nameSpace, "/", ".") + "-"
 	}
 
+	var deps Paths
 	var info FinalModuleBuildTargetsInfo
 
 	if len(allInstalledFiles) > 0 {
@@ -1853,9 +1852,9 @@ type SourceFilesInfo struct {
 
 var SourceFilesInfoKey = blueprint.NewProvider[SourceFilesInfo]()
 
+// FinalModuleBuildTargetsInfo is used by buildTargetSingleton to create checkbuild and
+// per-directory build targets. Only set on the final variant of each module
 type FinalModuleBuildTargetsInfo struct {
-	// Used by buildTargetSingleton to create checkbuild and per-directory build targets
-	// Only set on the final variant of each module
 	InstallTarget    WritablePath
 	CheckbuildTarget WritablePath
 	BlueprintDir     string

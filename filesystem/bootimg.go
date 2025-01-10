@@ -197,12 +197,8 @@ func (b *bootimg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		ctx.PropertyErrorf("kernel_prebuilt", "boot partition must have kernel")
 		return
 	}
-	var kernel android.Path
-	if kernelProp != "" {
-		kernel = android.PathForModuleSrc(ctx, kernelProp)
-	}
 
-	unsignedOutput := b.buildBootImage(ctx, kernel)
+	unsignedOutput := b.buildBootImage(ctx, b.getKernelPath(ctx))
 
 	output := unsignedOutput
 	if proptools.Bool(b.properties.Use_avb) {
@@ -213,7 +209,7 @@ func (b *bootimg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		case "default":
 			output = b.signImage(ctx, unsignedOutput)
 		case "make_legacy":
-			output = b.addAvbFooter(ctx, unsignedOutput, kernel)
+			output = b.addAvbFooter(ctx, unsignedOutput, b.getKernelPath(ctx))
 		default:
 			ctx.PropertyErrorf("avb_mode", `Unknown value for avb_mode, expected "default" or "make_legacy", got: %q`, *b.properties.Avb_mode)
 		}
@@ -224,6 +220,58 @@ func (b *bootimg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	ctx.SetOutputFiles([]android.Path{output}, "")
 	b.output = output
+
+	// Set the Filesystem info of the ramdisk dependency.
+	// `android_device` will use this info to package `target_files.zip`
+	if ramdisk := proptools.String(b.properties.Ramdisk_module); ramdisk != "" {
+		ramdiskModule := ctx.GetDirectDepWithTag(ramdisk, bootimgRamdiskDep)
+		fsInfo, _ := android.OtherModuleProvider(ctx, ramdiskModule, FilesystemProvider)
+		android.SetProvider(ctx, FilesystemProvider, fsInfo)
+	}
+
+	// Set BootimgInfo for building target_files.zip
+	android.SetProvider(ctx, BootimgInfoProvider, BootimgInfo{
+		Cmdline:    b.properties.Cmdline,
+		Kernel:     b.getKernelPath(ctx),
+		Dtb:        b.getDtbPath(ctx),
+		Bootconfig: b.getBootconfigPath(ctx),
+	})
+}
+
+var BootimgInfoProvider = blueprint.NewProvider[BootimgInfo]()
+
+type BootimgInfo struct {
+	Cmdline    []string
+	Kernel     android.Path
+	Dtb        android.Path
+	Bootconfig android.Path
+}
+
+func (b *bootimg) getKernelPath(ctx android.ModuleContext) android.Path {
+	var kernelPath android.Path
+	kernelName := proptools.String(b.properties.Kernel_prebuilt)
+	if kernelName != "" {
+		kernelPath = android.PathForModuleSrc(ctx, kernelName)
+	}
+	return kernelPath
+}
+
+func (b *bootimg) getDtbPath(ctx android.ModuleContext) android.Path {
+	var dtbPath android.Path
+	dtbName := proptools.String(b.properties.Dtb_prebuilt)
+	if dtbName != "" {
+		dtbPath = android.PathForModuleSrc(ctx, dtbName)
+	}
+	return dtbPath
+}
+
+func (b *bootimg) getBootconfigPath(ctx android.ModuleContext) android.Path {
+	var bootconfigPath android.Path
+	bootconfigName := proptools.String(b.properties.Bootconfig)
+	if bootconfigName != "" {
+		bootconfigPath = android.PathForModuleSrc(ctx, bootconfigName)
+	}
+	return bootconfigPath
 }
 
 func (b *bootimg) buildBootImage(ctx android.ModuleContext, kernel android.Path) android.Path {
@@ -242,10 +290,8 @@ func (b *bootimg) buildBootImage(ctx android.ModuleContext, kernel android.Path)
 		cmd.FlagWithArg("--os_patch_level ", ctx.Config().PlatformSecurityPatch())
 	}
 
-	dtbName := proptools.String(b.properties.Dtb_prebuilt)
-	if dtbName != "" {
-		dtb := android.PathForModuleSrc(ctx, dtbName)
-		cmd.FlagWithInput("--dtb ", dtb)
+	if b.getDtbPath(ctx) != nil {
+		cmd.FlagWithInput("--dtb ", b.getDtbPath(ctx))
 	}
 
 	cmdline := strings.Join(b.properties.Cmdline, " ")
@@ -372,6 +418,10 @@ func (b *bootimg) addAvbFooter(ctx android.ModuleContext, unsignedImage android.
 		cmd.FlagWithArg("--rollback_index ", strconv.FormatInt(*b.properties.Avb_rollback_index, 10))
 	}
 
+	if !ctx.Config().KatiEnabled() {
+		copyImageFileToProductOut(ctx, builder, b.bootImageType.String(), output)
+	}
+
 	builder.Build("add_avb_footer", fmt.Sprintf("Adding avb footer to %s", b.BaseModuleName()))
 	return output
 }
@@ -386,6 +436,10 @@ func (b *bootimg) signImage(ctx android.ModuleContext, unsignedImage android.Pat
 		Input(propFile).
 		Implicits(toolDeps).
 		Output(output)
+
+	if !ctx.Config().KatiEnabled() {
+		copyImageFileToProductOut(ctx, builder, b.bootImageType.String(), output)
+	}
 
 	builder.Build("sign_bootimg", fmt.Sprintf("Signing %s", b.BaseModuleName()))
 	return output

@@ -172,7 +172,7 @@ func (b *platformBootclasspathModule) GenerateAndroidBuildActions(ctx android.Mo
 	// Do not add implLibModule to allModules as the impl lib is only used to collect the
 	// transitive source files
 	var implLibModule []android.Module
-	ctx.VisitDirectDepsWithTag(implLibraryTag, func(m android.Module) {
+	ctx.VisitDirectDepsWithTag(platformBootclasspathImplLibDepTag, func(m android.Module) {
 		implLibModule = append(implLibModule, m)
 	})
 

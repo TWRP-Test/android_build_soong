@@ -256,5 +256,8 @@ build_prop {
 
 all_apex_certs {
     name: "all_apex_certs",
-    visibility: ["//cts/tests/tests/security"],
+    visibility: [
+        "//cts/tests/tests/security",
+        "//cts/hostsidetests/appsecurity",
+    ],
 }

@@ -2827,6 +2827,23 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		outputFile = combinedJar
 	}
 
+	proguardFlags := android.PathForModuleOut(ctx, "proguard_flags")
+	TransformJarToR8Rules(ctx, proguardFlags, outputFile)
+
+	transitiveProguardFlags, transitiveUnconditionalExportedFlags := collectDepProguardSpecInfo(ctx)
+	android.SetProvider(ctx, ProguardSpecInfoProvider, ProguardSpecInfo{
+		ProguardFlagsFiles: depset.New[android.Path](
+			depset.POSTORDER,
+			android.Paths{proguardFlags},
+			transitiveProguardFlags,
+		),
+		UnconditionallyExportedProguardFlags: depset.New[android.Path](
+			depset.POSTORDER,
+			nil,
+			transitiveUnconditionalExportedFlags,
+		),
+	})
+
 	// Save the output file with no relative path so that it doesn't end up in a subdirectory when used as a resource.
 	// Also strip the relative path from the header output file so that the reuseImplementationJarAsHeaderJar check
 	// in a module that depends on this module considers them equal.

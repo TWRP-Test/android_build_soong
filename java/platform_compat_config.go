@@ -51,6 +51,10 @@ func platformCompatConfigPath(ctx android.PathContext) android.OutputPath {
 
 type platformCompatConfigProperties struct {
 	Src *string `android:"path"`
+
+	// If true, we include it in the "merged" XML (merged_compat_config.xml).
+	// Default is true.
+	Include_in_merged_xml *bool
 }
 
 type platformCompatConfig struct {
@@ -60,12 +64,17 @@ type platformCompatConfig struct {
 	installDirPath android.InstallPath
 	configFile     android.OutputPath
 	metadataFile   android.OutputPath
+	doMerge        bool
 
 	installConfigFile android.InstallPath
 }
 
 func (p *platformCompatConfig) compatConfigMetadata() android.Path {
 	return p.metadataFile
+}
+
+func (p *platformCompatConfig) includeInMergedXml() bool {
+	return p.doMerge
 }
 
 func (p *platformCompatConfig) CompatConfig() android.OutputPath {
@@ -78,6 +87,9 @@ func (p *platformCompatConfig) SubDir() string {
 
 type platformCompatConfigMetadataProvider interface {
 	compatConfigMetadata() android.Path
+
+	// Whether to include it in the "merged" XML (merged_compat_config.xml) or not.
+	includeInMergedXml() bool
 }
 
 type PlatformCompatConfigIntf interface {
@@ -98,6 +110,7 @@ func (p *platformCompatConfig) GenerateAndroidBuildActions(ctx android.ModuleCon
 	metadataFileName := p.Name() + "_meta.xml"
 	p.configFile = android.PathForModuleOut(ctx, configFileName).OutputPath
 	p.metadataFile = android.PathForModuleOut(ctx, metadataFileName).OutputPath
+	p.doMerge = proptools.BoolDefault(p.properties.Include_in_merged_xml, true)
 	path := android.PathForModuleSrc(ctx, String(p.properties.Src))
 
 	rule.Command().
@@ -201,6 +214,10 @@ func (module *prebuiltCompatConfigModule) compatConfigMetadata() android.Path {
 	return module.metadataFile
 }
 
+func (module *prebuiltCompatConfigModule) includeInMergedXml() bool {
+	return true // Always include in merged.xml
+}
+
 func (module *prebuiltCompatConfigModule) BaseModuleName() string {
 	return proptools.StringDefault(module.properties.Source_module_name, module.ModuleBase.Name())
 }
@@ -235,6 +252,9 @@ func (p *platformCompatConfigSingleton) GenerateBuildActions(ctx android.Singlet
 		}
 		if c, ok := module.(platformCompatConfigMetadataProvider); ok {
 			if !android.IsModulePreferred(module) {
+				return
+			}
+			if !c.includeInMergedXml() {
 				return
 			}
 			metadata := c.compatConfigMetadata()

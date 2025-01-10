@@ -30,18 +30,23 @@ func TestPlatformBootclasspath(t *testing.T) {
 	preparer := android.GroupFixturePreparers(
 		prepareForTestWithPlatformBootclasspath,
 		FixtureConfigureBootJars("platform:foo", "system_ext:bar"),
+		android.FixtureMergeMockFs(android.MockFS{
+			"api/current.txt": nil,
+			"api/removed.txt": nil,
+		}),
 		android.FixtureWithRootAndroidBp(`
 			platform_bootclasspath {
 				name: "platform-bootclasspath",
 			}
 
-			java_library {
+			java_sdk_library {
 				name: "bar",
 				srcs: ["a.java"],
 				system_modules: "none",
 				sdk_version: "none",
 				compile_dex: true,
 				system_ext_specific: true,
+				unsafe_ignore_missing_latest_api: true,
 			}
 		`),
 	)

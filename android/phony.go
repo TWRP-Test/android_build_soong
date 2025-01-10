@@ -15,6 +15,7 @@
 package android
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/google/blueprint"
@@ -68,13 +69,25 @@ func (p *phonySingleton) GenerateBuildActions(ctx SingletonContext) {
 	}
 
 	if !ctx.Config().KatiEnabled() {
+		// In soong-only builds, the phonies can conflict with dist targets that will
+		// be generated in the packaging step. Instead of emitting a blueprint/ninja phony directly,
+		// create a makefile that defines the phonies that will be included in the packaging step.
+		// Make will dedup the phonies there.
+		var buildPhonyFileContents strings.Builder
 		for _, phony := range p.phonyList {
-			ctx.Build(pctx, BuildParams{
-				Rule:      blueprint.Phony,
-				Outputs:   []WritablePath{PathForPhony(ctx, phony)},
-				Implicits: p.phonyMap[phony],
-			})
+			buildPhonyFileContents.WriteString(".PHONY: ")
+			buildPhonyFileContents.WriteString(phony)
+			buildPhonyFileContents.WriteString("\n")
+			buildPhonyFileContents.WriteString(phony)
+			buildPhonyFileContents.WriteString(":")
+			for _, dep := range p.phonyMap[phony] {
+				buildPhonyFileContents.WriteString(" ")
+				buildPhonyFileContents.WriteString(dep.String())
+			}
+			buildPhonyFileContents.WriteString("\n")
 		}
+		buildPhonyFile := PathForOutput(ctx, "soong_phony_targets.mk")
+		writeValueIfChanged(ctx, absolutePath(buildPhonyFile.String()), buildPhonyFileContents.String())
 	}
 }
 

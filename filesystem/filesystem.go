@@ -593,11 +593,16 @@ func (f *filesystem) copyPackagingSpecs(ctx android.ModuleContext, builder *andr
 }
 
 func (f *filesystem) copyFilesToProductOut(ctx android.ModuleContext, builder *android.RuleBuilder, rebasedDir android.OutputPath) {
-	if f.Name() != ctx.Config().SoongDefinedSystemImage() {
+	if !(f.Name() == ctx.Config().SoongDefinedSystemImage() || proptools.Bool(f.properties.Is_auto_generated)) {
 		return
 	}
 	installPath := android.PathForModuleInPartitionInstall(ctx, f.partitionName())
-	builder.Command().Textf("cp -prf %s/* %s", rebasedDir, installPath)
+	builder.Command().Textf("rsync --checksum %s %s", rebasedDir, installPath)
+}
+
+func copyImageFileToProductOut(ctx android.ModuleContext, builder *android.RuleBuilder, partition string, output android.Path) {
+	copyDir := android.PathForModuleInPartitionInstall(ctx, "").Join(ctx, fmt.Sprintf("%s.img", partition))
+	builder.Command().Textf("rsync -a %s %s", output, copyDir)
 }
 
 func (f *filesystem) rootDirString() string {
@@ -650,6 +655,10 @@ func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (andro
 		Implicit(fec).
 		Output(output).
 		Text(rootDir.String()) // directory where to find fs_config_files|dirs
+
+	if !ctx.Config().KatiEnabled() {
+		copyImageFileToProductOut(ctx, builder, f.partitionName(), output)
+	}
 
 	// rootDir is not deleted. Might be useful for quick inspection.
 	builder.Build("build_filesystem_image", fmt.Sprintf("Creating filesystem %s", f.BaseModuleName()))
@@ -1081,7 +1090,10 @@ func (f *filesystem) getLibsForLinkerConfig(ctx android.ModuleContext) ([]androi
 	modulesInPackageByName := make(map[string]bool)
 
 	deps := f.gatherFilteredPackagingSpecs(ctx)
-	ctx.WalkDeps(func(child, parent android.Module) bool {
+	ctx.WalkDeps(func(child, _ android.Module) bool {
+		if !child.Enabled(ctx) {
+			return false
+		}
 		for _, ps := range android.OtherModuleProviderOrDefault(
 			ctx, child, android.InstallFilesProvider).PackagingSpecs {
 			if _, ok := deps[ps.RelPathInPackage()]; ok && ps.Partition() == f.PartitionType() {
@@ -1100,6 +1112,9 @@ func (f *filesystem) getLibsForLinkerConfig(ctx android.ModuleContext) ([]androi
 
 	var requireModules []android.Module
 	ctx.WalkDeps(func(child, parent android.Module) bool {
+		if !child.Enabled(ctx) {
+			return false
+		}
 		_, parentInPackage := modulesInPackageByModule[parent]
 		_, childInPackageName := modulesInPackageByName[child.Name()]
 

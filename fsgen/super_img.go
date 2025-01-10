@@ -19,6 +19,7 @@ import (
 
 	"android/soong/android"
 	"android/soong/filesystem"
+
 	"github.com/google/blueprint/proptools"
 )
 
@@ -30,7 +31,7 @@ func createSuperImage(ctx android.LoadHookContext, partitions []string, partitio
 	baseProps := &struct {
 		Name *string
 	}{
-		Name: proptools.StringPtr(generatedModuleName(ctx.Config(), "super")),
+		Name: proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "super")),
 	}
 
 	superImageProps := &filesystem.SuperImageProperties{

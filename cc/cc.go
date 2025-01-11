@@ -34,7 +34,6 @@ import (
 	"android/soong/android"
 	"android/soong/cc/config"
 	"android/soong/fuzz"
-	"android/soong/genrule"
 )
 
 type CcMakeVarsInfo struct {
@@ -79,14 +78,15 @@ type LinkerInfo struct {
 	// list of modules that should be dynamically linked into this module.
 	SharedLibs proptools.Configurable[[]string]
 	// list of modules that should only provide headers for this module.
-	HeaderLibs           proptools.Configurable[[]string]
-	UnstrippedOutputFile android.Path
+	HeaderLibs               proptools.Configurable[[]string]
+	ImplementationModuleName *string
 
 	BinaryDecoratorInfo    *BinaryDecoratorInfo
 	LibraryDecoratorInfo   *LibraryDecoratorInfo
 	TestBinaryInfo         *TestBinaryInfo
 	BenchmarkDecoratorInfo *BenchmarkDecoratorInfo
 	ObjectLinkerInfo       *ObjectLinkerInfo
+	StubDecoratorInfo      *StubDecoratorInfo
 }
 
 type BinaryDecoratorInfo struct{}
@@ -95,34 +95,74 @@ type LibraryDecoratorInfo struct {
 	InjectBsslHash    bool
 }
 
-type LibraryInfo struct {
-	StubsVersion string
+type SnapshotInfo struct {
+	SnapshotAndroidMkSuffix string
 }
 
 type TestBinaryInfo struct {
 	Gtest bool
 }
 type BenchmarkDecoratorInfo struct{}
+
+type StubDecoratorInfo struct{}
+
 type ObjectLinkerInfo struct{}
+
+type LibraryInfo struct {
+	BuildStubs bool
+}
 
 // Common info about the cc module.
 type CcInfo struct {
-	HasStubsVariants       bool
 	IsPrebuilt             bool
 	CmakeSnapshotSupported bool
+	HasLlndkStubs          bool
 	CompilerInfo           *CompilerInfo
 	LinkerInfo             *LinkerInfo
+	SnapshotInfo           *SnapshotInfo
 	LibraryInfo            *LibraryInfo
 }
 
-var CcInfoProvider = blueprint.NewProvider[CcInfo]()
+var CcInfoProvider = blueprint.NewProvider[*CcInfo]()
 
 type LinkableInfo struct {
 	// StaticExecutable returns true if this is a binary module with "static_executable: true".
-	StaticExecutable bool
+	StaticExecutable     bool
+	Static               bool
+	Shared               bool
+	HasStubsVariants     bool
+	StubsVersion         string
+	IsStubs              bool
+	UnstrippedOutputFile android.Path
+	OutputFile           android.OptionalPath
+	CoverageFiles        android.Paths
+	SAbiDumpFiles        android.Paths
+	CcLibrary            bool
+	CcLibraryInterface   bool
+	RustLibraryInterface bool
+	// CrateName returns the crateName for a Rust library
+	CrateName string
+	// DepFlags returns a slice of Rustc string flags
+	ExportedCrateLinkDirs []string
+	// This can be different from the one on CommonModuleInfo
+	BaseModuleName       string
+	HasNonSystemVariants bool
+	IsLlndk              bool
+	InVendorOrProduct    bool
+	// SubName returns the modules SubName, used for image and NDK/SDK variations.
+	SubName             string
+	InRamdisk           bool
+	OnlyInRamdisk       bool
+	InVendorRamdisk     bool
+	OnlyInVendorRamdisk bool
+	InRecovery          bool
+	OnlyInRecovery      bool
+	Installable         *bool
+	// RelativeInstallPath returns the relative install path for this module.
+	RelativeInstallPath string
 }
 
-var LinkableInfoKey = blueprint.NewProvider[LinkableInfo]()
+var LinkableInfoProvider = blueprint.NewProvider[*LinkableInfo]()
 
 func init() {
 	RegisterCCBuildComponents(android.InitRegistrationContext)
@@ -2182,14 +2222,24 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		android.SetProvider(ctx, CcObjectInfoProvider, ccObjectInfo)
 	}
 
-	android.SetProvider(ctx, LinkableInfoKey, LinkableInfo{
-		StaticExecutable: c.StaticExecutable(),
-	})
+	linkableInfo := CreateCommonLinkableInfo(c)
+	if lib, ok := c.linker.(versionedInterface); ok {
+		linkableInfo.StubsVersion = lib.stubsVersion()
+	}
+	if c.linker != nil {
+		if library, ok := c.linker.(libraryInterface); ok {
+			linkableInfo.Static = library.static()
+			linkableInfo.Shared = library.shared()
+			linkableInfo.CoverageFiles = library.objs().coverageFiles
+			linkableInfo.SAbiDumpFiles = library.objs().sAbiDumpFiles
+		}
+	}
+	android.SetProvider(ctx, LinkableInfoProvider, linkableInfo)
 
 	ccInfo := CcInfo{
-		HasStubsVariants:       c.HasStubsVariants(),
 		IsPrebuilt:             c.IsPrebuilt(),
 		CmakeSnapshotSupported: proptools.Bool(c.Properties.Cmake_snapshot_supported),
+		HasLlndkStubs:          c.HasLlndkStubs(),
 	}
 	if c.compiler != nil {
 		ccInfo.CompilerInfo = &CompilerInfo{
@@ -2211,11 +2261,10 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 	}
 	if c.linker != nil {
 		ccInfo.LinkerInfo = &LinkerInfo{
-			WholeStaticLibs:      c.linker.baseLinkerProps().Whole_static_libs,
-			StaticLibs:           c.linker.baseLinkerProps().Static_libs,
-			SharedLibs:           c.linker.baseLinkerProps().Shared_libs,
-			HeaderLibs:           c.linker.baseLinkerProps().Header_libs,
-			UnstrippedOutputFile: c.UnstrippedOutputFile(),
+			WholeStaticLibs: c.linker.baseLinkerProps().Whole_static_libs,
+			StaticLibs:      c.linker.baseLinkerProps().Static_libs,
+			SharedLibs:      c.linker.baseLinkerProps().Shared_libs,
+			HeaderLibs:      c.linker.baseLinkerProps().Header_libs,
 		}
 		switch decorator := c.linker.(type) {
 		case *binaryDecorator:
@@ -2232,19 +2281,57 @@ func (c *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			ccInfo.LinkerInfo.BenchmarkDecoratorInfo = &BenchmarkDecoratorInfo{}
 		case *objectLinker:
 			ccInfo.LinkerInfo.ObjectLinkerInfo = &ObjectLinkerInfo{}
+		case *stubDecorator:
+			ccInfo.LinkerInfo.StubDecoratorInfo = &StubDecoratorInfo{}
+		}
+
+		if s, ok := c.linker.(SnapshotInterface); ok {
+			ccInfo.SnapshotInfo = &SnapshotInfo{
+				SnapshotAndroidMkSuffix: s.SnapshotAndroidMkSuffix(),
+			}
+		}
+		if v, ok := c.linker.(versionedInterface); ok {
+			name := v.implementationModuleName(ctx.OtherModuleName(c))
+			ccInfo.LinkerInfo.ImplementationModuleName = &name
 		}
 	}
 	if c.library != nil {
 		ccInfo.LibraryInfo = &LibraryInfo{
-			StubsVersion: c.library.stubsVersion(),
+			BuildStubs: c.library.buildStubs(),
 		}
 	}
-	android.SetProvider(ctx, CcInfoProvider, ccInfo)
+	android.SetProvider(ctx, CcInfoProvider, &ccInfo)
 
 	c.setOutputFiles(ctx)
 
 	if c.makeVarsInfo != nil {
 		android.SetProvider(ctx, CcMakeVarsInfoProvider, c.makeVarsInfo)
+	}
+}
+
+func CreateCommonLinkableInfo(mod LinkableInterface) *LinkableInfo {
+	return &LinkableInfo{
+		StaticExecutable:     mod.StaticExecutable(),
+		HasStubsVariants:     mod.HasStubsVariants(),
+		OutputFile:           mod.OutputFile(),
+		UnstrippedOutputFile: mod.UnstrippedOutputFile(),
+		IsStubs:              mod.IsStubs(),
+		CcLibrary:            mod.CcLibrary(),
+		CcLibraryInterface:   mod.CcLibraryInterface(),
+		RustLibraryInterface: mod.RustLibraryInterface(),
+		BaseModuleName:       mod.BaseModuleName(),
+		IsLlndk:              mod.IsLlndk(),
+		HasNonSystemVariants: mod.HasNonSystemVariants(),
+		SubName:              mod.SubName(),
+		InVendorOrProduct:    mod.InVendorOrProduct(),
+		InRamdisk:            mod.InRamdisk(),
+		OnlyInRamdisk:        mod.OnlyInRamdisk(),
+		InVendorRamdisk:      mod.InVendorRamdisk(),
+		OnlyInVendorRamdisk:  mod.OnlyInVendorRamdisk(),
+		InRecovery:           mod.InRecovery(),
+		OnlyInRecovery:       mod.OnlyInRecovery(),
+		Installable:          mod.Installable(),
+		RelativeInstallPath:  mod.RelativeInstallPath(),
 	}
 }
 
@@ -3073,7 +3160,7 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 
 	skipModuleList := map[string]bool{}
 
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		depName := ctx.OtherModuleName(dep)
 		depTag := ctx.OtherModuleDependencyTag(dep)
 
@@ -3082,8 +3169,17 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 			return
 		}
 
+		var ccInfo *CcInfo
+		v, hasCcInfo := android.OtherModuleProvider(ctx, dep, CcInfoProvider)
+		if hasCcInfo {
+			ccInfo = v
+		}
+		linkableInfo, hasLinkableInfo := android.OtherModuleProvider(ctx, dep, LinkableInfoProvider)
 		if depTag == android.DarwinUniversalVariantTag {
-			depPaths.DarwinSecondArchOutput = dep.(*Module).OutputFile()
+			if !hasCcInfo {
+				panic(fmt.Errorf("dep is not a cc module: %s", dep.String()))
+			}
+			depPaths.DarwinSecondArchOutput = linkableInfo.OutputFile
 			return
 		}
 
@@ -3096,34 +3192,32 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 			}
 		}
 
-		ccDep, ok := dep.(LinkableInterface)
-		if !ok {
-
+		if !hasLinkableInfo {
 			// handling for a few module types that aren't cc Module but that are also supported
+			genRule, ok := android.OtherModuleProvider(ctx, dep, android.GeneratedSourceInfoProvider)
 			switch depTag {
 			case genSourceDepTag:
-				if genRule, ok := dep.(genrule.SourceFileGenerator); ok {
+				if ok {
 					depPaths.GeneratedSources = append(depPaths.GeneratedSources,
-						genRule.GeneratedSourceFiles()...)
+						genRule.GeneratedSourceFiles...)
 				} else {
 					ctx.ModuleErrorf("module %q is not a gensrcs or genrule", depName)
 				}
 				// Support exported headers from a generated_sources dependency
 				fallthrough
 			case genHeaderDepTag, genHeaderExportDepTag:
-				if genRule, ok := dep.(genrule.SourceFileGenerator); ok {
+				if ok {
 					depPaths.GeneratedDeps = append(depPaths.GeneratedDeps,
-						genRule.GeneratedDeps()...)
-					dirs := genRule.GeneratedHeaderDirs()
+						genRule.GeneratedDeps...)
+					dirs := genRule.GeneratedHeaderDirs
 					depPaths.IncludeDirs = append(depPaths.IncludeDirs, dirs...)
 					if depTag == genHeaderExportDepTag {
 						depPaths.ReexportedDirs = append(depPaths.ReexportedDirs, dirs...)
 						depPaths.ReexportedGeneratedHeaders = append(depPaths.ReexportedGeneratedHeaders,
-							genRule.GeneratedSourceFiles()...)
-						depPaths.ReexportedDeps = append(depPaths.ReexportedDeps, genRule.GeneratedDeps()...)
+							genRule.GeneratedSourceFiles...)
+						depPaths.ReexportedDeps = append(depPaths.ReexportedDeps, genRule.GeneratedDeps...)
 						// Add these re-exported flags to help header-abi-dumper to infer the abi exported by a library.
 						c.sabi.Properties.ReexportedIncludes = append(c.sabi.Properties.ReexportedIncludes, dirs.Strings()...)
-
 					}
 				} else {
 					ctx.ModuleErrorf("module %q is not a genrule", depName)
@@ -3144,13 +3238,14 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 			return
 		}
 
-		if dep.Target().Os != ctx.Os() {
+		commonInfo := android.OtherModuleProviderOrDefault(ctx, dep, android.CommonModuleInfoKey)
+		if commonInfo.Target.Os != ctx.Os() {
 			ctx.ModuleErrorf("OS mismatch between %q (%s) and %q (%s)", ctx.ModuleName(), ctx.Os().Name, depName, dep.Target().Os.Name)
 			return
 		}
-		if dep.Target().Arch.ArchType != ctx.Arch().ArchType {
+		if commonInfo.Target.Arch.ArchType != ctx.Arch().ArchType {
 			ctx.ModuleErrorf("Arch mismatch between %q(%v) and %q(%v)",
-				ctx.ModuleName(), ctx.Arch().ArchType, depName, dep.Target().Arch.ArchType)
+				ctx.ModuleName(), ctx.Arch().ArchType, depName, commonInfo.Target.Arch.ArchType)
 			return
 		}
 
@@ -3175,7 +3270,7 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 			depPaths.LlndkSystemIncludeDirs = append(depPaths.LlndkSystemIncludeDirs, depExporterInfo.SystemIncludeDirs...)
 		}
 
-		linkFile := ccDep.OutputFile()
+		linkFile := linkableInfo.OutputFile
 
 		if libDepTag, ok := depTag.(libraryDependencyTag); ok {
 			// Only use static unwinder for legacy (min_sdk_version = 29) apexes (b/144430859)
@@ -3253,8 +3348,8 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 				}
 
 			case libDepTag.static():
-				if ccDep.RustLibraryInterface() {
-					rlibDep := RustRlibDep{LibPath: linkFile.Path(), CrateName: ccDep.CrateName(), LinkDirs: ccDep.ExportedCrateLinkDirs()}
+				if linkableInfo.RustLibraryInterface {
+					rlibDep := RustRlibDep{LibPath: linkFile.Path(), CrateName: linkableInfo.CrateName, LinkDirs: linkableInfo.ExportedCrateLinkDirs}
 					depPaths.RustRlibDeps = append(depPaths.RustRlibDeps, rlibDep)
 					depPaths.IncludeDirs = append(depPaths.IncludeDirs, depExporterInfo.IncludeDirs...)
 					if libDepTag.wholeStatic {
@@ -3331,8 +3426,8 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 				}
 			}
 
-			if libDepTag.static() && !libDepTag.wholeStatic && !ccDep.RustLibraryInterface() {
-				if !ccDep.CcLibraryInterface() || !ccDep.Static() {
+			if libDepTag.static() && !libDepTag.wholeStatic && !linkableInfo.RustLibraryInterface {
+				if !linkableInfo.CcLibraryInterface || !linkableInfo.Static {
 					ctx.ModuleErrorf("module %q not a static library", depName)
 					return
 				}
@@ -3340,16 +3435,15 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 				// When combining coverage files for shared libraries and executables, coverage files
 				// in static libraries act as if they were whole static libraries. The same goes for
 				// source based Abi dump files.
-				if c, ok := ccDep.(*Module); ok {
-					staticLib := c.linker.(libraryInterface)
+				if hasCcInfo {
 					depPaths.StaticLibObjs.coverageFiles = append(depPaths.StaticLibObjs.coverageFiles,
-						staticLib.objs().coverageFiles...)
+						linkableInfo.CoverageFiles...)
 					depPaths.StaticLibObjs.sAbiDumpFiles = append(depPaths.StaticLibObjs.sAbiDumpFiles,
-						staticLib.objs().sAbiDumpFiles...)
+						linkableInfo.SAbiDumpFiles...)
 				} else {
 					// Handle non-CC modules here
 					depPaths.StaticLibObjs.coverageFiles = append(depPaths.StaticLibObjs.coverageFiles,
-						ccDep.CoverageFiles()...)
+						linkableInfo.CoverageFiles...)
 				}
 			}
 
@@ -3395,7 +3489,7 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 					c.sabi.Properties.ReexportedSystemIncludes, depExporterInfo.SystemIncludeDirs.Strings()...)
 			}
 
-			makeLibName := MakeLibName(ctx, c, ccDep, ccDep.BaseModuleName()) + libDepTag.makeSuffix
+			makeLibName := MakeLibName(ccInfo, linkableInfo, &commonInfo, linkableInfo.BaseModuleName) + libDepTag.makeSuffix
 			switch {
 			case libDepTag.header():
 				c.Properties.AndroidMkHeaderLibs = append(
@@ -3406,7 +3500,7 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 				c.Properties.AndroidMkSharedLibs = append(
 					c.Properties.AndroidMkSharedLibs, makeLibName)
 			case libDepTag.static():
-				if !ccDep.RustLibraryInterface() {
+				if !linkableInfo.RustLibraryInterface {
 					if libDepTag.wholeStatic {
 						c.Properties.AndroidMkWholeStaticLibs = append(
 							c.Properties.AndroidMkWholeStaticLibs, makeLibName)
@@ -3422,7 +3516,7 @@ func (c *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 			switch depTag {
 			case runtimeDepTag:
 				c.Properties.AndroidMkRuntimeLibs = append(
-					c.Properties.AndroidMkRuntimeLibs, MakeLibName(ctx, c, ccDep, ccDep.BaseModuleName())+libDepTag.makeSuffix)
+					c.Properties.AndroidMkRuntimeLibs, MakeLibName(ccInfo, linkableInfo, &commonInfo, linkableInfo.BaseModuleName)+libDepTag.makeSuffix)
 			case objDepTag:
 				depPaths.Objs.objFiles = append(depPaths.Objs.objFiles, linkFile.Path())
 			case CrtBeginDepTag:
@@ -3476,7 +3570,7 @@ func ShouldUseStubForApex(ctx android.ModuleContext, parent, dep android.Module)
 
 	useStubs := false
 
-	if lib := moduleLibraryInterface(dep); lib.buildStubs() && inVendorOrProduct { // LLNDK
+	if android.OtherModuleProviderOrDefault(ctx, dep, LinkableInfoProvider).IsStubs && inVendorOrProduct { // LLNDK
 		if !apexInfo.IsForPlatform() {
 			// For platform libraries, use current version of LLNDK
 			// If this is for use_vendor apex we will apply the same rules
@@ -3488,7 +3582,7 @@ func ShouldUseStubForApex(ctx android.ModuleContext, parent, dep android.Module)
 		// platform APIs, use stubs only when it is from an APEX (and not from
 		// platform) However, for host, ramdisk, vendor_ramdisk, recovery or
 		// bootstrap modules, always link to non-stub variant
-		isNotInPlatform := dep.(android.ApexModule).NotInPlatform()
+		isNotInPlatform := android.OtherModuleProviderOrDefault(ctx, dep, android.CommonModuleInfoKey).NotInPlatform
 
 		useStubs = isNotInPlatform && !bootstrap
 	} else {
@@ -3567,32 +3661,29 @@ func BaseLibName(depName string) string {
 	return libName
 }
 
-func MakeLibName(ctx android.ModuleContext, c LinkableInterface, ccDep LinkableInterface, depName string) string {
+func MakeLibName(ccInfo *CcInfo, linkableInfo *LinkableInfo, commonInfo *android.CommonModuleInfo, depName string) string {
 	libName := BaseLibName(depName)
-	ccDepModule, _ := ccDep.(*Module)
-	isLLndk := ccDepModule != nil && ccDepModule.IsLlndk()
-	nonSystemVariantsExist := ccDep.HasNonSystemVariants() || isLLndk
+	isLLndk := ccInfo != nil && linkableInfo.IsLlndk
+	nonSystemVariantsExist := linkableInfo.HasNonSystemVariants || isLLndk
 
-	if ccDepModule != nil {
+	if ccInfo != nil {
 		// Use base module name for snapshots when exporting to Makefile.
-		if snapshotPrebuilt, ok := ccDepModule.linker.(SnapshotInterface); ok {
-			baseName := ccDepModule.BaseModuleName()
-
-			return baseName + snapshotPrebuilt.SnapshotAndroidMkSuffix()
+		if ccInfo.SnapshotInfo != nil {
+			return linkableInfo.BaseModuleName + ccInfo.SnapshotInfo.SnapshotAndroidMkSuffix
 		}
 	}
 
-	if ccDep.InVendorOrProduct() && nonSystemVariantsExist {
+	if linkableInfo.InVendorOrProduct && nonSystemVariantsExist {
 		// The vendor and product modules in Make will have been renamed to not conflict with the
 		// core module, so update the dependency name here accordingly.
-		return libName + ccDep.SubName()
-	} else if ccDep.InRamdisk() && !ccDep.OnlyInRamdisk() {
+		return libName + linkableInfo.SubName
+	} else if linkableInfo.InRamdisk && !linkableInfo.OnlyInRamdisk {
 		return libName + RamdiskSuffix
-	} else if ccDep.InVendorRamdisk() && !ccDep.OnlyInVendorRamdisk() {
+	} else if linkableInfo.InVendorRamdisk && !linkableInfo.OnlyInVendorRamdisk {
 		return libName + VendorRamdiskSuffix
-	} else if ccDep.InRecovery() && !ccDep.OnlyInRecovery() {
+	} else if linkableInfo.InRecovery && !linkableInfo.OnlyInRecovery {
 		return libName + RecoverySuffix
-	} else if ccDep.Target().NativeBridge == android.NativeBridgeEnabled {
+	} else if commonInfo.Target.NativeBridge == android.NativeBridgeEnabled {
 		return libName + NativeBridgeSuffix
 	} else {
 		return libName

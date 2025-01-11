@@ -2588,7 +2588,7 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 	})
 
 	a.WalkPayloadDepsProxy(ctx, func(ctx android.BaseModuleContext, from, to android.ModuleProxy, externalDep bool) bool {
-		if ccInfo, ok := android.OtherModuleProvider(ctx, to, cc.CcInfoProvider); ok {
+		if info, ok := android.OtherModuleProvider(ctx, to, cc.LinkableInfoProvider); ok {
 			// If `to` is not actually in the same APEX as `from` then it does not need
 			// apex_available and neither do any of its dependencies.
 			if externalDep {
@@ -2609,7 +2609,7 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 				return false
 			}
 
-			isStubLibraryFromOtherApex := ccInfo.HasStubsVariants && !librariesDirectlyInApex[toName]
+			isStubLibraryFromOtherApex := info.HasStubsVariants && !librariesDirectlyInApex[toName]
 			if isStubLibraryFromOtherApex && !externalDep {
 				ctx.ModuleErrorf("%q required by %q is a native library providing stub. "+
 					"It shouldn't be included in this APEX via static linking. Dependency path: %s", to.String(), fromName, ctx.GetPathString(false))
@@ -2740,7 +2740,7 @@ func (a *apexBundle) checkStaticExecutables(ctx android.ModuleContext) {
 			return
 		}
 
-		if android.OtherModuleProviderOrDefault(ctx, module, cc.LinkableInfoKey).StaticExecutable {
+		if android.OtherModuleProviderOrDefault(ctx, module, cc.LinkableInfoProvider).StaticExecutable {
 			apex := a.ApexVariationName()
 			exec := ctx.OtherModuleName(module)
 			if isStaticExecutableAllowed(apex, exec) {

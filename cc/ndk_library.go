@@ -302,12 +302,11 @@ func (this *stubDecorator) findImplementationLibrary(ctx ModuleContext) android.
 		ctx.ModuleErrorf("Could not find implementation for stub: ")
 		return nil
 	}
-	info, ok := android.OtherModuleProvider(ctx, *dep, CcInfoProvider)
-	if !ok {
+	if _, ok := android.OtherModuleProvider(ctx, *dep, CcInfoProvider); !ok {
 		ctx.ModuleErrorf("Implementation for stub is not correct module type")
 		return nil
 	}
-	output := info.LinkerInfo.UnstrippedOutputFile
+	output := android.OtherModuleProviderOrDefault(ctx, *dep, LinkableInfoProvider).UnstrippedOutputFile
 	if output == nil {
 		ctx.ModuleErrorf("implementation module (%s) has no output", *dep)
 		return nil

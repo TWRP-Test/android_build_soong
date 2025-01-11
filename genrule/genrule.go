@@ -88,9 +88,7 @@ func init() {
 }
 
 type SourceFileGenerator interface {
-	GeneratedSourceFiles() android.Paths
-	GeneratedHeaderDirs() android.Paths
-	GeneratedDeps() android.Paths
+	android.SourceFileGenerator
 }
 
 // Alias for android.HostToolProvider

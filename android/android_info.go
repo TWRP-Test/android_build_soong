@@ -81,6 +81,7 @@ func (p *androidInfoModule) GenerateAndroidBuildActions(ctx ModuleContext) {
 	})
 
 	ctx.SetOutputFiles(Paths{androidInfoProp}, "")
+	ctx.SetOutputFiles(Paths{androidInfoTxt}, ".txt")
 
 	builder := NewRuleBuilder(pctx, ctx)
 	builder.Command().Text("touch").Output(timestamp)

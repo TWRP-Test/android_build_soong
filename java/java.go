@@ -250,6 +250,32 @@ type ProguardSpecInfo struct {
 
 var ProguardSpecInfoProvider = blueprint.NewProvider[ProguardSpecInfo]()
 
+type AndroidLibraryDependencyInfo struct {
+	ExportPackage       android.Path
+	ResourcesNodeDepSet depset.DepSet[*resourcesNode]
+	RRODirsDepSet       depset.DepSet[rroDir]
+	ManifestsDepSet     depset.DepSet[android.Path]
+}
+
+type UsesLibraryDependencyInfo struct {
+	DexJarBuildPath     OptionalDexJarPath
+	DexJarInstallPath   android.Path
+	ClassLoaderContexts dexpreopt.ClassLoaderContextMap
+}
+
+type SdkLibraryComponentDependencyInfo struct {
+	// The name of the implementation library for the optional SDK library or nil, if there isn't one.
+	OptionalSdkLibraryImplementation *string
+}
+
+type ProvidesUsesLibInfo struct {
+	ProvidesUsesLib *string
+}
+
+type ModuleWithUsesLibraryInfo struct {
+	UsesLibrary *usesLibrary
+}
+
 // JavaInfo contains information about a java module for use by modules that depend on it.
 type JavaInfo struct {
 	// HeaderJars is a list of jars that can be passed as the javac classpath in order to link
@@ -328,6 +354,16 @@ type JavaInfo struct {
 	AconfigIntermediateCacheOutputPaths android.Paths
 
 	SdkVersion android.SdkSpec
+
+	AndroidLibraryDependencyInfo *AndroidLibraryDependencyInfo
+
+	UsesLibraryDependencyInfo *UsesLibraryDependencyInfo
+
+	SdkLibraryComponentDependencyInfo *SdkLibraryComponentDependencyInfo
+
+	ProvidesUsesLibInfo *ProvidesUsesLibInfo
+
+	ModuleWithUsesLibraryInfo *ModuleWithUsesLibraryInfo
 }
 
 var JavaInfoProvider = blueprint.NewProvider[*JavaInfo]()
@@ -1002,7 +1038,7 @@ func (j *Library) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 			j.dexpreopter.disableDexpreopt()
 		}
 	}
-	j.compile(ctx, nil, nil, nil, nil)
+	javaInfo := j.compile(ctx, nil, nil, nil, nil)
 
 	j.setInstallRules(ctx)
 
@@ -1010,6 +1046,11 @@ func (j *Library) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		TestOnly:       Bool(j.sourceProperties.Test_only),
 		TopLevelTarget: j.sourceProperties.Top_level_test_target,
 	})
+
+	if javaInfo != nil {
+		setExtraJavaInfo(ctx, j, javaInfo)
+		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
+	}
 
 	setOutputFiles(ctx, j.Module)
 }
@@ -2427,7 +2468,7 @@ func (al *ApiLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	ctx.Phony(ctx.ModuleName(), al.stubsJar)
 
-	android.SetProvider(ctx, JavaInfoProvider, &JavaInfo{
+	javaInfo := &JavaInfo{
 		HeaderJars:                             android.PathsIfNonNil(al.stubsJar),
 		LocalHeaderJars:                        android.PathsIfNonNil(al.stubsJar),
 		TransitiveStaticLibsHeaderJars:         depset.New(depset.PREORDER, android.PathsIfNonNil(al.stubsJar), nil),
@@ -2437,7 +2478,9 @@ func (al *ApiLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		AidlIncludeDirs:                        android.Paths{},
 		StubsLinkType:                          Stubs,
 		// No aconfig libraries on api libraries
-	})
+	}
+	setExtraJavaInfo(ctx, al, javaInfo)
+	android.SetProvider(ctx, JavaInfoProvider, javaInfo)
 }
 
 func (al *ApiLibrary) DexJarBuildPath(ctx android.ModuleErrorfContext) OptionalDexJarPath {
@@ -2912,7 +2955,7 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		}
 	}
 
-	android.SetProvider(ctx, JavaInfoProvider, &JavaInfo{
+	javaInfo := &JavaInfo{
 		HeaderJars:                             android.PathsIfNonNil(j.combinedHeaderFile),
 		LocalHeaderJars:                        android.PathsIfNonNil(j.combinedHeaderFile),
 		TransitiveLibsHeaderJarsForR8:          j.transitiveLibsHeaderJarsForR8,
@@ -2926,7 +2969,9 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		AidlIncludeDirs:                        j.exportAidlIncludeDirs,
 		StubsLinkType:                          j.stubsLinkType,
 		// TODO(b/289117800): LOCAL_ACONFIG_FILES for prebuilts
-	})
+	}
+	setExtraJavaInfo(ctx, j, javaInfo)
+	android.SetProvider(ctx, JavaInfoProvider, javaInfo)
 
 	ctx.SetOutputFiles(android.Paths{j.combinedImplementationFile}, "")
 	ctx.SetOutputFiles(android.Paths{j.combinedImplementationFile}, ".jar")
@@ -3340,8 +3385,8 @@ var inList = android.InList[string]
 func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 	clcMap dexpreopt.ClassLoaderContextMap) {
 
-	dep, ok := depModule.(UsesLibraryDependency)
-	if !ok {
+	dep, ok := android.OtherModuleProvider(ctx, depModule, JavaInfoProvider)
+	if !ok || dep.UsesLibraryDependencyInfo == nil {
 		return
 	}
 
@@ -3351,14 +3396,14 @@ func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 	if lib, ok := android.OtherModuleProvider(ctx, depModule, SdkLibraryInfoProvider); ok && lib.SharedLibrary {
 		// A shared SDK library. This should be added as a top-level CLC element.
 		sdkLib = &depName
-	} else if lib, ok := depModule.(SdkLibraryComponentDependency); ok && lib.OptionalSdkLibraryImplementation() != nil {
-		if depModule.Name() == proptools.String(lib.OptionalSdkLibraryImplementation())+".impl" {
-			sdkLib = lib.OptionalSdkLibraryImplementation()
+	} else if lib := dep.SdkLibraryComponentDependencyInfo; lib != nil && lib.OptionalSdkLibraryImplementation != nil {
+		if depModule.Name() == proptools.String(lib.OptionalSdkLibraryImplementation)+".impl" {
+			sdkLib = lib.OptionalSdkLibraryImplementation
 		}
-	} else if ulib, ok := depModule.(ProvidesUsesLib); ok {
+	} else if ulib := dep.ProvidesUsesLibInfo; ulib != nil {
 		// A non-SDK library disguised as an SDK library by the means of `provides_uses_lib`
 		// property. This should be handled in the same way as a shared SDK library.
-		sdkLib = ulib.ProvidesUsesLib()
+		sdkLib = ulib.ProvidesUsesLib
 	}
 
 	depTag := ctx.OtherModuleDependencyTag(depModule)
@@ -3390,21 +3435,22 @@ func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 			}
 		}
 		clcMap.AddContext(ctx, dexpreopt.AnySdkVersion, *sdkLib, optional,
-			dep.DexJarBuildPath(ctx).PathOrNil(), dep.DexJarInstallPath(), dep.ClassLoaderContexts())
+			dep.UsesLibraryDependencyInfo.DexJarBuildPath.PathOrNil(),
+			dep.UsesLibraryDependencyInfo.DexJarInstallPath, dep.UsesLibraryDependencyInfo.ClassLoaderContexts)
 	} else {
-		clcMap.AddContextMap(dep.ClassLoaderContexts(), depName)
+		clcMap.AddContextMap(dep.UsesLibraryDependencyInfo.ClassLoaderContexts, depName)
 	}
 }
 
 func addMissingOptionalUsesLibsFromDep(ctx android.ModuleContext, depModule android.Module,
 	usesLibrary *usesLibrary) {
 
-	dep, ok := depModule.(ModuleWithUsesLibrary)
-	if !ok {
+	dep, ok := android.OtherModuleProvider(ctx, depModule, JavaInfoProvider)
+	if !ok || dep.ModuleWithUsesLibraryInfo == nil {
 		return
 	}
 
-	for _, lib := range dep.UsesLibrary().usesLibraryProperties.Missing_optional_uses_libs {
+	for _, lib := range dep.ModuleWithUsesLibraryInfo.UsesLibrary.usesLibraryProperties.Missing_optional_uses_libs {
 		if !android.InList(lib, usesLibrary.usesLibraryProperties.Missing_optional_uses_libs) {
 			usesLibrary.usesLibraryProperties.Missing_optional_uses_libs =
 				append(usesLibrary.usesLibraryProperties.Missing_optional_uses_libs, lib)
@@ -3459,4 +3505,41 @@ func (j *JavaApiContributionImport) CreatedByJavaSdkLibraryName() *string {
 
 func (ap *JavaApiContributionImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	ap.JavaApiContribution.GenerateAndroidBuildActions(ctx)
+}
+
+func setExtraJavaInfo(ctx android.ModuleContext, module android.Module, javaInfo *JavaInfo) {
+	if alDep, ok := module.(AndroidLibraryDependency); ok {
+		javaInfo.AndroidLibraryDependencyInfo = &AndroidLibraryDependencyInfo{
+			ExportPackage:       alDep.ExportPackage(),
+			ResourcesNodeDepSet: alDep.ResourcesNodeDepSet(),
+			RRODirsDepSet:       alDep.RRODirsDepSet(),
+			ManifestsDepSet:     alDep.ManifestsDepSet(),
+		}
+	}
+
+	if ulDep, ok := module.(UsesLibraryDependency); ok {
+		javaInfo.UsesLibraryDependencyInfo = &UsesLibraryDependencyInfo{
+			DexJarBuildPath:     ulDep.DexJarBuildPath(ctx),
+			DexJarInstallPath:   ulDep.DexJarInstallPath(),
+			ClassLoaderContexts: ulDep.ClassLoaderContexts(),
+		}
+	}
+
+	if slcDep, ok := module.(SdkLibraryComponentDependency); ok {
+		javaInfo.SdkLibraryComponentDependencyInfo = &SdkLibraryComponentDependencyInfo{
+			OptionalSdkLibraryImplementation: slcDep.OptionalSdkLibraryImplementation(),
+		}
+	}
+
+	if pul, ok := module.(ProvidesUsesLib); ok {
+		javaInfo.ProvidesUsesLibInfo = &ProvidesUsesLibInfo{
+			ProvidesUsesLib: pul.ProvidesUsesLib(),
+		}
+	}
+
+	if mwul, ok := module.(ModuleWithUsesLibrary); ok {
+		javaInfo.ModuleWithUsesLibraryInfo = &ModuleWithUsesLibraryInfo{
+			UsesLibrary: mwul.UsesLibrary(),
+		}
+	}
 }

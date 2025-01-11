@@ -384,7 +384,7 @@ func PrebuiltGetPreferred(ctx BaseModuleContext, module Module) Module {
 	if !OtherModuleProviderOrDefault(ctx, module, CommonModuleInfoKey).ReplacedByPrebuilt {
 		return module
 	}
-	if _, ok := OtherModuleProvider(ctx, module, PrebuiltModuleProviderKey); ok {
+	if _, ok := OtherModuleProvider(ctx, module, PrebuiltModuleInfoProvider); ok {
 		// If we're given a prebuilt then assume there's no source module around.
 		return module
 	}

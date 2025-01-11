@@ -393,7 +393,7 @@ func (m *CmakeSnapshot) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		}{
 			&ctx,
 			dep,
-			&ccInfo,
+			ccInfo,
 			m,
 			&pprop,
 		})

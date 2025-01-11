@@ -75,7 +75,7 @@ type BuildParams struct {
 	// Validations is a slice of output path for a validation action. Validation outputs imply lower
 	// non-blocking priority to building non-validation outputs.
 	Validations Paths
-	// Whether to skip outputting a default target statement which will be built by Ninja when no
+	// Whether to output a default target statement which will be built by Ninja when no
 	// targets are specified on Ninja's command line.
 	Default bool
 	// Args is a key value mapping for replacements of variables within the Rule
@@ -343,7 +343,7 @@ func convertBuildParams(params BuildParams) blueprint.BuildParams {
 		OrderOnly:       params.OrderOnly.Strings(),
 		Validations:     params.Validations.Strings(),
 		Args:            params.Args,
-		Optional:        !params.Default,
+		Default:         params.Default,
 	}
 
 	if params.Depfile != nil {

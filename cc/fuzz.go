@@ -211,29 +211,30 @@ func (fuzz *fuzzBinary) moduleInfoJSON(ctx ModuleContext, moduleInfoJSON *androi
 	moduleInfoJSON.Class = []string{"EXECUTABLES"}
 }
 
-// IsValidSharedDependency takes a module and determines if it is a unique shared library
+// isValidSharedDependency takes a module and determines if it is a unique shared library
 // that should be installed in the fuzz target output directories. This function
 // returns true, unless:
 //   - The module is not an installable shared library, or
 //   - The module is a header or stub, or
 //   - The module is a prebuilt and its source is available, or
 //   - The module is a versioned member of an SDK snapshot.
-func IsValidSharedDependency(dependency android.Module) bool {
+func isValidSharedDependency(ctx android.ModuleContext, dependency android.ModuleProxy) bool {
 	// TODO(b/144090547): We should be parsing these modules using
 	// ModuleDependencyTag instead of the current brute-force checking.
 
-	linkable, ok := dependency.(LinkableInterface)
-	if !ok || !linkable.CcLibraryInterface() {
+	linkable, ok := android.OtherModuleProvider(ctx, dependency, LinkableInfoProvider)
+	if !ok || !linkable.CcLibraryInterface {
 		// Discard non-linkables.
 		return false
 	}
 
-	if !linkable.Shared() {
+	if !linkable.Shared {
 		// Discard static libs.
 		return false
 	}
 
-	if lib := moduleLibraryInterface(dependency); lib != nil && lib.buildStubs() && linkable.CcLibrary() {
+	ccInfo, hasCcInfo := android.OtherModuleProvider(ctx, dependency, CcInfoProvider)
+	if hasCcInfo && ccInfo.LibraryInfo != nil && ccInfo.LibraryInfo.BuildStubs && linkable.CcLibrary {
 		// Discard stubs libs (only CCLibrary variants). Prebuilt libraries should not
 		// be excluded on the basis of they're not CCLibrary()'s.
 		return false
@@ -242,13 +243,13 @@ func IsValidSharedDependency(dependency android.Module) bool {
 	// We discarded module stubs libraries above, but the LLNDK prebuilts stubs
 	// libraries must be handled differently - by looking for the stubDecorator.
 	// Discard LLNDK prebuilts stubs as well.
-	if ccLibrary, isCcLibrary := dependency.(*Module); isCcLibrary {
-		if _, isLLndkStubLibrary := ccLibrary.linker.(*stubDecorator); isLLndkStubLibrary {
+	if hasCcInfo {
+		if ccInfo.LinkerInfo.StubDecoratorInfo != nil {
 			return false
 		}
 		// Discard installable:false libraries because they are expected to be absent
 		// in runtime.
-		if !proptools.BoolDefault(ccLibrary.Installable(), true) {
+		if !proptools.BoolDefault(linkable.Installable, true) {
 			return false
 		}
 	}
@@ -256,7 +257,7 @@ func IsValidSharedDependency(dependency android.Module) bool {
 	// If the same library is present both as source and a prebuilt we must pick
 	// only one to avoid a conflict. Always prefer the source since the prebuilt
 	// probably won't be built with sanitizers enabled.
-	if prebuilt := android.GetEmbeddedPrebuilt(dependency); prebuilt != nil && prebuilt.SourceExists() {
+	if prebuilt, ok := android.OtherModuleProvider(ctx, dependency, android.PrebuiltModuleInfoProvider); ok && prebuilt.SourceExists {
 		return false
 	}
 
@@ -607,17 +608,17 @@ func GetSharedLibsToZip(sharedLibraries android.RuleBuilderInstalls, module Link
 // VisitDirectDeps is used first to avoid incorrectly using the core libraries (sanitizer
 // runtimes, libc, libdl, etc.) from a dependency. This may cause issues when dependencies
 // have explicit sanitizer tags, as we may get a dependency on an unsanitized libc, etc.
-func CollectAllSharedDependencies(ctx android.ModuleContext) (android.RuleBuilderInstalls, []android.Module) {
+func CollectAllSharedDependencies(ctx android.ModuleContext) (android.RuleBuilderInstalls, []android.ModuleProxy) {
 	seen := make(map[string]bool)
 	recursed := make(map[string]bool)
-	deps := []android.Module{}
+	deps := []android.ModuleProxy{}
 
 	var sharedLibraries android.RuleBuilderInstalls
 
 	// Enumerate the first level of dependencies, as we discard all non-library
 	// modules in the BFS loop below.
-	ctx.VisitDirectDeps(func(dep android.Module) {
-		if !IsValidSharedDependency(dep) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
+		if !isValidSharedDependency(ctx, dep) {
 			return
 		}
 		sharedLibraryInfo, hasSharedLibraryInfo := android.OtherModuleProvider(ctx, dep, SharedLibraryInfoProvider)
@@ -635,19 +636,21 @@ func CollectAllSharedDependencies(ctx android.ModuleContext) (android.RuleBuilde
 		sharedLibraries = append(sharedLibraries, ruleBuilderInstall)
 	})
 
-	ctx.WalkDeps(func(child, parent android.Module) bool {
+	ctx.WalkDepsProxy(func(child, _ android.ModuleProxy) bool {
 
 		// If this is a Rust module which is not rust_ffi_shared, we still want to bundle any transitive
 		// shared dependencies (even for rust_ffi_static)
-		if rustmod, ok := child.(LinkableInterface); ok && rustmod.RustLibraryInterface() && !rustmod.Shared() {
-			if recursed[ctx.OtherModuleName(child)] {
-				return false
+		if info, ok := android.OtherModuleProvider(ctx, child, LinkableInfoProvider); ok {
+			if info.RustLibraryInterface && !info.Shared {
+				if recursed[ctx.OtherModuleName(child)] {
+					return false
+				}
+				recursed[ctx.OtherModuleName(child)] = true
+				return true
 			}
-			recursed[ctx.OtherModuleName(child)] = true
-			return true
 		}
 
-		if !IsValidSharedDependency(child) {
+		if !isValidSharedDependency(ctx, child) {
 			return false
 		}
 		sharedLibraryInfo, hasSharedLibraryInfo := android.OtherModuleProvider(ctx, child, SharedLibraryInfoProvider)

@@ -215,6 +215,9 @@ type FilesystemProperties struct {
 
 	// Additional dependencies used for building android products
 	Android_filesystem_deps AndroidFilesystemDeps
+
+	// Name of the output. Default is $(module_name).img
+	Stem *string
 }
 
 type AndroidFilesystemDeps struct {
@@ -357,6 +360,14 @@ type FilesystemInfo struct {
 
 var FilesystemProvider = blueprint.NewProvider[FilesystemInfo]()
 
+type FilesystemDefaultsInfo struct {
+	// Identifies which partition this is for //visibility:any_system_image (and others) visibility
+	// checks, and will be used in the future for API surface checks.
+	PartitionType string
+}
+
+var FilesystemDefaultsInfoProvider = blueprint.NewProvider[FilesystemDefaultsInfo]()
+
 func GetFsTypeFromString(ctx android.EarlyModuleContext, typeStr string) fsType {
 	switch typeStr {
 	case "ext4":
@@ -384,7 +395,7 @@ func (f *filesystem) fsType(ctx android.ModuleContext) fsType {
 }
 
 func (f *filesystem) installFileName() string {
-	return f.BaseModuleName() + ".img"
+	return proptools.StringDefault(f.properties.Stem, f.BaseModuleName()+".img")
 }
 
 func (f *filesystem) partitionName() string {
@@ -459,6 +470,7 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		FileListFile: fileListFile,
 		RootDir:      rootDir,
 	})
+
 	f.fileListFile = fileListFile
 
 	if proptools.Bool(f.properties.Unchecked_module) {
@@ -524,12 +536,12 @@ func validatePartitionType(ctx android.ModuleContext, p partition) {
 		ctx.PropertyErrorf("partition_type", "partition_type must be one of %s, found: %s", validPartitions, p.PartitionType())
 	}
 
-	ctx.VisitDirectDepsWithTag(android.DefaultsDepTag, func(m android.Module) {
-		if fdm, ok := m.(*filesystemDefaults); ok {
-			if p.PartitionType() != fdm.PartitionType() {
+	ctx.VisitDirectDepsProxyWithTag(android.DefaultsDepTag, func(m android.ModuleProxy) {
+		if fdm, ok := android.OtherModuleProvider(ctx, m, FilesystemDefaultsInfoProvider); ok {
+			if p.PartitionType() != fdm.PartitionType {
 				ctx.PropertyErrorf("partition_type",
 					"%s doesn't match with the partition type %s of the filesystem default module %s",
-					p.PartitionType(), fdm.PartitionType(), m.Name())
+					p.PartitionType(), fdm.PartitionType, m.Name())
 			}
 		}
 	})
@@ -1075,6 +1087,9 @@ var _ partition = (*filesystemDefaults)(nil)
 
 func (f *filesystemDefaults) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	validatePartitionType(ctx, f)
+	android.SetProvider(ctx, FilesystemDefaultsInfoProvider, FilesystemDefaultsInfo{
+		PartitionType: f.PartitionType(),
+	})
 }
 
 // getLibsForLinkerConfig returns
@@ -1084,14 +1099,14 @@ func (f *filesystemDefaults) GenerateAndroidBuildActions(ctx android.ModuleConte
 // `linkerconfig.BuildLinkerConfig` will convert these two to a linker.config.pb for the filesystem
 // (1) will be added to --provideLibs if they are C libraries with a stable interface (has stubs)
 // (2) will be added to --requireLibs if they are C libraries with a stable interface (has stubs)
-func (f *filesystem) getLibsForLinkerConfig(ctx android.ModuleContext) ([]android.Module, []android.Module) {
+func (f *filesystem) getLibsForLinkerConfig(ctx android.ModuleContext) ([]android.ModuleProxy, []android.ModuleProxy) {
 	// we need "Module"s for packaging items
-	modulesInPackageByModule := make(map[android.Module]bool)
+	modulesInPackageByModule := make(map[android.ModuleProxy]bool)
 	modulesInPackageByName := make(map[string]bool)
 
 	deps := f.gatherFilteredPackagingSpecs(ctx)
-	ctx.WalkDeps(func(child, _ android.Module) bool {
-		if !child.Enabled(ctx) {
+	ctx.WalkDepsProxy(func(child, parent android.ModuleProxy) bool {
+		if !android.OtherModuleProviderOrDefault(ctx, child, android.CommonModuleInfoKey).Enabled {
 			return false
 		}
 		for _, ps := range android.OtherModuleProviderOrDefault(
@@ -1105,14 +1120,14 @@ func (f *filesystem) getLibsForLinkerConfig(ctx android.ModuleContext) ([]androi
 		return true
 	})
 
-	provideModules := make([]android.Module, 0, len(modulesInPackageByModule))
+	provideModules := make([]android.ModuleProxy, 0, len(modulesInPackageByModule))
 	for mod := range modulesInPackageByModule {
 		provideModules = append(provideModules, mod)
 	}
 
-	var requireModules []android.Module
-	ctx.WalkDeps(func(child, parent android.Module) bool {
-		if !child.Enabled(ctx) {
+	var requireModules []android.ModuleProxy
+	ctx.WalkDepsProxy(func(child, parent android.ModuleProxy) bool {
+		if !android.OtherModuleProviderOrDefault(ctx, child, android.CommonModuleInfoKey).Enabled {
 			return false
 		}
 		_, parentInPackage := modulesInPackageByModule[parent]

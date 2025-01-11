@@ -1225,12 +1225,11 @@ func addStubDependencyProviders(ctx ModuleContext) []SharedStubLibrary {
 				continue
 			}
 			flagInfo, _ := android.OtherModuleProvider(ctx, stub, FlagExporterInfoProvider)
-			ccInfo, ok := android.OtherModuleProvider(ctx, stub, CcInfoProvider)
-			if !ok || ccInfo.LibraryInfo == nil {
-				panic(fmt.Errorf("couldn't find library info for %s", stub))
+			if _, ok = android.OtherModuleProvider(ctx, stub, CcInfoProvider); !ok {
+				panic(fmt.Errorf("stub is not a cc module %s", stub))
 			}
 			stubsInfo = append(stubsInfo, SharedStubLibrary{
-				Version:           ccInfo.LibraryInfo.StubsVersion,
+				Version:           android.OtherModuleProviderOrDefault(ctx, stub, LinkableInfoProvider).StubsVersion,
 				SharedLibraryInfo: stubInfo,
 				FlagExporterInfo:  flagInfo,
 			})
@@ -1387,6 +1386,11 @@ func (library *libraryDecorator) sourceAbiDiff(ctx android.ModuleContext,
 		extraFlags = append(extraFlags,
 			"-allow-unreferenced-changes",
 			"-allow-unreferenced-elf-symbol-changes")
+		// The functions in standard libraries are not always declared in the headers.
+		// Allow them to be added or removed without changing the symbols.
+		if isBionic(ctx.ModuleName()) {
+			extraFlags = append(extraFlags, "-allow-adding-removing-referenced-apis")
+		}
 	}
 	if isLlndk {
 		extraFlags = append(extraFlags, "-consider-opaque-types-different")

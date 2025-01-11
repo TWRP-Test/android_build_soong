@@ -73,6 +73,7 @@ func init() {
 	pctx.HostBinToolVariable("make_erofs", "mkfs.erofs")
 	pctx.HostBinToolVariable("apex_compression_tool", "apex_compression_tool")
 	pctx.HostBinToolVariable("dexdeps", "dexdeps")
+	pctx.HostBinToolVariable("apex_ls", "apex-ls")
 	pctx.HostBinToolVariable("apex_sepolicy_tests", "apex_sepolicy_tests")
 	pctx.HostBinToolVariable("deapexer", "deapexer")
 	pctx.HostBinToolVariable("debugfs_static", "debugfs_static")
@@ -210,9 +211,9 @@ var (
 	}, "image_dir", "readelf")
 
 	apexSepolicyTestsRule = pctx.StaticRule("apexSepolicyTestsRule", blueprint.RuleParams{
-		Command: `${deapexer} --debugfs_path ${debugfs_static} list -Z ${in} > ${out}.fc` +
+		Command: `${apex_ls} -Z ${in} > ${out}.fc` +
 			` && ${apex_sepolicy_tests} -f ${out}.fc --partition ${partition_tag} && touch ${out}`,
-		CommandDeps: []string{"${apex_sepolicy_tests}", "${deapexer}", "${debugfs_static}"},
+		CommandDeps: []string{"${apex_sepolicy_tests}", "${apex_ls}"},
 		Description: "run apex_sepolicy_tests",
 	}, "partition_tag")
 
@@ -918,8 +919,7 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 	}
 	var validations android.Paths
 	validations = append(validations, runApexLinkerconfigValidation(ctx, unsignedOutputFile, imageDir))
-	// TODO(b/279688635) deapexer supports [ext4]
-	if !a.skipValidation(apexSepolicyTests) && suffix == imageApexSuffix && ext4 == a.payloadFsType {
+	if !a.skipValidation(apexSepolicyTests) && android.InList(a.payloadFsType, []fsType{ext4, erofs}) {
 		validations = append(validations, runApexSepolicyTests(ctx, a, unsignedOutputFile))
 	}
 	if !a.testApex && len(a.properties.Unwanted_transitive_deps) > 0 {
@@ -1204,7 +1204,7 @@ func runApexLinkerconfigValidation(ctx android.ModuleContext, apexFile android.P
 
 // Runs apex_sepolicy_tests
 //
-// $ deapexer list -Z {apex_file} > {file_contexts}
+// $ apex-ls -Z {apex_file} > {file_contexts}
 // $ apex_sepolicy_tests -f {file_contexts}
 func runApexSepolicyTests(ctx android.ModuleContext, a *apexBundle, apexFile android.Path) android.Path {
 	timestamp := android.PathForModuleOut(ctx, "apex_sepolicy_tests.timestamp")

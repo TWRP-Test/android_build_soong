@@ -91,8 +91,8 @@ func (l *linkerConfig) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 func BuildLinkerConfig(
 	ctx android.ModuleContext,
 	inputs android.Paths,
-	provideModules []android.Module,
-	requireModules []android.Module,
+	provideModules []android.ModuleProxy,
+	requireModules []android.ModuleProxy,
 	output android.WritablePath,
 ) {
 	// First, convert the input json to protobuf format
@@ -110,9 +110,10 @@ func BuildLinkerConfig(
 	// Secondly, if there's provideLibs gathered from provideModules, append them
 	var provideLibs []string
 	for _, m := range provideModules {
-		if c, ok := m.(*cc.Module); ok && (cc.IsStubTarget(c) || c.HasLlndkStubs()) {
+		ccInfo, ok := android.OtherModuleProvider(ctx, m, cc.CcInfoProvider)
+		if ok && (cc.IsStubTarget(android.OtherModuleProviderOrDefault(ctx, m, cc.LinkableInfoProvider)) || ccInfo.HasLlndkStubs) {
 			for _, ps := range android.OtherModuleProviderOrDefault(
-				ctx, c, android.InstallFilesProvider).PackagingSpecs {
+				ctx, m, android.InstallFilesProvider).PackagingSpecs {
 				provideLibs = append(provideLibs, ps.FileName())
 			}
 		}
@@ -122,8 +123,15 @@ func BuildLinkerConfig(
 
 	var requireLibs []string
 	for _, m := range requireModules {
-		if c, ok := m.(*cc.Module); ok && c.HasStubsVariants() && !c.Host() {
-			requireLibs = append(requireLibs, c.ImplementationModuleName(ctx)+".so")
+		if _, ok := android.OtherModuleProvider(ctx, m, cc.CcInfoProvider); ok {
+			if android.OtherModuleProviderOrDefault(ctx, m, cc.LinkableInfoProvider).HasStubsVariants &&
+				!android.OtherModuleProviderOrDefault(ctx, m, android.CommonModuleInfoKey).Host {
+				name := ctx.OtherModuleName(m)
+				if ccInfo, ok := android.OtherModuleProvider(ctx, m, cc.CcInfoProvider); ok && ccInfo.LinkerInfo != nil && ccInfo.LinkerInfo.ImplementationModuleName != nil {
+					name = *ccInfo.LinkerInfo.ImplementationModuleName
+				}
+				requireLibs = append(requireLibs, name+".so")
+			}
 		}
 	}
 

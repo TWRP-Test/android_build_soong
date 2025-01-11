@@ -876,13 +876,15 @@ func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 	rroDirsDepSetBuilder := depset.NewBuilder[rroDir](depset.TOPOLOGICAL)
 	manifestsDepSetBuilder := depset.NewBuilder[android.Path](depset.TOPOLOGICAL)
 
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		depTag := ctx.OtherModuleDependencyTag(module)
 
 		var exportPackage android.Path
-		aarDep, _ := module.(AndroidLibraryDependency)
-		if aarDep != nil {
-			exportPackage = aarDep.ExportPackage()
+		var aarDep *AndroidLibraryDependencyInfo
+		javaInfo, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider)
+		if ok && javaInfo.AndroidLibraryDependencyInfo != nil {
+			aarDep = javaInfo.AndroidLibraryDependencyInfo
+			exportPackage = aarDep.ExportPackage
 		}
 
 		switch depTag {
@@ -890,7 +892,7 @@ func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 			// Nothing, instrumentationForTag is treated as libTag for javac but not for aapt2.
 		case sdkLibTag, libTag, rroDepTag:
 			if exportPackage != nil {
-				sharedResourcesNodeDepSets = append(sharedResourcesNodeDepSets, aarDep.ResourcesNodeDepSet())
+				sharedResourcesNodeDepSets = append(sharedResourcesNodeDepSets, aarDep.ResourcesNodeDepSet)
 				sharedLibs = append(sharedLibs, exportPackage)
 			}
 		case frameworkResTag:
@@ -899,9 +901,9 @@ func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 			}
 		case staticLibTag:
 			if exportPackage != nil {
-				staticResourcesNodeDepSets = append(staticResourcesNodeDepSets, aarDep.ResourcesNodeDepSet())
-				rroDirsDepSetBuilder.Transitive(aarDep.RRODirsDepSet())
-				manifestsDepSetBuilder.Transitive(aarDep.ManifestsDepSet())
+				staticResourcesNodeDepSets = append(staticResourcesNodeDepSets, aarDep.ResourcesNodeDepSet)
+				rroDirsDepSetBuilder.Transitive(aarDep.RRODirsDepSet)
+				manifestsDepSetBuilder.Transitive(aarDep.ManifestsDepSet)
 			}
 		}
 
@@ -1023,7 +1025,7 @@ func (a *AndroidLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) 
 		extraSrcJars = android.Paths{a.aapt.aaptSrcJar}
 	}
 
-	a.Module.compile(ctx, extraSrcJars, extraClasspathJars, extraCombinedJars, nil)
+	javaInfo := a.Module.compile(ctx, extraSrcJars, extraClasspathJars, extraCombinedJars, nil)
 
 	a.aarFile = android.PathForModuleOut(ctx, ctx.ModuleName()+".aar")
 	var res android.Paths
@@ -1048,6 +1050,11 @@ func (a *AndroidLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) 
 	})
 
 	android.SetProvider(ctx, AndroidLibraryInfoProvider, AndroidLibraryInfo{})
+
+	if javaInfo != nil {
+		setExtraJavaInfo(ctx, a, javaInfo)
+		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
+	}
 
 	a.setOutputFiles(ctx)
 }
@@ -1537,7 +1544,7 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		ctx.CheckbuildFile(a.implementationJarFile)
 	}
 
-	android.SetProvider(ctx, JavaInfoProvider, &JavaInfo{
+	javaInfo := &JavaInfo{
 		HeaderJars:                             android.PathsIfNonNil(a.headerJarFile),
 		LocalHeaderJars:                        android.PathsIfNonNil(classpathFile),
 		TransitiveStaticLibsHeaderJars:         completeStaticLibsHeaderJars,
@@ -1550,7 +1557,9 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		ImplementationJars:                     android.PathsIfNonNil(a.implementationJarFile),
 		StubsLinkType:                          Implementation,
 		// TransitiveAconfigFiles: // TODO(b/289117800): LOCAL_ACONFIG_FILES for prebuilts
-	})
+	}
+	setExtraJavaInfo(ctx, a, javaInfo)
+	android.SetProvider(ctx, JavaInfoProvider, javaInfo)
 
 	if proptools.Bool(a.properties.Extract_jni) {
 		for _, t := range ctx.MultiTargets() {

@@ -468,6 +468,7 @@ func turbineFlags(ctx android.ModuleContext, flags javaBuilderFlags, dir string,
 		android.WriteFileRule(ctx, srcJarRspFile, strings.Join(srcJars.Strings(), "\n"))
 		srcJarArgs = "@" + srcJarRspFile.String()
 		implicits = append(implicits, srcJarRspFile)
+		rspFiles = append(rspFiles, srcJarRspFile)
 		rbeInputs = append(rbeInputs, srcJarRspFile)
 	} else {
 		rbeInputs = append(rbeInputs, srcJars...)

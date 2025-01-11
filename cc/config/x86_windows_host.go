@@ -112,6 +112,7 @@ var (
 		"imagehlp",
 		"iphlpapi",
 		"netapi32",
+		"ntdll",
 		"oleaut32",
 		"ole32",
 		"opengl32",

@@ -495,18 +495,24 @@ func (a *AndroidApp) checkEmbedJnis(ctx android.BaseModuleContext) {
 // This check is enforced for "updatable" APKs (including APK-in-APEX).
 func (a *AndroidApp) checkJniLibsSdkVersion(ctx android.ModuleContext, minSdkVersion android.ApiLevel) {
 	// It's enough to check direct JNI deps' sdk_version because all transitive deps from JNI deps are checked in cc.checkLinkType()
-	ctx.VisitDirectDeps(func(m android.Module) {
+	ctx.VisitDirectDepsProxy(func(m android.ModuleProxy) {
 		if !IsJniDepTag(ctx.OtherModuleDependencyTag(m)) {
 			return
 		}
-		dep, _ := m.(*cc.Module)
+		if _, ok := android.OtherModuleProvider(ctx, m, cc.CcInfoProvider); !ok {
+			panic(fmt.Errorf("jni dependency is not a cc module: %v", m))
+		}
+		commonInfo, ok := android.OtherModuleProvider(ctx, m, android.CommonModuleInfoKey)
+		if !ok {
+			panic(fmt.Errorf("jni dependency doesn't have CommonModuleInfo provider: %v", m))
+		}
 		// The domain of cc.sdk_version is "current" and <number>
 		// We can rely on android.SdkSpec to convert it to <number> so that "current" is
 		// handled properly regardless of sdk finalization.
-		jniSdkVersion, err := android.SdkSpecFrom(ctx, dep.MinSdkVersion()).EffectiveVersion(ctx)
+		jniSdkVersion, err := android.SdkSpecFrom(ctx, commonInfo.MinSdkVersion).EffectiveVersion(ctx)
 		if err != nil || minSdkVersion.LessThan(jniSdkVersion) {
-			ctx.OtherModuleErrorf(dep, "min_sdk_version(%v) is higher than min_sdk_version(%v) of the containing android_app(%v)",
-				dep.MinSdkVersion(), minSdkVersion, ctx.ModuleName())
+			ctx.OtherModuleErrorf(m, "min_sdk_version(%v) is higher than min_sdk_version(%v) of the containing android_app(%v)",
+				commonInfo.MinSdkVersion, minSdkVersion, ctx.ModuleName())
 			return
 		}
 
@@ -569,7 +575,7 @@ func (a *AndroidApp) renameResourcesPackage() bool {
 }
 
 func getAconfigFilePaths(ctx android.ModuleContext) (aconfigTextFilePaths android.Paths) {
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(dep)
 		switch tag {
 		case staticLibTag:
@@ -724,6 +730,7 @@ func (a *AndroidApp) dexBuildActions(ctx android.ModuleContext) (android.Path, a
 
 	var packageResources = a.exportPackage
 
+	javaInfo := &JavaInfo{}
 	if ctx.ModuleName() != "framework-res" {
 		if a.dexProperties.resourceShrinkingEnabled(ctx) {
 			protoFile := android.PathForModuleOut(ctx, packageResources.Base()+".proto.apk")
@@ -747,12 +754,16 @@ func (a *AndroidApp) dexBuildActions(ctx android.ModuleContext) (android.Path, a
 			extraSrcJars = android.Paths{a.aapt.aaptSrcJar}
 		}
 
-		a.Module.compile(ctx, extraSrcJars, extraClasspathJars, extraCombinedJars, nil)
+		javaInfo = a.Module.compile(ctx, extraSrcJars, extraClasspathJars, extraCombinedJars, nil)
 		if a.dexProperties.resourceShrinkingEnabled(ctx) {
 			binaryResources := android.PathForModuleOut(ctx, packageResources.Base()+".binary.out.apk")
 			aapt2Convert(ctx, binaryResources, a.dexer.resourcesOutput.Path(), "binary")
 			packageResources = binaryResources
 		}
+	}
+	if javaInfo != nil {
+		setExtraJavaInfo(ctx, a, javaInfo)
+		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
 	}
 
 	return a.dexJarFile.PathOrNil(), packageResources

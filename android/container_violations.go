@@ -32,22 +32,22 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"Bluetooth": {
-		"app-compat-annotations",         // apex [com.android.btservices] -> system
-		"framework-bluetooth-pre-jarjar", // apex [com.android.btservices] -> system
+		"app-compat-annotations",         // apex [com.android.bt] -> system
+		"framework-bluetooth-pre-jarjar", // apex [com.android.bt] -> system
 	},
 
 	"bluetooth-nano-protos": {
-		"libprotobuf-java-nano", // apex [com.android.btservices] -> apex [com.android.wifi, test_com.android.wifi]
+		"libprotobuf-java-nano", // apex [com.android.bt] -> apex [com.android.wifi, test_com.android.wifi]
 	},
 
 	"bluetooth.change-ids": {
-		"app-compat-annotations", // apex [com.android.btservices] -> system
+		"app-compat-annotations", // apex [com.android.bt] -> system
 	},
 
 	"CarServiceUpdatable": {
 		"modules-utils-os",                    // apex [com.android.car.framework] -> apex [com.android.permission, test_com.android.permission]
 		"modules-utils-preconditions",         // apex [com.android.car.framework] -> apex [com.android.adservices, com.android.appsearch, com.android.cellbroadcast, com.android.extservices, com.android.ondevicepersonalization, com.android.tethering, com.android.uwb, com.android.wifi, test_com.android.cellbroadcast, test_com.android.wifi]
-		"modules-utils-shell-command-handler", // apex [com.android.car.framework] -> apex [com.android.adservices, com.android.art, com.android.art.debug, com.android.art.testing, com.android.btservices, com.android.configinfrastructure, com.android.mediaprovider, com.android.nfcservices, com.android.permission, com.android.scheduling, com.android.tethering, com.android.uwb, com.android.wifi, test_com.android.mediaprovider, test_com.android.permission, test_com.android.wifi, test_imgdiag_com.android.art, test_jitzygote_com.android.art]
+		"modules-utils-shell-command-handler", // apex [com.android.car.framework] -> apex [com.android.adservices, com.android.art, com.android.art.debug, com.android.art.testing, com.android.bt, com.android.configinfrastructure, com.android.mediaprovider, com.android.nfcservices, com.android.permission, com.android.scheduling, com.android.tethering, com.android.uwb, com.android.wifi, test_com.android.mediaprovider, test_com.android.permission, test_com.android.wifi, test_imgdiag_com.android.art, test_jitzygote_com.android.art]
 	},
 
 	"cellbroadcastreceiver_aconfig_flags_lib": {
@@ -830,7 +830,7 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"devicelockcontroller-lib": {
-		"modules-utils-expresslog", // apex [com.android.devicelock] -> apex [com.android.btservices, com.android.car.framework]
+		"modules-utils-expresslog", // apex [com.android.devicelock] -> apex [com.android.bt, com.android.car.framework]
 	},
 
 	"FederatedCompute": {
@@ -842,7 +842,7 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"framework-bluetooth.impl": {
-		"app-compat-annotations", // apex [com.android.btservices] -> system
+		"app-compat-annotations", // apex [com.android.bt] -> system
 	},
 
 	"framework-configinfrastructure.impl": {
@@ -1017,7 +1017,7 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"PlatformProperties": {
-		"sysprop-library-stub-platform", // apex [com.android.btservices, com.android.nfcservices, com.android.tethering, com.android.virt, com.android.wifi, test_com.android.wifi] -> system
+		"sysprop-library-stub-platform", // apex [com.android.bt, com.android.nfcservices, com.android.tethering, com.android.virt, com.android.wifi, test_com.android.wifi] -> system
 	},
 
 	"safety-center-config": {
@@ -1053,8 +1053,8 @@ var ContainerDependencyViolationAllowlist = map[string][]string{
 	},
 
 	"service-bluetooth-pre-jarjar": {
-		"framework-bluetooth-pre-jarjar", // apex [com.android.btservices] -> system
-		"service-bluetooth.change-ids",   // apex [com.android.btservices] -> system
+		"framework-bluetooth-pre-jarjar", // apex [com.android.bt] -> system
+		"service-bluetooth.change-ids",   // apex [com.android.bt] -> system
 	},
 
 	"service-connectivity": {

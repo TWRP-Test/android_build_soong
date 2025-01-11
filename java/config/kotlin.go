@@ -21,6 +21,7 @@ var (
 	KotlincIllegalFlags = []string{
 		"-no-jdk",
 		"-no-stdlib",
+		"-language-version",
 	}
 )
 
@@ -49,12 +50,12 @@ func init() {
 		"-J--add-opens=java.base/java.util=ALL-UNNAMED", // https://youtrack.jetbrains.com/issue/KT-43704
 	}, " "))
 
-	pctx.StaticVariable("KotlincGlobalFlags", strings.Join([]string{"-language-version 1.9"}, " "))
+	pctx.StaticVariable("KotlincGlobalFlags", strings.Join([]string{}, " "))
 	// Use KotlincKytheGlobalFlags to prevent kotlinc version skew issues between android and
 	// g3 kythe indexers.
 	// This is necessary because there might be instances of kotlin code in android
 	// platform that are not fully compatible with the kotlinc used in g3 kythe indexers.
 	// e.g. uninitialized variables are a warning in 1.*, but an error in 2.*
 	// https://github.com/JetBrains/kotlin/blob/master/compiler/fir/checkers/gen/org/jetbrains/kotlin/fir/analysis/diagnostics/FirErrors.kt#L748
-	pctx.StaticVariable("KotlincKytheGlobalFlags", strings.Join([]string{"-language-version 1.9"}, " "))
+	pctx.StaticVariable("KotlincKytheGlobalFlags", strings.Join([]string{}, " "))
 }

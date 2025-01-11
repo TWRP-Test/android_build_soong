@@ -104,8 +104,6 @@ func (r *robolectricTest) TestSuites() []string {
 
 var _ android.TestSuiteModule = (*robolectricTest)(nil)
 
-
-
 func (r *robolectricTest) DepsMutator(ctx android.BottomUpMutatorContext) {
 	r.Library.DepsMutator(ctx)
 
@@ -121,8 +119,6 @@ func (r *robolectricTest) DepsMutator(ctx android.BottomUpMutatorContext) {
 		ctx.AddVariationDependencies(nil, roboRuntimeOnlyDepTag, robolectricCurrentLib)
 	} else {
 		ctx.AddVariationDependencies(nil, staticLibTag, robolectricCurrentLib)
-		// opting out from strict mode, robolectric_non_strict_mode_permission lib should be added
-		ctx.AddVariationDependencies(nil, staticLibTag, "robolectric_non_strict_mode_permission")
 	}
 
 	ctx.AddVariationDependencies(nil, staticLibTag, robolectricDefaultLibs...)
@@ -207,7 +203,7 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	r.stem = proptools.StringDefault(r.overridableProperties.Stem, ctx.ModuleName())
 	r.classLoaderContexts = r.usesLibrary.classLoaderContextForUsesLibDeps(ctx)
 	r.dexpreopter.disableDexpreopt()
-	r.compile(ctx, nil, nil, nil, extraCombinedJars)
+	javaInfo := r.compile(ctx, nil, nil, nil, extraCombinedJars)
 
 	installPath := android.PathForModuleInstall(ctx, r.BaseModuleName())
 	var installDeps android.InstallPaths
@@ -244,6 +240,11 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	}
 
 	r.installFile = ctx.InstallFile(installPath, ctx.ModuleName()+".jar", r.outputFile, installDeps...)
+
+	if javaInfo != nil {
+		setExtraJavaInfo(ctx, r, javaInfo)
+		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
+	}
 }
 
 func generateSameDirRoboTestConfigJar(ctx android.ModuleContext, outputFile android.ModuleOutPath) {

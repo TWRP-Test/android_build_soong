@@ -69,6 +69,11 @@ type LintProperties struct {
 		// If soong gets support for testonly, this flag should be replaced with that.
 		Test *bool
 
+		// Same as the regular Test property, but set by internal soong code based on if the module
+		// type is a test module type. This will act as the default value for the test property,
+		// but can be overridden by the user.
+		Test_module_type *bool `blueprint:"mutated"`
+
 		// Whether to ignore the exit code of Android lint. This is the --exit_code
 		// option. Defaults to false.
 		Suppress_exit_code *bool
@@ -257,7 +262,12 @@ func (l *linter) writeLintProjectXML(ctx android.ModuleContext, rule *android.Ru
 	if l.library {
 		cmd.Flag("--library")
 	}
-	if proptools.BoolDefault(l.properties.Lint.Test, false) {
+
+	test := proptools.BoolDefault(l.properties.Lint.Test_module_type, false)
+	if l.properties.Lint.Test != nil {
+		test = *l.properties.Lint.Test
+	}
+	if test {
 		cmd.Flag("--test")
 	}
 	if l.manifest != nil {

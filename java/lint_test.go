@@ -276,3 +276,50 @@ func TestCantControlCheckSeverityWithFlags(t *testing.T) {
 		ExtendWithErrorHandler(android.FixtureExpectsOneErrorPattern("Don't use --disable, --enable, or --check in the flags field, instead use the dedicated disabled_checks, warning_checks, error_checks, or fatal_checks fields")).
 		RunTestWithBp(t, bp)
 }
+
+// b/358643466
+func TestNotTestViaDefault(t *testing.T) {
+	bp := `
+		java_defaults {
+			name: "mydefaults",
+			lint: {
+				test: false,
+			},
+		}
+		android_test {
+			name: "foo",
+			srcs: [
+				"a.java",
+			],
+			min_sdk_version: "29",
+			sdk_version: "current",
+			defaults: ["mydefaults"],
+		}
+		android_test {
+			name: "foo2",
+			srcs: [
+				"a.java",
+			],
+			min_sdk_version: "29",
+			sdk_version: "current",
+		}
+	`
+	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, bp)
+	ctx := result.TestContext
+
+	foo := ctx.ModuleForTests("foo", "android_common")
+	sboxProto := android.RuleBuilderSboxProtoForTests(t, ctx, foo.Output("lint.sbox.textproto"))
+	command := *sboxProto.Commands[0].Command
+
+	if strings.Contains(command, "--test") {
+		t.Fatalf("Expected command to not contain --test")
+	}
+
+	foo2 := ctx.ModuleForTests("foo2", "android_common")
+	sboxProto2 := android.RuleBuilderSboxProtoForTests(t, ctx, foo2.Output("lint.sbox.textproto"))
+	command2 := *sboxProto2.Commands[0].Command
+
+	if !strings.Contains(command2, "--test") {
+		t.Fatalf("Expected command to contain --test")
+	}
+}

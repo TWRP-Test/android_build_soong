@@ -110,7 +110,7 @@ func ravenwoodTestFactory() android.Module {
 	module.AddProperties(&module.testProperties, &module.ravenwoodTestProperties)
 
 	module.Module.dexpreopter.isTest = true
-	module.Module.linter.properties.Lint.Test = proptools.BoolPtr(true)
+	module.Module.linter.properties.Lint.Test_module_type = proptools.BoolPtr(true)
 
 	module.testProperties.Test_suites = []string{
 		"general-tests",

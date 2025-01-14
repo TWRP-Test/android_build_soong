@@ -939,6 +939,12 @@ func aaptLibs(ctx android.ModuleContext, sdkContext android.SdkContext,
 	return staticResourcesNodes, sharedResourcesNodes, staticRRODirs, staticManifests, sharedLibs, flags
 }
 
+type AndroidLibraryInfo struct {
+	// Empty for now
+}
+
+var AndroidLibraryInfoProvider = blueprint.NewProvider[AndroidLibraryInfo]()
+
 type AndroidLibrary struct {
 	Library
 	aapt
@@ -1585,8 +1591,6 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	android.SetProvider(ctx, JniPackageProvider, JniPackageInfo{
 		JniPackages: a.jniPackages,
 	})
-
-	android.SetProvider(ctx, AndroidLibraryInfoProvider, AndroidLibraryInfo{})
 
 	ctx.SetOutputFiles([]android.Path{a.implementationAndResourcesJarFile}, "")
 	ctx.SetOutputFiles([]android.Path{a.aarPath}, ".aar")

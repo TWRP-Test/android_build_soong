@@ -235,6 +235,7 @@ func (b *bootimg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		Kernel:     b.getKernelPath(ctx),
 		Dtb:        b.getDtbPath(ctx),
 		Bootconfig: b.getBootconfigPath(ctx),
+		Output:     output,
 	})
 }
 
@@ -245,6 +246,7 @@ type BootimgInfo struct {
 	Kernel     android.Path
 	Dtb        android.Path
 	Bootconfig android.Path
+	Output     android.Path
 }
 
 func (b *bootimg) getKernelPath(ctx android.ModuleContext) android.Path {

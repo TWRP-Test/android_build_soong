@@ -276,6 +276,11 @@ type ModuleWithUsesLibraryInfo struct {
 	UsesLibrary *usesLibrary
 }
 
+type ModuleWithSdkDepInfo struct {
+	SdkLinkType sdkLinkType
+	Stubs       bool
+}
+
 // JavaInfo contains information about a java module for use by modules that depend on it.
 type JavaInfo struct {
 	// HeaderJars is a list of jars that can be passed as the javac classpath in order to link
@@ -364,9 +369,15 @@ type JavaInfo struct {
 	ProvidesUsesLibInfo *ProvidesUsesLibInfo
 
 	ModuleWithUsesLibraryInfo *ModuleWithUsesLibraryInfo
+
+	ModuleWithSdkDepInfo *ModuleWithSdkDepInfo
 }
 
 var JavaInfoProvider = blueprint.NewProvider[*JavaInfo]()
+
+type JavaLibraryInfo struct{}
+
+var JavaLibraryInfoProvider = blueprint.NewProvider[JavaLibraryInfo]()
 
 // SyspropPublicStubInfo contains info about the sysprop public stub library that corresponds to
 // the sysprop implementation library.
@@ -1046,6 +1057,8 @@ func (j *Library) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		TestOnly:       Bool(j.sourceProperties.Test_only),
 		TopLevelTarget: j.sourceProperties.Top_level_test_target,
 	})
+
+	android.SetProvider(ctx, JavaLibraryInfoProvider, JavaLibraryInfo{})
 
 	if javaInfo != nil {
 		setExtraJavaInfo(ctx, j, javaInfo)
@@ -3540,6 +3553,14 @@ func setExtraJavaInfo(ctx android.ModuleContext, module android.Module, javaInfo
 	if mwul, ok := module.(ModuleWithUsesLibrary); ok {
 		javaInfo.ModuleWithUsesLibraryInfo = &ModuleWithUsesLibraryInfo{
 			UsesLibrary: mwul.UsesLibrary(),
+		}
+	}
+
+	if mwsd, ok := module.(moduleWithSdkDep); ok {
+		linkType, stubs := mwsd.getSdkLinkType(ctx, ctx.ModuleName())
+		javaInfo.ModuleWithSdkDepInfo = &ModuleWithSdkDepInfo{
+			SdkLinkType: linkType,
+			Stubs:       stubs,
 		}
 	}
 }

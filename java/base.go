@@ -656,14 +656,17 @@ func (j *Module) checkSdkVersions(ctx android.ModuleContext) {
 
 	// Make sure this module doesn't statically link to modules with lower-ranked SDK link type.
 	// See rank() for details.
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(module)
-		switch module.(type) {
-		// TODO(satayev): cover other types as well, e.g. imports
-		case *Library, *AndroidLibrary:
+		_, isJavaLibrary := android.OtherModuleProvider(ctx, module, JavaLibraryInfoProvider)
+		_, isAndroidLibrary := android.OtherModuleProvider(ctx, module, AndroidLibraryInfoProvider)
+		_, isJavaAconfigLibrary := android.OtherModuleProvider(ctx, module, android.CodegenInfoProvider)
+		// Exclude java_aconfig_library modules to maintain consistency with existing behavior.
+		if (isJavaLibrary && !isJavaAconfigLibrary) || isAndroidLibrary {
+			// TODO(satayev): cover other types as well, e.g. imports
 			switch tag {
 			case bootClasspathTag, sdkLibTag, libTag, staticLibTag, java9LibTag:
-				j.checkSdkLinkType(ctx, module.(moduleWithSdkDep), tag.(dependencyTag))
+				j.checkSdkLinkType(ctx, module)
 			}
 		}
 	})
@@ -2391,7 +2394,7 @@ func (m *Module) getSdkLinkType(ctx android.BaseModuleContext, name string) (ret
 // checkSdkLinkType make sures the given dependency doesn't have a lower SDK link type rank than
 // this module's. See the comment on rank() for details and an example.
 func (j *Module) checkSdkLinkType(
-	ctx android.ModuleContext, dep moduleWithSdkDep, tag dependencyTag) {
+	ctx android.ModuleContext, dep android.ModuleProxy) {
 	if ctx.Host() {
 		return
 	}
@@ -2400,7 +2403,12 @@ func (j *Module) checkSdkLinkType(
 	if stubs {
 		return
 	}
-	depLinkType, _ := dep.getSdkLinkType(ctx, ctx.OtherModuleName(dep))
+	info, ok := android.OtherModuleProvider(ctx, dep, JavaInfoProvider)
+	if !ok || info.ModuleWithSdkDepInfo == nil {
+		panic(fmt.Errorf("dependency doesn't have ModuleWithSdkDepInfo: %v", dep))
+	}
+
+	depLinkType := info.ModuleWithSdkDepInfo.SdkLinkType
 
 	if myLinkType.rank() < depLinkType.rank() {
 		ctx.ModuleErrorf("compiles against %v, but dependency %q is compiling against %v. "+

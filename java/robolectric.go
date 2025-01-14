@@ -138,10 +138,17 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	r.forceOSType = ctx.Config().BuildOS
 	r.forceArchType = ctx.Config().BuildArch
 
+	var options []tradefed.Option
+	options = append(options, tradefed.Option{Name: "java-flags", Value: "-Drobolectric=true"})
+	if proptools.BoolDefault(r.robolectricProperties.Strict_mode, true) {
+	    options = append(options, tradefed.Option{Name: "java-flags", Value: "-Drobolectric.strict.mode=true"})
+	}
+
 	r.testConfig = tradefed.AutoGenTestConfig(ctx, tradefed.AutoGenTestConfigOptions{
 		TestConfigProp:         r.testProperties.Test_config,
 		TestConfigTemplateProp: r.testProperties.Test_config_template,
 		TestSuites:             r.testProperties.Test_suites,
+		TestRunnerOptions:      options,
 		AutoGenConfig:          r.testProperties.Auto_gen_config,
 		DeviceTemplate:         "${RobolectricTestConfigTemplate}",
 		HostTemplate:           "${RobolectricTestConfigTemplate}",

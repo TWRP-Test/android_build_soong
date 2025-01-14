@@ -291,16 +291,20 @@ func createLimitDirgroupRule() []Rule {
 	return []Rule{
 		NeverAllow().
 			ModuleType("dirgroup").
-			WithMatcher("visibility", NotInList([]string{"//trusty/vendor/google/aosp/scripts"})).Because(reason),
+			WithMatcher("visibility", NotInList([]string{"//trusty/vendor/google/aosp/scripts", "//trusty/vendor/google/proprietary/scripts"})).Because(reason),
 		NeverAllow().
 			ModuleType("dirgroup").
-			Without("visibility", "//trusty/vendor/google/aosp/scripts").Because(reason),
+			WithoutMatcher("visibility", InAllowedList([]string{"//trusty/vendor/google/aosp/scripts", "//trusty/vendor/google/proprietary/scripts"})).Because(reason),
 		NeverAllow().
 			ModuleType("genrule").
 			Without("name", "trusty-arm64.lk.elf.gen").
 			Without("name", "trusty-arm64-virt-test-debug.lk.elf.gen").
 			Without("name", "trusty-x86_64.lk.elf.gen").
 			Without("name", "trusty-x86_64-test.lk.elf.gen").
+			Without("name", "trusty-arm64.wv.lk.elf.gen").
+			Without("name", "trusty-arm64-virt-test-debug.wv.lk.elf.gen").
+			Without("name", "trusty-x86_64.wv.lk.elf.gen").
+			Without("name", "trusty-x86_64-test.wv.lk.elf.gen").
 			WithMatcher("dir_srcs", isSetMatcherInstance).Because(reason),
 		NeverAllow().
 			ModuleType("genrule").
@@ -308,6 +312,10 @@ func createLimitDirgroupRule() []Rule {
 			Without("name", "trusty-arm64-virt-test-debug.lk.elf.gen").
 			Without("name", "trusty-x86_64.lk.elf.gen").
 			Without("name", "trusty-x86_64-test.lk.elf.gen").
+			Without("name", "trusty-arm64.wv.lk.elf.gen").
+			Without("name", "trusty-arm64-virt-test-debug.wv.lk.elf.gen").
+			Without("name", "trusty-x86_64.wv.lk.elf.gen").
+			Without("name", "trusty-x86_64-test.wv.lk.elf.gen").
 			With("keep_gendir", "true").Because(reason),
 	}
 }
@@ -472,6 +480,18 @@ func (m *notInListMatcher) Test(value string) bool {
 
 func (m *notInListMatcher) String() string {
 	return ".not-in-list(" + strings.Join(m.allowed, ",") + ")"
+}
+
+type InListMatcher struct {
+	allowed []string
+}
+
+func (m *InListMatcher) Test(value string) bool {
+	return InList(value, m.allowed)
+}
+
+func (m *InListMatcher) String() string {
+	return ".in-list(" + strings.Join(m.allowed, ",") + ")"
 }
 
 type isSetMatcher struct{}
@@ -750,6 +770,10 @@ func Regexp(re string) ValueMatcher {
 
 func NotInList(allowed []string) ValueMatcher {
 	return &notInListMatcher{allowed}
+}
+
+func InAllowedList(allowed []string) ValueMatcher {
+	return &InListMatcher{allowed}
 }
 
 // assorted utils

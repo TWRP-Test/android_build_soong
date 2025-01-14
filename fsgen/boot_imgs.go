@@ -80,6 +80,7 @@ func createBootImage(ctx android.LoadHookContext, dtbImg dtbImg) bool {
 			Security_patch:     securityPatch,
 			Dtb_prebuilt:       dtbPrebuilt,
 			Cmdline:            cmdline,
+			Stem:               proptools.StringPtr("boot.img"),
 		},
 		&struct {
 			Name *string
@@ -133,6 +134,7 @@ func createVendorBootImage(ctx android.LoadHookContext, dtbImg dtbImg) bool {
 			Dtb_prebuilt:       dtbPrebuilt,
 			Cmdline:            cmdline,
 			Bootconfig:         vendorBootConfigImg,
+			Stem:               proptools.StringPtr("vendor_boot.img"),
 		},
 		&struct {
 			Name *string
@@ -180,6 +182,7 @@ func createInitBootImage(ctx android.LoadHookContext) bool {
 			Avb_private_key:    avbInfo.avbkeyFilegroup,
 			Avb_rollback_index: avbInfo.avbRollbackIndex,
 			Avb_algorithm:      avbInfo.avbAlgorithm,
+			Stem:               proptools.StringPtr("init_boot.img"),
 		},
 		&struct {
 			Name *string

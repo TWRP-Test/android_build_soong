@@ -140,6 +140,9 @@ message MetricsBase {
 
   // Metrics related to optimized builds.
   optional OptimizedBuildMetrics optimized_build_metrics = 35;
+
+  // The target release information. e.g., trunk_staging.
+  optional string target_release = 36;
 }
 
 message BuildConfig {

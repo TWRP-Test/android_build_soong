@@ -218,6 +218,10 @@ type FilesystemProperties struct {
 
 	// Name of the output. Default is $(module_name).img
 	Stem *string
+
+	// The size of the partition on the device. It will be a build error if this built partition
+	// image exceeds this size.
+	Partition_size *int64
 }
 
 type AndroidFilesystemDeps struct {
@@ -672,6 +676,10 @@ func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (andro
 		copyImageFileToProductOut(ctx, builder, f.partitionName(), output)
 	}
 
+	if f.properties.Partition_size != nil {
+		assertMaxImageSize(builder, output, *f.properties.Partition_size, false)
+	}
+
 	// rootDir is not deleted. Might be useful for quick inspection.
 	builder.Build("build_filesystem_image", fmt.Sprintf("Creating filesystem %s", f.BaseModuleName()))
 
@@ -808,6 +816,10 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 		}
 	}
 	f.checkFsTypePropertyError(ctx, fst, fsTypeStr(fst))
+
+	if f.properties.Partition_size != nil {
+		addStr("partition_size", strconv.FormatInt(*f.properties.Partition_size, 10))
+	}
 
 	propFilePreProcessing := android.PathForModuleOut(ctx, "prop_pre_processing")
 	android.WriteFileRuleVerbatim(ctx, propFilePreProcessing, propFileString.String())

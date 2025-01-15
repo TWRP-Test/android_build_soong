@@ -80,13 +80,19 @@ func GatherRequiredDepsForTest() string {
 			no_libcrt: true,
 			nocrt: true,
 			system_shared_libs: [],
-			apex_available: ["//apex_available:platform", "//apex_available:anyapex"],
 			min_sdk_version: "29",
 			vendor_available: true,
 			host_supported: true,
 			recovery_available: true,
 			llndk: {
 				symbol_file: "liblog.map.txt",
+			},
+			stubs: {
+				symbol_file: "liblog.map.txt",
+				versions: [
+					"29",
+					"30",
+				],
 			},
 		}
 		cc_library {

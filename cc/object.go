@@ -159,7 +159,7 @@ func (object *objectLinker) link(ctx ModuleContext,
 	// isForPlatform is terribly named and actually means isNotApex.
 	if Bool(object.Properties.Crt) &&
 		!Bool(object.Properties.Exclude_from_ndk_sysroot) && ctx.useSdk() &&
-		ctx.isSdkVariant() && ctx.isForPlatform() {
+		ctx.isSdkVariant() && CtxIsForPlatform(ctx) {
 
 		output = getVersionedLibraryInstallPath(ctx,
 			nativeApiLevelOrPanic(ctx, ctx.sdkVersion())).Join(ctx, outputName)

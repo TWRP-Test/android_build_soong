@@ -244,7 +244,7 @@ func isValidSharedDependency(ctx android.ModuleContext, dependency android.Modul
 	// libraries must be handled differently - by looking for the stubDecorator.
 	// Discard LLNDK prebuilts stubs as well.
 	if hasCcInfo {
-		if ccInfo.LinkerInfo.StubDecoratorInfo != nil {
+		if ccInfo.LinkerInfo != nil && ccInfo.LinkerInfo.StubDecoratorInfo != nil {
 			return false
 		}
 		// Discard installable:false libraries because they are expected to be absent

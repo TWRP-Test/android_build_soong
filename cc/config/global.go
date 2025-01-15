@@ -290,8 +290,6 @@ var (
 		// New warnings to be fixed after clang-r468909
 		"-Wno-error=deprecated-builtins", // http://b/241601211
 		"-Wno-error=deprecated",          // in external/googletest/googletest
-		// Disabling until the warning is fixed in libc++abi header files b/366180429
-		"-Wno-deprecated-dynamic-exception-spec",
 		// New warnings to be fixed after clang-r522817
 		"-Wno-error=invalid-offsetof",
 		"-Wno-error=thread-safety-reference-return",

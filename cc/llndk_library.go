@@ -83,9 +83,9 @@ func (s *movedToApexLlndkLibraries) GenerateBuildActions(ctx android.SingletonCo
 	// Make uses LLNDK_MOVED_TO_APEX_LIBRARIES to generate the linker config.
 	movedToApexLlndkLibrariesMap := make(map[string]bool)
 	ctx.VisitAllModules(func(module android.Module) {
-		if library := moduleLibraryInterface(module); library != nil && library.hasLLNDKStubs() {
-			if library.isLLNDKMovedToApex() {
-				name := library.implementationModuleName(module.(*Module).BaseModuleName())
+		if library := moduleVersionedInterface(module); library != nil && library.HasLLNDKStubs() {
+			if library.IsLLNDKMovedToApex() {
+				name := library.ImplementationModuleName(module.(*Module).BaseModuleName())
 				movedToApexLlndkLibrariesMap[name] = true
 			}
 		}
@@ -223,10 +223,10 @@ func llndkMutator(mctx android.BottomUpMutatorContext) {
 	lib, isLib := m.linker.(*libraryDecorator)
 	prebuiltLib, isPrebuiltLib := m.linker.(*prebuiltLibraryLinker)
 
-	if m.InVendorOrProduct() && isLib && lib.hasLLNDKStubs() {
+	if m.InVendorOrProduct() && isLib && lib.HasLLNDKStubs() {
 		m.VendorProperties.IsLLNDK = true
 	}
-	if m.InVendorOrProduct() && isPrebuiltLib && prebuiltLib.hasLLNDKStubs() {
+	if m.InVendorOrProduct() && isPrebuiltLib && prebuiltLib.HasLLNDKStubs() {
 		m.VendorProperties.IsLLNDK = true
 	}
 

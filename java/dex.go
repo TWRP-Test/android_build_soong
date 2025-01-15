@@ -49,6 +49,16 @@ type DexProperties struct {
 		// Whether to continue building even if warnings are emitted.  Defaults to true.
 		Ignore_warnings *bool
 
+		// Whether runtime invisible annotations should be kept by R8. Defaults to false.
+		// This is equivalent to:
+		//   -keepattributes RuntimeInvisibleAnnotations,
+		//                   RuntimeInvisibleParameterAnnotations,
+		//                   RuntimeInvisibleTypeAnnotations
+		// This is only applicable when RELEASE_R8_ONLY_RUNTIME_VISIBLE_ANNOTATIONS is
+		// enabled and will be used to migrate away from keeping runtime invisible
+		// annotations (b/387958004).
+		Keep_runtime_invisible_annotations *bool
+
 		// If true, runs R8 in Proguard compatibility mode, otherwise runs R8 in full mode.
 		// Defaults to false for apps and tests, true for libraries.
 		Proguard_compatibility *bool
@@ -362,6 +372,10 @@ func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams, 
 
 	if BoolDefault(opt.Ignore_library_extends_program, false) {
 		r8Flags = append(r8Flags, "--ignore-library-extends-program")
+	}
+
+	if BoolDefault(opt.Keep_runtime_invisible_annotations, false) {
+		r8Flags = append(r8Flags, "--keep-runtime-invisible-annotations")
 	}
 
 	if BoolDefault(opt.Proguard_compatibility, true) {

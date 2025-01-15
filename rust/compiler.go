@@ -39,6 +39,7 @@ type compiler interface {
 	compilerFlags(ctx ModuleContext, flags Flags) Flags
 	cfgFlags(ctx ModuleContext, flags Flags) Flags
 	featureFlags(ctx ModuleContext, module *Module, flags Flags) Flags
+	baseCompilerProps() BaseCompilerProperties
 	compilerProps() []interface{}
 	compile(ctx ModuleContext, flags Flags, deps PathDeps) buildOutput
 	compilerDeps(ctx DepsContext, deps Deps) Deps
@@ -149,21 +150,21 @@ type BaseCompilerProperties struct {
 	Aliases []string
 
 	// list of rust rlib crate dependencies
-	Rlibs []string `android:"arch_variant"`
+	Rlibs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of rust automatic crate dependencies.
 	// Rustlibs linkage is rlib for host targets and dylib for device targets.
 	Rustlibs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of rust proc_macro crate dependencies
-	Proc_macros []string `android:"arch_variant"`
+	Proc_macros proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of C shared library dependencies
-	Shared_libs []string `android:"arch_variant"`
+	Shared_libs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of C static library dependencies. These dependencies do not normally propagate to dependents
 	// and may need to be redeclared. See whole_static_libs for bundling static dependencies into a library.
-	Static_libs []string `android:"arch_variant"`
+	Static_libs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// Similar to static_libs, but will bundle the static library dependency into a library. This is helpful
 	// to avoid having to redeclare the dependency for dependents of this library, but in some cases may also
@@ -178,13 +179,13 @@ type BaseCompilerProperties struct {
 	//
 	// For rust_library rlib variants, these libraries will be bundled into the resulting rlib library. This will
 	// include all of the static libraries symbols in any dylibs or binaries which use this rlib as well.
-	Whole_static_libs []string `android:"arch_variant"`
+	Whole_static_libs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// list of Rust system library dependencies.
 	//
 	// This is usually only needed when `no_stdlibs` is true, in which case it can be used to depend on system crates
 	// like `core` and `alloc`.
-	Stdlibs []string `android:"arch_variant"`
+	Stdlibs proptools.Configurable[[]string] `android:"arch_variant"`
 
 	// crate name, required for modules which produce Rust libraries: rust_library, rust_ffi and SourceProvider
 	// modules which create library variants (rust_bindgen). This must be the expected extern crate name used in
@@ -334,6 +335,10 @@ func (compiler *baseCompiler) inData() bool {
 
 func (compiler *baseCompiler) compilerProps() []interface{} {
 	return []interface{}{&compiler.Properties}
+}
+
+func (compiler *baseCompiler) baseCompilerProps() BaseCompilerProperties {
+	return compiler.Properties
 }
 
 func cfgsToFlags(cfgs []string) []string {
@@ -495,13 +500,13 @@ func (compiler *baseCompiler) strippedOutputFilePath() android.OptionalPath {
 }
 
 func (compiler *baseCompiler) compilerDeps(ctx DepsContext, deps Deps) Deps {
-	deps.Rlibs = append(deps.Rlibs, compiler.Properties.Rlibs...)
+	deps.Rlibs = append(deps.Rlibs, compiler.Properties.Rlibs.GetOrDefault(ctx, nil)...)
 	deps.Rustlibs = append(deps.Rustlibs, compiler.Properties.Rustlibs.GetOrDefault(ctx, nil)...)
-	deps.ProcMacros = append(deps.ProcMacros, compiler.Properties.Proc_macros...)
-	deps.StaticLibs = append(deps.StaticLibs, compiler.Properties.Static_libs...)
-	deps.WholeStaticLibs = append(deps.WholeStaticLibs, compiler.Properties.Whole_static_libs...)
-	deps.SharedLibs = append(deps.SharedLibs, compiler.Properties.Shared_libs...)
-	deps.Stdlibs = append(deps.Stdlibs, compiler.Properties.Stdlibs...)
+	deps.ProcMacros = append(deps.ProcMacros, compiler.Properties.Proc_macros.GetOrDefault(ctx, nil)...)
+	deps.StaticLibs = append(deps.StaticLibs, compiler.Properties.Static_libs.GetOrDefault(ctx, nil)...)
+	deps.WholeStaticLibs = append(deps.WholeStaticLibs, compiler.Properties.Whole_static_libs.GetOrDefault(ctx, nil)...)
+	deps.SharedLibs = append(deps.SharedLibs, compiler.Properties.Shared_libs.GetOrDefault(ctx, nil)...)
+	deps.Stdlibs = append(deps.Stdlibs, compiler.Properties.Stdlibs.GetOrDefault(ctx, nil)...)
 
 	if !Bool(compiler.Properties.No_stdlibs) {
 		for _, stdlib := range config.Stdlibs {

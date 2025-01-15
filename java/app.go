@@ -1119,9 +1119,10 @@ func collectAppDeps(ctx android.ModuleContext, app appDepsInterface,
 			parentLinkable, _ := parent.(cc.LinkableInterface)
 			useStubsOfDep := childLinkable.IsStubs()
 			if apkInApex && parentLinkable != nil {
+				vintf := childLinkable.(cc.VersionedLinkableInterface).VersionedInterface()
 				// APK-in-APEX
 				// If the parent is a linkable interface, use stubs if the dependency edge crosses an apex boundary.
-				useStubsOfDep = useStubsOfDep || (childLinkable.HasStubsVariants() && cc.ShouldUseStubForApex(ctx, parent, child))
+				useStubsOfDep = useStubsOfDep || (vintf.HasStubsVariants() && cc.ShouldUseStubForApex(ctx, parent, child))
 			}
 			return !childLinkable.IsNdk(ctx.Config()) && !useStubsOfDep
 		})

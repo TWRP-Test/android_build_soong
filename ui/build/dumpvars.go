@@ -137,6 +137,12 @@ func dumpMakeVars(ctx Context, config Config, goals, vars []string, write_soong_
 		}
 	}
 	if ctx.Metrics != nil {
+		// Also include TARGET_RELEASE in the metrics.  Do this first
+		// so that it gets overwritten if dumpvars ever spits it out.
+		if release, found := os.LookupEnv("TARGET_RELEASE"); found {
+			ctx.Metrics.SetMetadataMetrics(
+				map[string]string{"TARGET_RELEASE": release})
+		}
 		ctx.Metrics.SetMetadataMetrics(ret)
 	}
 

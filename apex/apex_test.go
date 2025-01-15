@@ -897,7 +897,11 @@ func TestApexWithStubs(t *testing.T) {
 		apex {
 			name: "myapex",
 			key: "myapex.key",
-			native_shared_libs: ["mylib", "mylib3"],
+			native_shared_libs: [
+				"mylib",
+				"mylib3",
+				"libmylib3_rs",
+			],
 			binaries: ["foo.rust"],
 			updatable: false,
 		}
@@ -911,7 +915,14 @@ func TestApexWithStubs(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["mylib2", "mylib3#impl", "my_prebuilt_platform_lib", "my_prebuilt_platform_stub_only_lib"],
+			shared_libs: [
+				"mylib2",
+				"mylib3#impl",
+				"libmylib2_rs",
+				"libmylib3_rs#impl",
+				"my_prebuilt_platform_lib",
+				"my_prebuilt_platform_stub_only_lib",
+			],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [ "myapex" ],
@@ -923,6 +934,16 @@ func TestApexWithStubs(t *testing.T) {
 			cflags: ["-include mylib.h"],
 			system_shared_libs: [],
 			stl: "none",
+			stubs: {
+				symbol_file: "mylib2.map.txt",
+				versions: ["1", "2", "3"],
+			},
+		}
+
+		rust_ffi {
+			name: "libmylib2_rs",
+			crate_name: "mylib2",
+			srcs: ["mylib.rs"],
 			stubs: {
 				symbol_file: "mylib2.map.txt",
 				versions: ["1", "2", "3"],
@@ -942,8 +963,28 @@ func TestApexWithStubs(t *testing.T) {
 			apex_available: [ "myapex" ],
 		}
 
+		rust_ffi {
+			name: "libmylib3_rs",
+			crate_name: "mylib3",
+			srcs: ["mylib.rs"],
+			shared_libs: ["mylib4.from_rust"],
+			stubs: {
+				symbol_file: "mylib3.map.txt",
+				versions: ["10", "11", "12"],
+			},
+			apex_available: [ "myapex" ],
+		}
+
 		cc_library {
 			name: "mylib4",
+			srcs: ["mylib.cpp"],
+			system_shared_libs: [],
+			stl: "none",
+			apex_available: [ "myapex" ],
+		}
+
+		cc_library {
+			name: "mylib4.from_rust",
 			srcs: ["mylib.cpp"],
 			system_shared_libs: [],
 			stl: "none",
@@ -971,7 +1012,10 @@ func TestApexWithStubs(t *testing.T) {
 		rust_binary {
 			name: "foo.rust",
 			srcs: ["foo.rs"],
-			shared_libs: ["libfoo.shared_from_rust"],
+			shared_libs: [
+				"libfoo.shared_from_rust",
+				"libfoo_rs.shared_from_rust",
+			],
 			prefer_rlib: true,
 			apex_available: ["myapex"],
 		}
@@ -981,6 +1025,15 @@ func TestApexWithStubs(t *testing.T) {
 			srcs: ["mylib.cpp"],
 			system_shared_libs: [],
 			stl: "none",
+			stubs: {
+				versions: ["10", "11", "12"],
+			},
+		}
+
+		rust_ffi {
+			name: "libfoo_rs.shared_from_rust",
+			crate_name: "foo_rs",
+			srcs: ["mylib.rs"],
 			stubs: {
 				versions: ["10", "11", "12"],
 			},
@@ -996,21 +1049,27 @@ func TestApexWithStubs(t *testing.T) {
 
 	// Ensure that indirect stubs dep is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/mylib2.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libmylib2_rs.so")
 
 	// Ensure that direct stubs dep is included
 	ensureContains(t, copyCmds, "image.apex/lib64/mylib3.so")
+	ensureContains(t, copyCmds, "image.apex/lib64/libmylib3_rs.so")
 
 	mylibLdFlags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_shared_apex10000").Rule("ld").Args["libFlags"]
 
 	// Ensure that mylib is linking with the latest version of stubs for mylib2
 	ensureContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared_current/mylib2.so")
+	ensureContains(t, mylibLdFlags, "libmylib2_rs/android_arm64_armv8-a_shared_current/unstripped/libmylib2_rs.so")
 	// ... and not linking to the non-stub (impl) variant of mylib2
 	ensureNotContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared/mylib2.so")
+	ensureNotContains(t, mylibLdFlags, "libmylib2_rs/android_arm64_armv8-a_shared/unstripped/libmylib2_rs.so")
 
 	// Ensure that mylib is linking with the non-stub (impl) of mylib3 (because the dependency is added with mylib3#impl)
 	ensureContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_apex10000/mylib3.so")
+	ensureContains(t, mylibLdFlags, "libmylib3_rs/android_arm64_armv8-a_shared_apex10000/unstripped/libmylib3_rs.so")
 	// .. and not linking to the stubs variant of mylib3
 	ensureNotContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_12/mylib3.so")
+	ensureNotContains(t, mylibLdFlags, "libmylib3_rs/android_arm64_armv8-a_shared_12/unstripped/mylib3.so")
 
 	// Comment out this test. Now it fails after the optimization of sharing "cflags" in cc/cc.go
 	// is replaced by sharing of "cFlags" in cc/builder.go.
@@ -1026,27 +1085,35 @@ func TestApexWithStubs(t *testing.T) {
 
 	// Ensure that genstub for platform-provided lib is invoked with --systemapi
 	ensureContains(t, ctx.ModuleForTests("mylib2", "android_arm64_armv8-a_shared_3").Rule("genStubSrc").Args["flags"], "--systemapi")
+	ensureContains(t, ctx.ModuleForTests("libmylib2_rs", "android_arm64_armv8-a_shared_3").Rule("genStubSrc").Args["flags"], "--systemapi")
 	// Ensure that genstub for apex-provided lib is invoked with --apex
 	ensureContains(t, ctx.ModuleForTests("mylib3", "android_arm64_armv8-a_shared_12").Rule("genStubSrc").Args["flags"], "--apex")
+	ensureContains(t, ctx.ModuleForTests("libmylib3_rs", "android_arm64_armv8-a_shared_12").Rule("genStubSrc").Args["flags"], "--apex")
 
 	ensureExactContents(t, ctx, "myapex", "android_common_myapex", []string{
 		"lib64/mylib.so",
 		"lib64/mylib3.so",
+		"lib64/libmylib3_rs.so",
 		"lib64/mylib4.so",
+		"lib64/mylib4.from_rust.so",
 		"bin/foo.rust",
-		"lib64/libc++.so", // by the implicit dependency from foo.rust
-		"lib64/liblog.so", // by the implicit dependency from foo.rust
+
+		"lib64/libstd.dylib.so", // implicit rust ffi dep
 	})
 
 	// Ensure that stub dependency from a rust module is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo.shared_from_rust.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo_rs.shared_from_rust.so")
 	// The rust module is linked to the stub cc library
 	rustDeps := ctx.ModuleForTests("foo.rust", "android_arm64_armv8-a_apex10000").Rule("rustc").Args["linkFlags"]
 	ensureContains(t, rustDeps, "libfoo.shared_from_rust/android_arm64_armv8-a_shared_current/libfoo.shared_from_rust.so")
+	ensureContains(t, rustDeps, "libfoo_rs.shared_from_rust/android_arm64_armv8-a_shared_current/unstripped/libfoo_rs.shared_from_rust.so")
 	ensureNotContains(t, rustDeps, "libfoo.shared_from_rust/android_arm64_armv8-a_shared/libfoo.shared_from_rust.so")
+	ensureNotContains(t, rustDeps, "libfoo_rs.shared_from_rust/android_arm64_armv8-a_shared/unstripped/libfoo_rs.shared_from_rust.so")
 
 	apexManifestRule := ctx.ModuleForTests("myapex", "android_common_myapex").Rule("apexManifestRule")
 	ensureListContains(t, names(apexManifestRule.Args["requireNativeLibs"]), "libfoo.shared_from_rust.so")
+	ensureListContains(t, names(apexManifestRule.Args["requireNativeLibs"]), "libfoo_rs.shared_from_rust.so")
 
 	// Ensure that mylib is linking with the latest version of stubs for my_prebuilt_platform_lib
 	ensureContains(t, mylibLdFlags, "my_prebuilt_platform_lib/android_arm64_armv8-a_shared_current/my_prebuilt_platform_lib.so")
@@ -1111,7 +1178,10 @@ func TestApexCanUsePrivateApis(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["mylib2"],
+			shared_libs: [
+				"mylib2",
+				"libmylib2_rust"
+			],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [ "myapex" ],
@@ -1128,10 +1198,22 @@ func TestApexCanUsePrivateApis(t *testing.T) {
 			},
 		}
 
+		rust_ffi {
+			name: "libmylib2_rust",
+			crate_name: "mylib2_rust",
+			srcs: ["mylib.rs"],
+			stubs: {
+				versions: ["1", "2", "3"],
+			},
+		}
+
 		rust_binary {
 			name: "foo.rust",
 			srcs: ["foo.rs"],
-			shared_libs: ["libfoo.shared_from_rust"],
+			shared_libs: [
+				"libfoo.shared_from_rust",
+				"libmylib_rust.shared_from_rust"
+			],
 			prefer_rlib: true,
 			apex_available: ["myapex"],
 		}
@@ -1145,6 +1227,15 @@ func TestApexCanUsePrivateApis(t *testing.T) {
 				versions: ["10", "11", "12"],
 			},
 		}
+		rust_ffi {
+			name: "libmylib_rust.shared_from_rust",
+			crate_name: "mylib_rust",
+			srcs: ["mylib.rs"],
+			stubs: {
+				versions: ["1", "2", "3"],
+			},
+		}
+
 	`)
 
 	apexRule := ctx.ModuleForTests("myapex", "android_common_myapex").Rule("apexRule")
@@ -1152,6 +1243,8 @@ func TestApexCanUsePrivateApis(t *testing.T) {
 
 	// Ensure that indirect stubs dep is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/mylib2.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libmylib_rust.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libmylib_rust.shared_from_rust.so")
 	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo.shared_from_rust.so")
 
 	// Ensure that we are using non-stub variants of mylib2 and libfoo.shared_from_rust (because
@@ -1159,9 +1252,13 @@ func TestApexCanUsePrivateApis(t *testing.T) {
 	mylibLdFlags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_shared_apex10000").Rule("ld").Args["libFlags"]
 	ensureNotContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared_current/mylib2.so")
 	ensureContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared/mylib2.so")
+	ensureNotContains(t, mylibLdFlags, "libmylib2_rust/android_arm64_armv8-a_shared_current/unstripped/libmylib2_rust.so")
+	ensureContains(t, mylibLdFlags, "libmylib2_rust/android_arm64_armv8-a_shared/unstripped/libmylib2_rust.so")
 	rustDeps := ctx.ModuleForTests("foo.rust", "android_arm64_armv8-a_apex10000").Rule("rustc").Args["linkFlags"]
 	ensureNotContains(t, rustDeps, "libfoo.shared_from_rust/android_arm64_armv8-a_shared_current/libfoo.shared_from_rust.so")
 	ensureContains(t, rustDeps, "libfoo.shared_from_rust/android_arm64_armv8-a_shared/libfoo.shared_from_rust.so")
+	ensureNotContains(t, rustDeps, "libmylib_rust.shared_from_rust/android_arm64_armv8-a_shared_current/unstripped/libmylib_rust.shared_from_rust.so")
+	ensureContains(t, rustDeps, "libmylib_rust.shared_from_rust/android_arm64_armv8-a_shared/unstripped/libmylib_rust.shared_from_rust.so")
 }
 
 func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
@@ -1170,7 +1267,11 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 		apex {
 			name: "myapex",
 			key: "myapex.key",
-			native_shared_libs: ["mylib", "mylib3"],
+			native_shared_libs: [
+				"mylib",
+				"mylib3",
+				"libmylib3_rust",
+			],
 			min_sdk_version: "29",
 		}
 
@@ -1183,7 +1284,12 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["mylib2", "mylib3#impl"],
+			shared_libs: [
+				"mylib2",
+				"mylib3#impl",
+				"libmylib2_rust",
+				"libmylib3_rust#impl",
+			],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [ "myapex" ],
@@ -1196,6 +1302,17 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 			cflags: ["-include mylib.h"],
 			system_shared_libs: [],
 			stl: "none",
+			stubs: {
+				symbol_file: "mylib2.map.txt",
+				versions: ["28", "29", "30", "current"],
+			},
+			min_sdk_version: "28",
+		}
+
+		rust_ffi {
+			name: "libmylib2_rust",
+			crate_name: "mylib2_rust",
+			srcs: ["mylib.rs"],
 			stubs: {
 				symbol_file: "mylib2.map.txt",
 				versions: ["28", "29", "30", "current"],
@@ -1217,11 +1334,32 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 			min_sdk_version: "28",
 		}
 
+		rust_ffi {
+			name: "libmylib3_rust",
+			crate_name: "mylib3_rust",
+			srcs: ["mylib.rs"],
+			shared_libs: ["libmylib4.from_rust"],
+			stubs: {
+				symbol_file: "mylib3.map.txt",
+				versions: ["28", "29", "30", "current"],
+			},
+			apex_available: [ "myapex" ],
+			min_sdk_version: "28",
+		}
+
 		cc_library {
 			name: "mylib4",
 			srcs: ["mylib.cpp"],
 			system_shared_libs: [],
 			stl: "none",
+			apex_available: [ "myapex" ],
+			min_sdk_version: "28",
+		}
+
+		rust_ffi {
+			name: "libmylib4.from_rust",
+			crate_name: "mylib4",
+			srcs: ["mylib.rs"],
 			apex_available: [ "myapex" ],
 			min_sdk_version: "28",
 		}
@@ -1232,9 +1370,12 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 
 	// Ensure that direct non-stubs dep is always included
 	ensureContains(t, copyCmds, "image.apex/lib64/mylib.so")
+	ensureContains(t, copyCmds, "image.apex/lib64/mylib3.so")
+	ensureContains(t, copyCmds, "image.apex/lib64/libmylib3_rust.so")
 
 	// Ensure that indirect stubs dep is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/mylib2.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libmylib2_rust.so")
 
 	// Ensure that direct stubs dep is included
 	ensureContains(t, copyCmds, "image.apex/lib64/mylib3.so")
@@ -1243,13 +1384,17 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 
 	// Ensure that mylib is linking with the latest version of stub for mylib2
 	ensureContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared_current/mylib2.so")
+	ensureContains(t, mylibLdFlags, "libmylib2_rust/android_arm64_armv8-a_shared_current/unstripped/libmylib2_rust.so")
 	// ... and not linking to the non-stub (impl) variant of mylib2
 	ensureNotContains(t, mylibLdFlags, "mylib2/android_arm64_armv8-a_shared/mylib2.so")
+	ensureNotContains(t, mylibLdFlags, "libmylib2_rust/android_arm64_armv8-a_shared/unstripped/libmylib2_rust.so")
 
 	// Ensure that mylib is linking with the non-stub (impl) of mylib3 (because the dependency is added with mylib3#impl)
 	ensureContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_apex29/mylib3.so")
+	ensureContains(t, mylibLdFlags, "libmylib3_rust/android_arm64_armv8-a_shared_apex29/unstripped/libmylib3_rust.so")
 	// .. and not linking to the stubs variant of mylib3
 	ensureNotContains(t, mylibLdFlags, "mylib3/android_arm64_armv8-a_shared_29/mylib3.so")
+	ensureNotContains(t, mylibLdFlags, "libmylib3_rust/android_arm64_armv8-a_shared_29/unstripped/libmylib3_rust.so")
 
 	// Ensure that stubs libs are built without -include flags
 	mylib2Cflags := ctx.ModuleForTests("mylib2", "android_arm64_armv8-a_shared_29").Rule("cc").Args["cFlags"]
@@ -1257,11 +1402,16 @@ func TestApexWithStubsWithMinSdkVersion(t *testing.T) {
 
 	// Ensure that genstub is invoked with --systemapi
 	ensureContains(t, ctx.ModuleForTests("mylib2", "android_arm64_armv8-a_shared_29").Rule("genStubSrc").Args["flags"], "--systemapi")
+	ensureContains(t, ctx.ModuleForTests("libmylib2_rust", "android_arm64_armv8-a_shared_29").Rule("cc.genStubSrc").Args["flags"], "--systemapi")
 
 	ensureExactContents(t, ctx, "myapex", "android_common_myapex", []string{
 		"lib64/mylib.so",
 		"lib64/mylib3.so",
+		"lib64/libmylib3_rust.so",
 		"lib64/mylib4.so",
+		"lib64/libmylib4.from_rust.so",
+
+		"lib64/libstd.dylib.so", // by the implicit dependency from foo.rust
 	})
 }
 
@@ -1286,7 +1436,10 @@ func TestApex_PlatformUsesLatestStubFromApex(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libstub"],
+			shared_libs: [
+				"libstub",
+				"libstub_rust",
+			],
 			apex_available: ["myapex"],
 			min_sdk_version: "Z",
 		}
@@ -1300,7 +1453,10 @@ func TestApex_PlatformUsesLatestStubFromApex(t *testing.T) {
 		apex {
 			name: "otherapex",
 			key: "myapex.key",
-			native_shared_libs: ["libstub"],
+			native_shared_libs: [
+				"libstub",
+				"libstub_rust",
+			],
 			min_sdk_version: "29",
 		}
 
@@ -1314,11 +1470,25 @@ func TestApex_PlatformUsesLatestStubFromApex(t *testing.T) {
 			min_sdk_version: "29",
 		}
 
+		rust_ffi {
+			name: "libstub_rust",
+			crate_name: "stub_rust",
+			srcs: ["mylib.rs"],
+			stubs: {
+				versions: ["29", "Z", "current"],
+			},
+			apex_available: ["otherapex"],
+			min_sdk_version: "29",
+		}
+
 		// platform module depending on libstub from otherapex should use the latest stub("current")
 		cc_library {
 			name: "libplatform",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libstub"],
+			shared_libs: [
+				"libstub",
+				"libstub_rust",
+			],
 		}
 	`,
 		android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
@@ -1331,14 +1501,20 @@ func TestApex_PlatformUsesLatestStubFromApex(t *testing.T) {
 	// Ensure that mylib from myapex is built against the latest stub (current)
 	mylibCflags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_static_apex10000").Rule("cc").Args["cFlags"]
 	ensureContains(t, mylibCflags, "-D__LIBSTUB_API__=10000 ")
+	// rust stubs do not emit -D__LIBFOO_API__ flags as this is deprecated behavior for cc stubs
+
 	mylibLdflags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_shared_apex10000").Rule("ld").Args["libFlags"]
 	ensureContains(t, mylibLdflags, "libstub/android_arm64_armv8-a_shared_current/libstub.so ")
+	ensureContains(t, mylibLdflags, "libstub_rust/android_arm64_armv8-a_shared_current/unstripped/libstub_rust.so ")
 
 	// Ensure that libplatform is built against latest stub ("current") of mylib3 from the apex
 	libplatformCflags := ctx.ModuleForTests("libplatform", "android_arm64_armv8-a_static").Rule("cc").Args["cFlags"]
 	ensureContains(t, libplatformCflags, "-D__LIBSTUB_API__=10000 ") // "current" maps to 10000
+	// rust stubs do not emit -D__LIBFOO_API__ flags as this is deprecated behavior for cc stubs
+
 	libplatformLdflags := ctx.ModuleForTests("libplatform", "android_arm64_armv8-a_shared").Rule("ld").Args["libFlags"]
 	ensureContains(t, libplatformLdflags, "libstub/android_arm64_armv8-a_shared_current/libstub.so ")
+	ensureContains(t, libplatformLdflags, "libstub_rust/android_arm64_armv8-a_shared_current/unstripped/libstub_rust.so ")
 }
 
 func TestApexWithExplicitStubsDependency(t *testing.T) {
@@ -1360,7 +1536,10 @@ func TestApexWithExplicitStubsDependency(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libfoo#10"],
+			shared_libs: [
+				"libfoo#10",
+				"libfoo_rust#10"
+			],
 			static_libs: ["libbaz"],
 			system_shared_libs: [],
 			stl: "none",
@@ -1378,8 +1557,25 @@ func TestApexWithExplicitStubsDependency(t *testing.T) {
 			},
 		}
 
+		rust_ffi {
+			name: "libfoo_rust",
+			crate_name: "foo_rust",
+			srcs: ["mylib.cpp"],
+			shared_libs: ["libbar.from_rust"],
+			stubs: {
+				versions: ["10", "20", "30"],
+			},
+		}
+
 		cc_library {
 			name: "libbar",
+			srcs: ["mylib.cpp"],
+			system_shared_libs: [],
+			stl: "none",
+		}
+
+		cc_library {
+			name: "libbar.from_rust",
 			srcs: ["mylib.cpp"],
 			system_shared_libs: [],
 			stl: "none",
@@ -1403,21 +1599,27 @@ func TestApexWithExplicitStubsDependency(t *testing.T) {
 
 	// Ensure that indirect stubs dep is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo_rust.so")
 
 	// Ensure that dependency of stubs is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/libbar.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libbar.from_rust.so")
 
 	mylibLdFlags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_shared_apex10000").Rule("ld").Args["libFlags"]
 
 	// Ensure that mylib is linking with version 10 of libfoo
 	ensureContains(t, mylibLdFlags, "libfoo/android_arm64_armv8-a_shared_10/libfoo.so")
+	ensureContains(t, mylibLdFlags, "libfoo_rust/android_arm64_armv8-a_shared_10/unstripped/libfoo_rust.so")
 	// ... and not linking to the non-stub (impl) variant of libfoo
 	ensureNotContains(t, mylibLdFlags, "libfoo/android_arm64_armv8-a_shared/libfoo.so")
+	ensureNotContains(t, mylibLdFlags, "libfoo_rust/android_arm64_armv8-a_shared/unstripped/libfoo_rust.so")
 
 	libFooStubsLdFlags := ctx.ModuleForTests("libfoo", "android_arm64_armv8-a_shared_10").Rule("ld").Args["libFlags"]
+	libFooRustStubsLdFlags := ctx.ModuleForTests("libfoo_rust", "android_arm64_armv8-a_shared_10").Rule("ld").Args["libFlags"]
 
 	// Ensure that libfoo stubs is not linking to libbar (since it is a stubs)
 	ensureNotContains(t, libFooStubsLdFlags, "libbar.so")
+	ensureNotContains(t, libFooRustStubsLdFlags, "libbar.from_rust.so")
 
 	fullDepsInfo := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
 		ctx.ModuleForTests("myapex2", "android_common_myapex2").Output("depsinfo/fulllist.txt")), "\n")
@@ -1457,7 +1659,11 @@ func TestApexWithRuntimeLibsDependency(t *testing.T) {
 			srcs: ["mylib.cpp"],
 			static_libs: ["libstatic"],
 			shared_libs: ["libshared"],
-			runtime_libs: ["libfoo", "libbar"],
+			runtime_libs: [
+				"libfoo",
+				"libbar",
+				"libfoo_rs",
+			],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [ "myapex" ],
@@ -1468,6 +1674,15 @@ func TestApexWithRuntimeLibsDependency(t *testing.T) {
 			srcs: ["mylib.cpp"],
 			system_shared_libs: [],
 			stl: "none",
+			stubs: {
+				versions: ["10", "20", "30"],
+			},
+		}
+
+		rust_ffi {
+			name: "libfoo_rs",
+			crate_name: "foo_rs",
+			srcs: ["mylib.rs"],
 			stubs: {
 				versions: ["10", "20", "30"],
 			},
@@ -1524,6 +1739,7 @@ func TestApexWithRuntimeLibsDependency(t *testing.T) {
 
 	// Ensure that indirect stubs dep is not included
 	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/libfoo_rs.so")
 
 	// Ensure that runtime_libs dep in included
 	ensureContains(t, copyCmds, "image.apex/lib64/libbar.so")
@@ -1535,6 +1751,7 @@ func TestApexWithRuntimeLibsDependency(t *testing.T) {
 	apexManifestRule := ctx.ModuleForTests("myapex", "android_common_myapex").Rule("apexManifestRule")
 	ensureListEmpty(t, names(apexManifestRule.Args["provideNativeLibs"]))
 	ensureListContains(t, names(apexManifestRule.Args["requireNativeLibs"]), "libfoo.so")
+	ensureListContains(t, names(apexManifestRule.Args["requireNativeLibs"]), "libfoo_rs.so")
 }
 
 var prepareForTestOfRuntimeApexWithHwasan = android.GroupFixturePreparers(
@@ -1766,7 +1983,7 @@ func TestApexWithSystemLibsStubs(t *testing.T) {
 		apex {
 			name: "myapex",
 			key: "myapex.key",
-			native_shared_libs: ["mylib", "mylib_shared", "libdl", "libm"],
+			native_shared_libs: ["mylib", "mylib_shared", "libdl", "libm", "libmylib_rs"],
 			updatable: false,
 		}
 
@@ -1785,6 +2002,14 @@ func TestApexWithSystemLibsStubs(t *testing.T) {
 			apex_available: [ "myapex" ],
 		}
 
+		rust_ffi {
+			name: "libmylib_rs",
+			crate_name: "mylib_rs",
+			shared_libs: ["libvers#27", "libm#impl"],
+			srcs: ["mylib.rs"],
+			apex_available: [ "myapex" ],
+		}
+
 		cc_library_shared {
 			name: "mylib_shared",
 			srcs: ["mylib.cpp"],
@@ -1799,20 +2024,38 @@ func TestApexWithSystemLibsStubs(t *testing.T) {
 			stl: "none",
 			bootstrap: true,
 		}
+
+		rust_ffi {
+			name: "libbootstrap_rs",
+			srcs: ["mylib.cpp"],
+			crate_name: "bootstrap_rs",
+			bootstrap: true,
+		}
+
+		cc_library {
+			name: "libvers",
+			srcs: ["mylib.cpp"],
+			stl: "none",
+			stubs: { versions: ["27","30"] },
+		}
 	`)
 
 	apexRule := ctx.ModuleForTests("myapex", "android_common_myapex").Rule("apexRule")
 	copyCmds := apexRule.Args["copy_commands"]
 
-	// Ensure that mylib, libm, libdl are included.
+	// Ensure that mylib, libmylib_rs, libm, libdl, libstd.dylib.so (from Rust) are included.
 	ensureContains(t, copyCmds, "image.apex/lib64/mylib.so")
+	ensureContains(t, copyCmds, "image.apex/lib64/libmylib_rs.so")
 	ensureContains(t, copyCmds, "image.apex/lib64/bionic/libm.so")
 	ensureContains(t, copyCmds, "image.apex/lib64/bionic/libdl.so")
+	ensureContains(t, copyCmds, "image.apex/lib64/libstd.dylib.so")
 
-	// Ensure that libc is not included (since it has stubs and not listed in native_shared_libs)
+	// Ensure that libc and liblog (from Rust) is not included (since it has stubs and not listed in native_shared_libs)
 	ensureNotContains(t, copyCmds, "image.apex/lib64/bionic/libc.so")
+	ensureNotContains(t, copyCmds, "image.apex/lib64/liblog.so")
 
 	mylibLdFlags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_shared_apex10000").Rule("ld").Args["libFlags"]
+	mylibRsFlags := ctx.ModuleForTests("libmylib_rs", "android_arm64_armv8-a_shared_apex10000").Rule("rustc").Args["linkFlags"]
 	mylibCFlags := ctx.ModuleForTests("mylib", "android_arm64_armv8-a_static_apex10000").Rule("cc").Args["cFlags"]
 	mylibSharedCFlags := ctx.ModuleForTests("mylib_shared", "android_arm64_armv8-a_shared_apex10000").Rule("cc").Args["cFlags"]
 
@@ -1846,11 +2089,42 @@ func TestApexWithSystemLibsStubs(t *testing.T) {
 	ensureContains(t, mylibCFlags, "__LIBDL_API__=27")
 	ensureContains(t, mylibSharedCFlags, "__LIBDL_API__=27")
 
+	// Rust checks
+	// For dependency to libc, liblog
+	// Ensure that libmylib_rs is linking with the latest versions of stubs
+	ensureContains(t, mylibRsFlags, "libc/android_arm64_armv8-a_shared_current/libc.so")
+	ensureContains(t, mylibRsFlags, "liblog/android_arm64_armv8-a_shared_current/liblog.so")
+	// ... and not linking to the non-stub (impl) variants
+	ensureNotContains(t, mylibRsFlags, "libc/android_arm64_armv8-a_shared/libc.so")
+	ensureNotContains(t, mylibRsFlags, "liblog/android_arm64_armv8-a_shared/liblog.so")
+
+	// For libm dependency (explicit)
+	// Ensure that mylib is linking with the non-stub (impl) variant
+	ensureContains(t, mylibRsFlags, "libm/android_arm64_armv8-a_shared_apex10000/libm.so")
+	// ... and not linking to the stub variant
+	ensureNotContains(t, mylibRsFlags, "libm/android_arm64_armv8-a_shared_29/libm.so")
+
+	// For dependency to libvers
+	// (We do not use libdl#27 as Rust links the system libs implicitly and does
+	// not currently have a system_shared_libs equivalent to prevent this)
+	// Ensure that mylib is linking with the specified version of stubs
+	ensureContains(t, mylibRsFlags, "libvers/android_arm64_armv8-a_shared_27/libvers.so")
+	// ... and not linking to the other versions of stubs
+	ensureNotContains(t, mylibRsFlags, "libvers/android_arm64_armv8-a_shared_30/libvers.so")
+	// ... and not linking to the non-stub (impl) variant
+	ensureNotContains(t, mylibRsFlags, "libvers/android_arm64_armv8-a_shared_apex10000/libvers.so")
+
 	// Ensure that libBootstrap is depending on the platform variant of bionic libs
 	libFlags := ctx.ModuleForTests("libBootstrap", "android_arm64_armv8-a_shared").Rule("ld").Args["libFlags"]
 	ensureContains(t, libFlags, "libc/android_arm64_armv8-a_shared/libc.so")
 	ensureContains(t, libFlags, "libm/android_arm64_armv8-a_shared/libm.so")
 	ensureContains(t, libFlags, "libdl/android_arm64_armv8-a_shared/libdl.so")
+
+	// Ensure that libbootstrap_rs is depending on the platform variant of bionic libs
+	libRsFlags := ctx.ModuleForTests("libbootstrap_rs", "android_arm64_armv8-a_shared").Rule("rustc").Args["linkFlags"]
+	ensureContains(t, libRsFlags, "libc/android_arm64_armv8-a_shared/libc.so")
+	ensureContains(t, libRsFlags, "libm/android_arm64_armv8-a_shared/libm.so")
+	ensureContains(t, libRsFlags, "libdl/android_arm64_armv8-a_shared/libdl.so")
 }
 
 func TestApexMinSdkVersion_NativeModulesShouldBeBuiltAgainstStubs(t *testing.T) {
@@ -1900,7 +2174,7 @@ func TestApexMinSdkVersion_NativeModulesShouldBeBuiltAgainstStubs(t *testing.T) 
 
 		cc_library {
 			name: "liba",
-			shared_libs: ["libz"],
+			shared_libs: ["libz", "libz_rs"],
 			system_shared_libs: [],
 			stl: "none",
 			apex_available: [
@@ -1918,6 +2192,15 @@ func TestApexMinSdkVersion_NativeModulesShouldBeBuiltAgainstStubs(t *testing.T) 
 				versions: ["28", "30"],
 			},
 		}
+
+		rust_ffi {
+			name: "libz_rs",
+			crate_name: "z_rs",
+			srcs: ["foo.rs"],
+			stubs: {
+				versions: ["28", "30"],
+			},
+		}
 	`)
 
 	expectLink := func(from, from_variant, to, to_variant string) {
@@ -1930,16 +2213,25 @@ func TestApexMinSdkVersion_NativeModulesShouldBeBuiltAgainstStubs(t *testing.T) 
 	}
 	// platform liba is linked to non-stub version
 	expectLink("liba", "shared", "libz", "shared")
+	expectLink("liba", "shared", "unstripped/libz_rs", "shared")
 	// liba in myapex is linked to current
 	expectLink("liba", "shared_apex29", "libz", "shared_current")
 	expectNoLink("liba", "shared_apex29", "libz", "shared_30")
 	expectNoLink("liba", "shared_apex29", "libz", "shared_28")
 	expectNoLink("liba", "shared_apex29", "libz", "shared")
+	expectLink("liba", "shared_apex29", "unstripped/libz_rs", "shared_current")
+	expectNoLink("liba", "shared_apex29", "unstripped/libz_rs", "shared_30")
+	expectNoLink("liba", "shared_apex29", "unstripped/libz_rs", "shared_28")
+	expectNoLink("liba", "shared_apex29", "unstripped/libz_rs", "shared")
 	// liba in otherapex is linked to current
 	expectLink("liba", "shared_apex30", "libz", "shared_current")
 	expectNoLink("liba", "shared_apex30", "libz", "shared_30")
 	expectNoLink("liba", "shared_apex30", "libz", "shared_28")
 	expectNoLink("liba", "shared_apex30", "libz", "shared")
+	expectLink("liba", "shared_apex30", "unstripped/libz_rs", "shared_current")
+	expectNoLink("liba", "shared_apex30", "unstripped/libz_rs", "shared_30")
+	expectNoLink("liba", "shared_apex30", "unstripped/libz_rs", "shared_28")
+	expectNoLink("liba", "shared_apex30", "unstripped/libz_rs", "shared")
 }
 
 func TestApexMinSdkVersion_SupportsCodeNames(t *testing.T) {
@@ -2159,13 +2451,20 @@ func TestTrackAllowedDeps(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar"],
+			shared_libs: ["libbar", "libbar_rs"],
 			min_sdk_version: "29",
 			apex_available: ["myapex"],
 		}
 
 		cc_library {
 			name: "libbar",
+			stubs: { versions: ["29", "30"] },
+		}
+
+		rust_ffi {
+			name: "libbar_rs",
+			crate_name: "bar_rs",
+			srcs: ["bar.rs"],
 			stubs: { versions: ["29", "30"] },
 		}
 
@@ -2191,6 +2490,8 @@ func TestTrackAllowedDeps(t *testing.T) {
 		myapex.Output("depsinfo/flatlist.txt")), "\n")
 	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
 		flatlist, "libbar(minSdkVersion:(no version)) (external)")
+	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
+		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
 	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
 		flatlist, "mylib:(minSdkVersion:29)")
 	android.AssertStringListContains(t, "track platform-available lib",
@@ -2227,13 +2528,20 @@ func TestTrackCustomAllowedDepsInvalidDefaultTxt(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar"],
+			shared_libs: ["libbar", "libbar_rs",],
 			min_sdk_version: "29",
 			apex_available: ["myapex"],
 		}
 
 		cc_library {
 			name: "libbar",
+			stubs: { versions: ["29", "30"] },
+		}
+
+		rust_ffi {
+			name: "libbar_rs",
+			crate_name: "bar_rs",
+			srcs: ["bar.rs"],
 			stubs: { versions: ["29", "30"] },
 		}
 
@@ -2264,6 +2572,8 @@ func TestTrackCustomAllowedDepsInvalidDefaultTxt(t *testing.T) {
 		myapex.Output("depsinfo/flatlist.txt")), "\n")
 	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
 		flatlist, "libbar(minSdkVersion:(no version)) (external)")
+	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
+		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
 	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
 		flatlist, "mylib:(minSdkVersion:29)")
 	android.AssertStringListContains(t, "track platform-available lib",
@@ -2300,13 +2610,20 @@ func TestTrackCustomAllowedDepsWithDefaultTxt(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar"],
+			shared_libs: ["libbar", "libbar_rs"],
 			min_sdk_version: "29",
 			apex_available: ["myapex"],
 		}
 
 		cc_library {
 			name: "libbar",
+			stubs: { versions: ["29", "30"] },
+		}
+
+		rust_ffi {
+			name: "libbar_rs",
+			crate_name: "bar_rs",
+			srcs: ["bar.rs"],
 			stubs: { versions: ["29", "30"] },
 		}
 
@@ -2338,153 +2655,8 @@ func TestTrackCustomAllowedDepsWithDefaultTxt(t *testing.T) {
 		myapex.Output("depsinfo/flatlist.txt")), "\n")
 	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
 		flatlist, "libbar(minSdkVersion:(no version)) (external)")
-	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
-		flatlist, "mylib:(minSdkVersion:29)")
-	android.AssertStringListContains(t, "track platform-available lib",
-		flatlist, "yourlib(minSdkVersion:29)")
-}
-
-func TestTrackCustomAllowedDepsInvalidDefaultTxt(t *testing.T) {
-	t.Parallel()
-	ctx := testApex(t, `
-		apex {
-			name: "myapex",
-			key: "myapex.key",
-			updatable: true,
-			native_shared_libs: [
-				"mylib",
-				"yourlib",
-			],
-			min_sdk_version: "29",
-		}
-
-		apex {
-			name: "myapex2",
-			key: "myapex.key",
-			updatable: false,
-			native_shared_libs: ["yourlib"],
-		}
-
-		apex_key {
-			name: "myapex.key",
-			public_key: "testkey.avbpubkey",
-			private_key: "testkey.pem",
-		}
-
-		cc_library {
-			name: "mylib",
-			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar"],
-			min_sdk_version: "29",
-			apex_available: ["myapex"],
-		}
-
-		cc_library {
-			name: "libbar",
-			stubs: { versions: ["29", "30"] },
-		}
-
-		cc_library {
-			name: "yourlib",
-			srcs: ["mylib.cpp"],
-			min_sdk_version: "29",
-			apex_available: ["myapex", "myapex2", "//apex_available:platform"],
-		}
-	`, withFiles(android.MockFS{
-		"packages/modules/common/build/custom_allowed_deps.txt": nil,
-	}),
-		android.FixtureModifyProductVariables(
-			func(variables android.FixtureProductVariables) {
-				variables.ExtraAllowedDepsTxt = proptools.StringPtr("packages/modules/common/build/custom_allowed_deps.txt")
-			},
-		))
-
-	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
-	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
-	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
-	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
-
-	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
-	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
-		myapex.Output("depsinfo/flatlist.txt")), "\n")
 	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar(minSdkVersion:(no version)) (external)")
-	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
-		flatlist, "mylib:(minSdkVersion:29)")
-	android.AssertStringListContains(t, "track platform-available lib",
-		flatlist, "yourlib(minSdkVersion:29)")
-}
-
-func TestTrackCustomAllowedDepsWithDefaultTxt(t *testing.T) {
-	t.Parallel()
-	ctx := testApex(t, `
-		apex {
-			name: "myapex",
-			key: "myapex.key",
-			updatable: true,
-			native_shared_libs: [
-				"mylib",
-				"yourlib",
-			],
-			min_sdk_version: "29",
-		}
-
-		apex {
-			name: "myapex2",
-			key: "myapex.key",
-			updatable: false,
-			native_shared_libs: ["yourlib"],
-		}
-
-		apex_key {
-			name: "myapex.key",
-			public_key: "testkey.avbpubkey",
-			private_key: "testkey.pem",
-		}
-
-		cc_library {
-			name: "mylib",
-			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar"],
-			min_sdk_version: "29",
-			apex_available: ["myapex"],
-		}
-
-		cc_library {
-			name: "libbar",
-			stubs: { versions: ["29", "30"] },
-		}
-
-		cc_library {
-			name: "yourlib",
-			srcs: ["mylib.cpp"],
-			min_sdk_version: "29",
-			apex_available: ["myapex", "myapex2", "//apex_available:platform"],
-		}
-	`, withFiles(android.MockFS{
-		"packages/modules/common/build/custom_allowed_deps.txt": nil,
-		"packages/modules/common/build/allowed_deps.txt":        nil,
-	}),
-		android.FixtureModifyProductVariables(
-			func(variables android.FixtureProductVariables) {
-				variables.ExtraAllowedDepsTxt = proptools.StringPtr("packages/modules/common/build/custom_allowed_deps.txt")
-			},
-		))
-
-	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
-	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
-	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
-	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
-
-	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
-	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
-		myapex.Output("depsinfo/flatlist.txt")), "\n")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar(minSdkVersion:(no version)) (external)")
+		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
 	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
 		flatlist, "mylib:(minSdkVersion:29)")
 	android.AssertStringListContains(t, "track platform-available lib",
@@ -2519,7 +2691,7 @@ func TestPlatformUsesLatestStubsFromApexes(t *testing.T) {
 		apex {
 			name: "myapex",
 			key: "myapex.key",
-			native_shared_libs: ["libx"],
+			native_shared_libs: ["libx", "libx_rs"],
 			updatable: false,
 		}
 
@@ -2539,9 +2711,19 @@ func TestPlatformUsesLatestStubsFromApexes(t *testing.T) {
 			},
 		}
 
+		rust_ffi {
+			name: "libx_rs",
+			crate_name: "x_rs",
+			srcs: ["x.rs"],
+			apex_available: [ "myapex" ],
+			stubs: {
+				versions: ["1", "2"],
+			},
+		}
+
 		cc_library {
 			name: "libz",
-			shared_libs: ["libx"],
+			shared_libs: ["libx", "libx_rs",],
 			system_shared_libs: [],
 			stl: "none",
 		}
@@ -2559,6 +2741,8 @@ func TestPlatformUsesLatestStubsFromApexes(t *testing.T) {
 	}
 	expectLink("libz", "shared", "libx", "shared_current")
 	expectNoLink("libz", "shared", "libx", "shared_2")
+	expectLink("libz", "shared", "unstripped/libx_rs", "shared_current")
+	expectNoLink("libz", "shared", "unstripped/libx_rs", "shared_2")
 	expectNoLink("libz", "shared", "libz", "shared_1")
 	expectNoLink("libz", "shared", "libz", "shared")
 }
@@ -2587,9 +2771,16 @@ func TestQApexesUseLatestStubsInBundledBuildsAndHWASAN(t *testing.T) {
 
 		cc_library {
 			name: "libx",
-			shared_libs: ["libbar"],
+			shared_libs: ["libbar", "libbar_rs"],
 			apex_available: [ "myapex" ],
 			min_sdk_version: "29",
+		}
+
+		rust_ffi {
+			name: "libbar_rs",
+			crate_name: "bar_rs",
+			srcs: ["bar.rs"],
+			stubs: { versions: ["29", "30"] },
 		}
 
 		cc_library {
@@ -2607,6 +2798,7 @@ func TestQApexesUseLatestStubsInBundledBuildsAndHWASAN(t *testing.T) {
 		ensureContains(t, libFlags, "android_arm64_armv8-a_"+to_variant+"/"+to+".so")
 	}
 	expectLink("libx", "shared_hwasan_apex29", "libbar", "shared_current")
+	expectLink("libx", "shared_hwasan_apex29", "unstripped/libbar_rs", "shared_current")
 }
 
 func TestQTargetApexUsesStaticUnwinder(t *testing.T) {
@@ -3551,10 +3743,20 @@ func TestStaticLinking(t *testing.T) {
 			apex_available: ["myapex"],
 		}
 
+		rust_ffi {
+			name: "libmylib_rs",
+			crate_name: "mylib_rs",
+			srcs: ["mylib.rs"],
+			stubs: {
+				versions: ["1", "2", "3"],
+			},
+			apex_available: ["myapex"],
+		}
+
 		cc_binary {
 			name: "not_in_apex",
 			srcs: ["mylib.cpp"],
-			static_libs: ["mylib"],
+			static_libs: ["mylib", "libmylib_rs"],
 			static_executable: true,
 			system_shared_libs: [],
 			stl: "none",
@@ -3565,6 +3767,7 @@ func TestStaticLinking(t *testing.T) {
 
 	// Ensure that not_in_apex is linking with the static variant of mylib
 	ensureContains(t, ldFlags, "mylib/android_arm64_armv8-a_static/mylib.a")
+	ensureContains(t, ldFlags, "generated_rust_staticlib/librustlibs.a")
 }
 
 func TestKeys(t *testing.T) {
@@ -7237,6 +7440,34 @@ func TestApexAvailable_PrefixMatch(t *testing.T) {
 	`)
 }
 
+func TestApexValidation_UsesProperPartitionTag(t *testing.T) {
+	t.Parallel()
+	ctx := testApex(t, `
+		apex {
+			name: "myapex",
+			key: "myapex.key",
+			updatable: false,
+			vendor: true,
+		}
+		apex_key {
+			name: "myapex.key",
+			public_key: "testkey.avbpubkey",
+			private_key: "testkey.pem",
+		}
+	`, android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
+		// vendor path should not affect "partition tag"
+		variables.VendorPath = proptools.StringPtr("system/vendor")
+	}))
+
+	module := ctx.ModuleForTests("myapex", "android_common_myapex")
+	android.AssertStringEquals(t, "partition tag for host_apex_verifier",
+		"vendor",
+		module.Output("host_apex_verifier.timestamp").Args["partition_tag"])
+	android.AssertStringEquals(t, "partition tag for apex_sepolicy_tests",
+		"vendor",
+		module.Output("apex_sepolicy_tests.timestamp").Args["partition_tag"])
+}
+
 func TestApexValidation_TestApexCanSkipInitRcCheck(t *testing.T) {
 	t.Parallel()
 	ctx := testApex(t, `
@@ -8364,8 +8595,6 @@ func TestApexWithJniLibs(t *testing.T) {
 		"lib64/mylib2.so",
 		"lib64/mylib3.so",
 		"lib64/libfoo.rust.so",
-		"lib64/libc++.so", // auto-added to libfoo.rust by Soong
-		"lib64/liblog.so", // auto-added to libfoo.rust by Soong
 	})
 
 	// b/220397949
@@ -10823,8 +11052,8 @@ func TestAconfigFilesRustDeps(t *testing.T) {
 	mod := ctx.ModuleForTests("myapex", "android_common_myapex")
 	s := mod.Rule("apexRule").Args["copy_commands"]
 	copyCmds := regexp.MustCompile(" *&& *").Split(s, -1)
-	if len(copyCmds) != 38 {
-		t.Fatalf("Expected 38 commands, got %d in:\n%s", len(copyCmds), s)
+	if len(copyCmds) != 34 {
+		t.Fatalf("Expected 34 commands, got %d in:\n%s", len(copyCmds), s)
 	}
 
 	ensureListContainsMatch(t, copyCmds, "^cp -f .*/aconfig_flags.pb .*/image.apex/etc/aconfig_flags.pb")

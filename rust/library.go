@@ -25,6 +25,7 @@ import (
 
 	"android/soong/android"
 	"android/soong/cc"
+	cc_config "android/soong/cc/config"
 )
 
 var (
@@ -79,9 +80,13 @@ type LibraryCompilerProperties struct {
 	// Whether this library is part of the Rust toolchain sysroot.
 	Sysroot *bool
 
-	// Exclude this rust_ffi target from being included in APEXes.
-	// TODO(b/362509506): remove this once stubs are properly supported by rust_ffi targets.
+	// Deprecated - exclude this rust_ffi target from being included in APEXes.
+	// TODO(b/362509506): remove this once all apex_exclude uses are switched to stubs.
 	Apex_exclude *bool
+
+	// Generate stubs to make this library accessible to APEXes.
+	// Can only be set for modules producing shared libraries.
+	Stubs cc.StubsProperties `android:"arch_variant"`
 }
 
 type LibraryMutatedProperties struct {
@@ -109,6 +114,15 @@ type LibraryMutatedProperties struct {
 
 	// Whether this library variant should be link libstd via rlibs
 	VariantIsStaticStd bool `blueprint:"mutated"`
+
+	// This variant is a stubs lib
+	BuildStubs bool `blueprint:"mutated"`
+	// This variant is the latest version
+	IsLatestVersion bool `blueprint:"mutated"`
+	// Version of the stubs lib
+	StubsVersion string `blueprint:"mutated"`
+	// List of all stubs versions associated with an implementation lib
+	AllStubsVersions []string `blueprint:"mutated"`
 }
 
 type libraryDecorator struct {
@@ -123,9 +137,28 @@ type libraryDecorator struct {
 
 	// table-of-contents file for cdylib crates to optimize out relinking when possible
 	tocFile android.OptionalPath
+
+	// Path to the file containing the APIs exported by this library
+	stubsSymbolFilePath    android.Path
+	apiListCoverageXmlPath android.ModuleOutPath
+	versionScriptPath      android.OptionalPath
+}
+
+func (library *libraryDecorator) stubs() bool {
+	return library.MutatedProperties.BuildStubs
+}
+
+func (library *libraryDecorator) setAPIListCoverageXMLPath(xml android.ModuleOutPath) {
+	library.apiListCoverageXmlPath = xml
+}
+
+func (library *libraryDecorator) libraryProperties() LibraryCompilerProperties {
+	return library.Properties
 }
 
 type libraryInterface interface {
+	cc.VersionedInterface
+
 	rlib() bool
 	dylib() bool
 	static() bool
@@ -161,6 +194,11 @@ type libraryInterface interface {
 	BuildOnlyShared()
 
 	toc() android.OptionalPath
+
+	IsStubsImplementationRequired() bool
+	setAPIListCoverageXMLPath(out android.ModuleOutPath)
+
+	libraryProperties() LibraryCompilerProperties
 }
 
 func (library *libraryDecorator) nativeCoverage() bool {
@@ -276,7 +314,85 @@ func (library *libraryDecorator) stdLinkage(device bool) RustLinkage {
 
 var _ compiler = (*libraryDecorator)(nil)
 var _ libraryInterface = (*libraryDecorator)(nil)
+var _ cc.VersionedInterface = (*libraryDecorator)(nil)
 var _ exportedFlagsProducer = (*libraryDecorator)(nil)
+var _ cc.VersionedInterface = (*libraryDecorator)(nil)
+
+func (library *libraryDecorator) HasLLNDKStubs() bool {
+	// Rust LLNDK is currently unsupported
+	return false
+}
+
+func (library *libraryDecorator) HasVendorPublicLibrary() bool {
+	// Rust does not support vendor_public_library yet.
+	return false
+}
+
+func (library *libraryDecorator) HasLLNDKHeaders() bool {
+	// Rust LLNDK is currently unsupported
+	return false
+}
+
+func (library *libraryDecorator) HasStubsVariants() bool {
+	// Just having stubs.symbol_file is enough to create a stub variant. In that case
+	// the stub for the future API level is created.
+	return library.Properties.Stubs.Symbol_file != nil ||
+		len(library.Properties.Stubs.Versions) > 0
+}
+
+func (library *libraryDecorator) IsStubsImplementationRequired() bool {
+	return BoolDefault(library.Properties.Stubs.Implementation_installable, true)
+}
+
+func (library *libraryDecorator) GetAPIListCoverageXMLPath() android.ModuleOutPath {
+	return library.apiListCoverageXmlPath
+}
+
+func (library *libraryDecorator) AllStubsVersions() []string {
+	return library.MutatedProperties.AllStubsVersions
+}
+
+func (library *libraryDecorator) SetAllStubsVersions(versions []string) {
+	library.MutatedProperties.AllStubsVersions = versions
+}
+
+func (library *libraryDecorator) SetStubsVersion(version string) {
+	library.MutatedProperties.StubsVersion = version
+}
+
+func (library *libraryDecorator) SetBuildStubs(isLatest bool) {
+	library.MutatedProperties.BuildStubs = true
+	library.MutatedProperties.IsLatestVersion = isLatest
+}
+
+func (library *libraryDecorator) BuildStubs() bool {
+	return library.MutatedProperties.BuildStubs
+}
+
+func (library *libraryDecorator) ImplementationModuleName(name string) string {
+	return name
+}
+
+func (library *libraryDecorator) IsLLNDKMovedToApex() bool {
+	// Rust does not support LLNDK.
+	return false
+}
+
+func (library *libraryDecorator) StubsVersion() string {
+	return library.MutatedProperties.StubsVersion
+}
+
+// stubsVersions implements cc.VersionedInterface.
+func (library *libraryDecorator) StubsVersions(ctx android.BaseModuleContext) []string {
+	if !library.HasStubsVariants() {
+		return nil
+	}
+
+	// Future API level is implicitly added if there isn't
+	versions := cc.AddCurrentVersionIfNotPresent(library.Properties.Stubs.Versions)
+	cc.NormalizeVersions(ctx, versions)
+	return versions
+}
 
 // rust_library produces all Rust variants (rust_library_dylib and
 // rust_library_rlib).
@@ -355,6 +471,18 @@ func RustFFISharedHostFactory() android.Module {
 	return module.Init()
 }
 
+func CheckRustLibraryProperties(mctx android.DefaultableHookContext) {
+	lib := mctx.Module().(*Module).compiler.(libraryInterface)
+	if !lib.buildShared() {
+		if lib.libraryProperties().Stubs.Symbol_file != nil ||
+			lib.libraryProperties().Stubs.Implementation_installable != nil ||
+			len(lib.libraryProperties().Stubs.Versions) > 0 {
+
+			mctx.PropertyErrorf("stubs", "stubs properties can only be set for rust_ffi or rust_ffi_shared modules")
+		}
+	}
+}
+
 func (library *libraryDecorator) BuildOnlyFFI() {
 	library.MutatedProperties.BuildDylib = false
 	// we build rlibs for later static ffi linkage.
@@ -414,6 +542,7 @@ func NewRustLibrary(hod android.HostOrDeviceSupported) (*Module, *libraryDecorat
 
 	module.compiler = library
 
+	module.SetDefaultableHook(CheckRustLibraryProperties)
 	return module, library
 }
 
@@ -576,7 +705,11 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 	}
 
 	// Call the appropriate builder for this library type
-	if library.rlib() {
+	if library.stubs() {
+		ccFlags := library.getApiStubsCcFlags(ctx)
+		stubObjs := library.compileModuleLibApiStubs(ctx, ccFlags)
+		cc.BuildRustStubs(ctx, outputFile, deps.CrtBegin, deps.CrtEnd, stubObjs, ccFlags)
+	} else if library.rlib() {
 		ret.kytheFile = TransformSrctoRlib(ctx, crateRootPath, deps, flags, outputFile).kytheFile
 	} else if library.dylib() {
 		ret.kytheFile = TransformSrctoDylib(ctx, crateRootPath, deps, flags, outputFile).kytheFile
@@ -592,13 +725,13 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 	}
 
 	// Since we have FFI rlibs, we need to collect their includes as well
-	if library.static() || library.shared() || library.rlib() {
+	if library.static() || library.shared() || library.rlib() || library.stubs() {
 		android.SetProvider(ctx, cc.FlagExporterInfoProvider, cc.FlagExporterInfo{
 			IncludeDirs: android.FirstUniquePaths(library.includeDirs),
 		})
 	}
 
-	if library.shared() {
+	if library.shared() || library.stubs() {
 		// Optimize out relinking against shared libraries whose interface hasn't changed by
 		// depending on a table of contents file instead of the library itself.
 		tocFile := outputFile.ReplaceExtension(ctx, flags.Toolchain.SharedLibSuffix()[1:]+".toc")
@@ -609,9 +742,7 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 			TableOfContents: android.OptionalPathForPath(tocFile),
 			SharedLibrary:   outputFile,
 			Target:          ctx.Target(),
-			// TODO: when rust supports stubs uses the stubs state rather than inferring it from
-			//  apex_exclude.
-			IsStubs: Bool(library.Properties.Apex_exclude),
+			IsStubs:         library.BuildStubs(),
 		})
 	}
 
@@ -623,6 +754,7 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 			TransitiveStaticLibrariesForOrdering: depSet,
 		})
 	}
+	cc.AddStubDependencyProviders(ctx)
 
 	library.flagExporter.setProvider(ctx)
 
@@ -640,6 +772,53 @@ func (library *libraryDecorator) checkedCrateRootPath() (android.Path, error) {
 	} else {
 		return library.baseCompiler.checkedCrateRootPath()
 	}
+}
+
+func (library *libraryDecorator) getApiStubsCcFlags(ctx ModuleContext) cc.Flags {
+	ccFlags := cc.Flags{}
+	toolchain := cc_config.FindToolchain(ctx.Os(), ctx.Arch())
+
+	platformSdkVersion := ""
+	if ctx.Device() {
+		platformSdkVersion = ctx.Config().PlatformSdkVersion().String()
+	}
+	minSdkVersion := cc.MinSdkVersion(ctx.RustModule(), cc.CtxIsForPlatform(ctx), ctx.Device(), platformSdkVersion)
+
+	// Collect common CC compilation flags
+	ccFlags = cc.CommonLinkerFlags(ctx, ccFlags, true, toolchain, false)
+	ccFlags = cc.CommonLibraryLinkerFlags(ctx, ccFlags, toolchain, library.getStem(ctx))
+	ccFlags = cc.AddStubLibraryCompilerFlags(ccFlags)
+	ccFlags = cc.AddTargetFlags(ctx, ccFlags, toolchain, minSdkVersion, false)
+
+	return ccFlags
+}
+
+func (library *libraryDecorator) compileModuleLibApiStubs(ctx ModuleContext, ccFlags cc.Flags) cc.Objects {
+	mod := ctx.RustModule()
+
+	symbolFile := String(library.Properties.Stubs.Symbol_file)
+	library.stubsSymbolFilePath = android.PathForModuleSrc(ctx, symbolFile)
+
+	apiParams := cc.ApiStubsParams{
+		NotInPlatform:  mod.NotInPlatform(),
+		IsNdk:          mod.IsNdk(ctx.Config()),
+		BaseModuleName: mod.BaseModuleName(),
+		ModuleName:     ctx.ModuleName(),
+	}
+	flag := cc.GetApiStubsFlags(apiParams)
+
+	nativeAbiResult := cc.ParseNativeAbiDefinition(ctx, symbolFile,
+		android.ApiLevelOrPanic(ctx, library.MutatedProperties.StubsVersion), flag)
+	objs := cc.CompileStubLibrary(ctx, ccFlags, nativeAbiResult.StubSrc, mod.getSharedFlags())
+
+	library.versionScriptPath = android.OptionalPathForPath(nativeAbiResult.VersionScript)
+
+	// Parse symbol file to get API list for coverage
+	if library.StubsVersion() == "current" && ctx.PrimaryArch() && !mod.InRecovery() && !mod.InProduct() && !mod.InVendor() {
+		library.apiListCoverageXmlPath = cc.ParseSymbolFileForAPICoverage(ctx, symbolFile)
+	}
+
+	return objs
 }
 
 func (library *libraryDecorator) rustdoc(ctx ModuleContext, flags Flags,

@@ -1202,6 +1202,22 @@ func runApexLinkerconfigValidation(ctx android.ModuleContext, apexFile android.P
 	return timestamp
 }
 
+// Can't use PartitionTag() because PartitionTag() returns the partition this module is actually
+// installed (e.g. PartitionTag() may return "system" for vendor apex when vendor is linked to /system/vendor)
+func (a *apexBundle) partition() string {
+	if a.SocSpecific() {
+		return "vendor"
+	} else if a.DeviceSpecific() {
+		return "odm"
+	} else if a.ProductSpecific() {
+		return "product"
+	} else if a.SystemExtSpecific() {
+		return "system_ext"
+	} else {
+		return "system"
+	}
+}
+
 // Runs apex_sepolicy_tests
 //
 // $ apex-ls -Z {apex_file} > {file_contexts}
@@ -1213,7 +1229,7 @@ func runApexSepolicyTests(ctx android.ModuleContext, a *apexBundle, apexFile and
 		Input:  apexFile,
 		Output: timestamp,
 		Args: map[string]string{
-			"partition_tag": a.PartitionTag(ctx.DeviceConfig()),
+			"partition_tag": a.partition(),
 		},
 	})
 	return timestamp
@@ -1240,7 +1256,7 @@ func runApexHostVerifier(ctx android.ModuleContext, a *apexBundle, apexFile andr
 		Input:  apexFile,
 		Output: timestamp,
 		Args: map[string]string{
-			"partition_tag": a.PartitionTag(ctx.DeviceConfig()),
+			"partition_tag": a.partition(),
 		},
 	})
 	return timestamp

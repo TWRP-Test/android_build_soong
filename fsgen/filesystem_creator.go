@@ -374,8 +374,14 @@ func partitionSpecificFsProps(ctx android.EarlyModuleContext, fsProps *filesyste
 		fsProps.Security_patch = proptools.StringPtr(partitionVars.OdmSecurityPatch)
 		fsProps.Stem = proptools.StringPtr("odm.img")
 	case "userdata":
-		fsProps.Base_dir = proptools.StringPtr("data")
 		fsProps.Stem = proptools.StringPtr("userdata.img")
+		if vars, ok := partitionVars.PartitionQualifiedVariables["userdata"]; ok {
+			parsed, err := strconv.ParseInt(vars.BoardPartitionSize, 10, 64)
+			if err != nil {
+				panic(fmt.Sprintf("Partition size must be an int, got %s", vars.BoardPartitionSize))
+			}
+			fsProps.Partition_size = &parsed
+		}
 	case "ramdisk":
 		// Following the logic in https://cs.android.com/android/platform/superproject/main/+/c3c5063df32748a8806ce5da5dd0db158eab9ad9:build/make/core/Makefile;l=1307
 		fsProps.Dirs = android.NewSimpleConfigurable([]string{
@@ -822,7 +828,13 @@ func generateFsProps(ctx android.EarlyModuleContext, partitionType string) (*fil
 
 	fsProps.Is_auto_generated = proptools.BoolPtr(true)
 	if partitionType != "system" {
-		fsProps.Mount_point = proptools.StringPtr(partitionType)
+		mountPoint := proptools.StringPtr(partitionType)
+		// https://cs.android.com/android/platform/superproject/main/+/main:build/make/tools/releasetools/build_image.py;l=1012;drc=3f576a753594bad3fc838ccb8b1b72f7efac1d50
+		if partitionType == "userdata" {
+			mountPoint = proptools.StringPtr("data")
+		}
+		fsProps.Mount_point = mountPoint
+
 	}
 
 	partitionSpecificFsProps(ctx, fsProps, partitionVars, partitionType)

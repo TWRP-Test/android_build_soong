@@ -356,7 +356,7 @@ func TestFileSystemWithCoverageVariants(t *testing.T) {
 		inputs.Strings(),
 		"out/soong/.intermediates/libbar/android_arm64_armv8-a_shared_cov/libbar.so")
 
-	filesystemOutput := filesystem.Output("myfilesystem.img").Output
+	filesystemOutput := filesystem.OutputFiles(result.TestContext, t, "")[0]
 	prebuiltInput := result.ModuleForTests("prebuilt", "android_arm64_armv8-a").Rule("Cp").Input
 	if filesystemOutput != prebuiltInput {
 		t.Error("prebuilt should use cov variant of filesystem")

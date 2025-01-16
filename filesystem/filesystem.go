@@ -222,6 +222,15 @@ type FilesystemProperties struct {
 	// The size of the partition on the device. It will be a build error if this built partition
 	// image exceeds this size.
 	Partition_size *int64
+
+	// Whether to format f2fs and ext4 in a way that supports casefolding
+	Support_casefolding *bool
+
+	// Whether to format f2fs and ext4 in a way that supports project quotas
+	Support_project_quota *bool
+
+	// Whether to enable per-file compression in f2fs
+	Enable_compression *bool
 }
 
 type AndroidFilesystemDeps struct {
@@ -354,12 +363,19 @@ func (fs fsType) IsUnknown() bool {
 type FilesystemInfo struct {
 	// The built filesystem image
 	Output android.Path
+	// An additional hermetic filesystem image.
+	// e.g. this will contain inodes with pinned timestamps.
+	// This will be copied to target_files.zip
+	OutputHermetic android.Path
 	// A text file containing the list of paths installed on the partition.
 	FileListFile android.Path
 	// The root staging directory used to build the output filesystem. If consuming this, make sure
 	// to add a dependency on the Output file, as you cannot add dependencies on directories
 	// in ninja.
 	RootDir android.Path
+	// A text file with block data of the .img file
+	// This is an implicit output of `build_image`
+	MapFile android.Path
 }
 
 var FilesystemProvider = blueprint.NewProvider[FilesystemInfo]()
@@ -447,9 +463,12 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 
 	var rootDir android.OutputPath
+	var mapFile android.Path
+	var outputHermetic android.Path
 	switch f.fsType(ctx) {
 	case ext4Type, erofsType, f2fsType:
-		f.output, rootDir = f.buildImageUsingBuildImage(ctx)
+		f.output, outputHermetic, rootDir = f.buildImageUsingBuildImage(ctx)
+		mapFile = f.getMapFile(ctx)
 	case compressedCpioType:
 		f.output, rootDir = f.buildCpioImage(ctx, true)
 	case cpioType:
@@ -469,17 +488,30 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	fileListFile := android.PathForModuleOut(ctx, "fileList")
 	android.WriteFileRule(ctx, fileListFile, f.installedFilesList())
 
-	android.SetProvider(ctx, FilesystemProvider, FilesystemInfo{
+	fsInfo := FilesystemInfo{
 		Output:       f.output,
 		FileListFile: fileListFile,
 		RootDir:      rootDir,
-	})
+	}
+	if mapFile != nil {
+		fsInfo.MapFile = mapFile
+	}
+	if outputHermetic != nil {
+		fsInfo.OutputHermetic = outputHermetic
+	}
+
+	android.SetProvider(ctx, FilesystemProvider, fsInfo)
 
 	f.fileListFile = fileListFile
 
 	if proptools.Bool(f.properties.Unchecked_module) {
 		ctx.UncheckedModule()
 	}
+}
+
+func (f *filesystem) getMapFile(ctx android.ModuleContext) android.WritablePath {
+	// create the filepath by replacing the extension of the corresponding img file
+	return android.PathForModuleOut(ctx, f.installFileName()).ReplaceExtension(ctx, "map")
 }
 
 func (f *filesystem) validateVintfFragments(ctx android.ModuleContext) {
@@ -625,7 +657,7 @@ func (f *filesystem) rootDirString() string {
 	return f.partitionName()
 }
 
-func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (android.Path, android.OutputPath) {
+func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (android.Path, android.Path, android.OutputPath) {
 	rootDir := android.PathForModuleOut(ctx, f.rootDirString()).OutputPath
 	rebasedDir := rootDir
 	if f.properties.Base_dir != nil {
@@ -662,6 +694,7 @@ func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (andro
 	pathToolDirs := []string{filepath.Dir(fec.String())}
 
 	output := android.PathForModuleOut(ctx, f.installFileName())
+	builder.Command().Text("touch").Output(f.getMapFile(ctx))
 	builder.Command().
 		Textf("PATH=%s:$PATH", strings.Join(pathToolDirs, ":")).
 		BuiltTool("build_image").
@@ -670,6 +703,21 @@ func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (andro
 		Implicits(toolDeps).
 		Implicit(fec).
 		Output(output).
+		Text(rootDir.String()) // directory where to find fs_config_files|dirs
+
+	// Add an additional cmd to create a hermetic img file. This will contain pinned timestamps e.g.
+	propFilePinnedTimestamp := android.PathForModuleOut(ctx, "for_target_files", "prop")
+	builder.Command().Textf("cat").Input(propFile).Flag(">").Output(propFilePinnedTimestamp).Textf(" && echo use_fixed_timestamp=true >> %s", propFilePinnedTimestamp)
+
+	outputHermetic := android.PathForModuleOut(ctx, "for_target_files", f.installFileName())
+	builder.Command().
+		Textf("PATH=%s:$PATH", strings.Join(pathToolDirs, ":")).
+		BuiltTool("build_image").
+		Text(rootDir.String()). // input directory
+		Flag(propFilePinnedTimestamp.String()).
+		Implicits(toolDeps).
+		Implicit(fec).
+		Output(outputHermetic).
 		Text(rootDir.String()) // directory where to find fs_config_files|dirs
 
 	if !ctx.Config().KatiEnabled() {
@@ -683,7 +731,7 @@ func (f *filesystem) buildImageUsingBuildImage(ctx android.ModuleContext) (andro
 	// rootDir is not deleted. Might be useful for quick inspection.
 	builder.Build("build_filesystem_image", fmt.Sprintf("Creating filesystem %s", f.BaseModuleName()))
 
-	return output, rootDir
+	return output, outputHermetic, rootDir
 }
 
 func (f *filesystem) buildFileContexts(ctx android.ModuleContext) android.Path {
@@ -723,6 +771,7 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 		}
 		panic(fmt.Errorf("unsupported fs type %v", t))
 	}
+	addStr("block_list", f.getMapFile(ctx).String()) // This will be an implicit output
 
 	addStr("fs_type", fsTypeStr(f.fsType(ctx)))
 	addStr("mount_point", proptools.StringDefault(f.properties.Mount_point, "/"))
@@ -789,12 +838,11 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 		addStr("hash_seed", uuid)
 	}
 
-	// TODO(b/381120092): This should only be added if none of the size-related properties are set,
-	// but currently soong built partitions don't have size properties. Make code:
-	// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/Makefile;l=2262;drc=39cd33701c9278db0e7e481a090605f428d5b12d
-	// Make uses system_disable_sparse but disable_sparse has the same effect, and we shouldn't need
-	// to qualify it because each partition gets its own property file built.
-	addStr("disable_sparse", "true")
+	// Disable sparse only when partition size is not defined. disable_sparse has the same
+	// effect as <partition name>_disable_sparse.
+	if f.properties.Partition_size == nil {
+		addStr("disable_sparse", "true")
+	}
 
 	fst := f.fsType(ctx)
 	switch fst {
@@ -819,6 +867,18 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 
 	if f.properties.Partition_size != nil {
 		addStr("partition_size", strconv.FormatInt(*f.properties.Partition_size, 10))
+	}
+
+	if proptools.BoolDefault(f.properties.Support_casefolding, false) {
+		addStr("needs_casefold", "1")
+	}
+
+	if proptools.BoolDefault(f.properties.Support_project_quota, false) {
+		addStr("needs_projid", "1")
+	}
+
+	if proptools.BoolDefault(f.properties.Enable_compression, false) {
+		addStr("needs_compress", "1")
 	}
 
 	propFilePreProcessing := android.PathForModuleOut(ctx, "prop_pre_processing")

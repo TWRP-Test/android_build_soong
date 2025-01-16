@@ -2421,7 +2421,87 @@ func TestApexMinSdkVersion_InVendorApex(t *testing.T) {
 	android.AssertStringDoesContain(t, "cflags", cflags, "-target aarch64-linux-android29")
 }
 
-func TestTrackAllowedDeps(t *testing.T) {
+func TestTrackAllowedDepsForAndroidApex(t *testing.T) {
+	t.Parallel()
+	ctx := testApex(t, `
+		apex {
+			name: "com.android.myapex",
+			key: "myapex.key",
+			updatable: true,
+			native_shared_libs: [
+				"mylib",
+				"yourlib",
+			],
+			min_sdk_version: "29",
+		}
+
+		apex {
+			name: "myapex2",
+			key: "myapex.key",
+			updatable: false,
+			native_shared_libs: ["yourlib"],
+		}
+
+		apex_key {
+			name: "myapex.key",
+			public_key: "testkey.avbpubkey",
+			private_key: "testkey.pem",
+		}
+
+		cc_library {
+			name: "mylib",
+			srcs: ["mylib.cpp"],
+			shared_libs: ["libbar", "libbar_rs"],
+			min_sdk_version: "29",
+			apex_available: ["com.android.myapex"],
+		}
+
+		cc_library {
+			name: "libbar",
+			stubs: { versions: ["29", "30"] },
+		}
+
+		rust_ffi {
+			name: "libbar_rs",
+			crate_name: "bar_rs",
+			srcs: ["bar.rs"],
+			stubs: { versions: ["29", "30"] },
+		}
+
+		cc_library {
+			name: "yourlib",
+			srcs: ["mylib.cpp"],
+			min_sdk_version: "29",
+			apex_available: ["com.android.myapex", "myapex2", "//apex_available:platform"],
+		}
+	`, withFiles(android.MockFS{
+		"packages/modules/common/build/allowed_deps.txt": nil,
+	}),
+		android.FixtureMergeMockFs(android.MockFS{
+			"system/sepolicy/apex/com.android.myapex-file_contexts": nil,
+		}))
+
+	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
+	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
+	android.AssertStringListContains(t, "updatable com.android.myapex should generate depsinfo file", inputs,
+		"out/soong/.intermediates/com.android.myapex/android_common_com.android.myapex/depsinfo/flatlist.txt")
+	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
+		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
+
+	myapex := ctx.ModuleForTests("com.android.myapex", "android_common_com.android.myapex")
+	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
+		myapex.Output("depsinfo/flatlist.txt")), "\n")
+	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
+		flatlist, "libbar(minSdkVersion:(no version)) (external)")
+	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
+		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
+	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
+		flatlist, "mylib:(minSdkVersion:29)")
+	android.AssertStringListContains(t, "track platform-available lib",
+		flatlist, "yourlib(minSdkVersion:29)")
+}
+
+func TestNotTrackAllowedDepsForNonAndroidApex(t *testing.T) {
 	t.Parallel()
 	ctx := testApex(t, `
 		apex {
@@ -2451,20 +2531,13 @@ func TestTrackAllowedDeps(t *testing.T) {
 		cc_library {
 			name: "mylib",
 			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar", "libbar_rs"],
+			shared_libs: ["libbar"],
 			min_sdk_version: "29",
 			apex_available: ["myapex"],
 		}
 
 		cc_library {
 			name: "libbar",
-			stubs: { versions: ["29", "30"] },
-		}
-
-		rust_ffi {
-			name: "libbar_rs",
-			crate_name: "bar_rs",
-			srcs: ["bar.rs"],
 			stubs: { versions: ["29", "30"] },
 		}
 
@@ -2480,194 +2553,17 @@ func TestTrackAllowedDeps(t *testing.T) {
 
 	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
 	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
-	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
+	android.AssertStringListDoesNotContain(t, "updatable myapex should generate depsinfo file", inputs,
 		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
 	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
 		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
-
-	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
-	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
-		myapex.Output("depsinfo/flatlist.txt")), "\n")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar(minSdkVersion:(no version)) (external)")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
-	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
-		flatlist, "mylib:(minSdkVersion:29)")
-	android.AssertStringListContains(t, "track platform-available lib",
-		flatlist, "yourlib(minSdkVersion:29)")
-}
-
-func TestTrackCustomAllowedDepsInvalidDefaultTxt(t *testing.T) {
-	t.Parallel()
-	ctx := testApex(t, `
-		apex {
-			name: "myapex",
-			key: "myapex.key",
-			updatable: true,
-			native_shared_libs: [
-				"mylib",
-				"yourlib",
-			],
-			min_sdk_version: "29",
-		}
-
-		apex {
-			name: "myapex2",
-			key: "myapex.key",
-			updatable: false,
-			native_shared_libs: ["yourlib"],
-		}
-
-		apex_key {
-			name: "myapex.key",
-			public_key: "testkey.avbpubkey",
-			private_key: "testkey.pem",
-		}
-
-		cc_library {
-			name: "mylib",
-			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar", "libbar_rs",],
-			min_sdk_version: "29",
-			apex_available: ["myapex"],
-		}
-
-		cc_library {
-			name: "libbar",
-			stubs: { versions: ["29", "30"] },
-		}
-
-		rust_ffi {
-			name: "libbar_rs",
-			crate_name: "bar_rs",
-			srcs: ["bar.rs"],
-			stubs: { versions: ["29", "30"] },
-		}
-
-		cc_library {
-			name: "yourlib",
-			srcs: ["mylib.cpp"],
-			min_sdk_version: "29",
-			apex_available: ["myapex", "myapex2", "//apex_available:platform"],
-		}
-	`, withFiles(android.MockFS{
-		"packages/modules/common/build/custom_allowed_deps.txt": nil,
-	}),
-		android.FixtureModifyProductVariables(
-			func(variables android.FixtureProductVariables) {
-				variables.ExtraAllowedDepsTxt = proptools.StringPtr("packages/modules/common/build/custom_allowed_deps.txt")
-			},
-		))
-
-	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
-	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
-	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
-	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
-
-	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
-	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
-		myapex.Output("depsinfo/flatlist.txt")), "\n")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar(minSdkVersion:(no version)) (external)")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
-	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
-		flatlist, "mylib:(minSdkVersion:29)")
-	android.AssertStringListContains(t, "track platform-available lib",
-		flatlist, "yourlib(minSdkVersion:29)")
-}
-
-func TestTrackCustomAllowedDepsWithDefaultTxt(t *testing.T) {
-	t.Parallel()
-	ctx := testApex(t, `
-		apex {
-			name: "myapex",
-			key: "myapex.key",
-			updatable: true,
-			native_shared_libs: [
-				"mylib",
-				"yourlib",
-			],
-			min_sdk_version: "29",
-		}
-
-		apex {
-			name: "myapex2",
-			key: "myapex.key",
-			updatable: false,
-			native_shared_libs: ["yourlib"],
-		}
-
-		apex_key {
-			name: "myapex.key",
-			public_key: "testkey.avbpubkey",
-			private_key: "testkey.pem",
-		}
-
-		cc_library {
-			name: "mylib",
-			srcs: ["mylib.cpp"],
-			shared_libs: ["libbar", "libbar_rs"],
-			min_sdk_version: "29",
-			apex_available: ["myapex"],
-		}
-
-		cc_library {
-			name: "libbar",
-			stubs: { versions: ["29", "30"] },
-		}
-
-		rust_ffi {
-			name: "libbar_rs",
-			crate_name: "bar_rs",
-			srcs: ["bar.rs"],
-			stubs: { versions: ["29", "30"] },
-		}
-
-		cc_library {
-			name: "yourlib",
-			srcs: ["mylib.cpp"],
-			min_sdk_version: "29",
-			apex_available: ["myapex", "myapex2", "//apex_available:platform"],
-		}
-	`, withFiles(android.MockFS{
-		"packages/modules/common/build/custom_allowed_deps.txt": nil,
-		"packages/modules/common/build/allowed_deps.txt":        nil,
-	}),
-		android.FixtureModifyProductVariables(
-			func(variables android.FixtureProductVariables) {
-				variables.ExtraAllowedDepsTxt = proptools.StringPtr("packages/modules/common/build/custom_allowed_deps.txt")
-			},
-		))
-
-	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
-	inputs := depsinfo.Rule("generateApexDepsInfoFilesRule").BuildParams.Inputs.Strings()
-	android.AssertStringListContains(t, "updatable myapex should generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex/android_common_myapex/depsinfo/flatlist.txt")
-	android.AssertStringListDoesNotContain(t, "non-updatable myapex2 should not generate depsinfo file", inputs,
-		"out/soong/.intermediates/myapex2/android_common_myapex2/depsinfo/flatlist.txt")
-
-	myapex := ctx.ModuleForTests("myapex", "android_common_myapex")
-	flatlist := strings.Split(android.ContentFromFileRuleForTests(t, ctx,
-		myapex.Output("depsinfo/flatlist.txt")), "\n")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar(minSdkVersion:(no version)) (external)")
-	android.AssertStringListContains(t, "deps with stubs should be tracked in depsinfo as external dep",
-		flatlist, "libbar_rs(minSdkVersion:(no version)) (external)")
-	android.AssertStringListDoesNotContain(t, "do not track if not available for platform",
-		flatlist, "mylib:(minSdkVersion:29)")
-	android.AssertStringListContains(t, "track platform-available lib",
-		flatlist, "yourlib(minSdkVersion:29)")
 }
 
 func TestTrackAllowedDeps_SkipWithoutAllowedDepsTxt(t *testing.T) {
 	t.Parallel()
 	ctx := testApex(t, `
 		apex {
-			name: "myapex",
+			name: "com.android.myapex",
 			key: "myapex.key",
 			updatable: true,
 			min_sdk_version: "29",
@@ -2678,7 +2574,10 @@ func TestTrackAllowedDeps_SkipWithoutAllowedDepsTxt(t *testing.T) {
 			public_key: "testkey.avbpubkey",
 			private_key: "testkey.pem",
 		}
-	`)
+	`,
+		android.FixtureMergeMockFs(android.MockFS{
+			"system/sepolicy/apex/com.android.myapex-file_contexts": nil,
+		}))
 	depsinfo := ctx.SingletonForTests("apex_depsinfo_singleton")
 	if nil != depsinfo.MaybeRule("generateApexDepsInfoFilesRule").Output {
 		t.Error("apex_depsinfo_singleton shouldn't run when allowed_deps.txt doesn't exist")

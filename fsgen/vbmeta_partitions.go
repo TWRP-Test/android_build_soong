@@ -154,8 +154,8 @@ func createVbmetaPartitions(ctx android.LoadHookContext, generatedPartitionTypes
 			// Already handled by a chained vbmeta partition
 			continue
 		}
-		if strings.Contains(partitionType, "ramdisk") || strings.Contains(partitionType, "boot") {
-			// ramdisk is never signed with avb information
+		if strings.Contains(partitionType, "ramdisk") || strings.Contains(partitionType, "boot") || partitionType == "userdata" {
+			// ramdisk and userdata are never signed with avb information
 			// boot partitions just have the avb footer, and don't have a corresponding vbmeta
 			// partition.
 			continue

@@ -349,7 +349,7 @@ func (g *Module) generateCommonBuildActions(ctx android.ModuleContext) {
 				// replaced the dependency.
 				module := android.PrebuiltGetPreferred(ctx, proxy)
 				tool := ctx.OtherModuleName(module)
-				if h, ok := android.OtherModuleProvider(ctx, module, android.HostToolProviderKey); ok {
+				if h, ok := android.OtherModuleProvider(ctx, module, android.HostToolProviderInfoProvider); ok {
 					// A HostToolProvider provides the path to a tool, which will be copied
 					// into the sandbox.
 					if !android.OtherModuleProviderOrDefault(ctx, module, android.CommonModuleInfoKey).Enabled {

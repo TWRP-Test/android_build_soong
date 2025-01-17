@@ -640,11 +640,11 @@ type deps struct {
 	transitiveStaticLibsResourceJars       []depset.DepSet[android.Path]
 }
 
-func checkProducesJars(ctx android.ModuleContext, dep android.SourceFileProducer) {
-	for _, f := range dep.Srcs() {
+func checkProducesJars(ctx android.ModuleContext, dep android.SourceFilesInfo, module android.ModuleProxy) {
+	for _, f := range dep.Srcs {
 		if f.Ext() != ".jar" {
 			ctx.ModuleErrorf("genrule %q must generate files ending with .jar to be used as a libs or static_libs dependency",
-				ctx.OtherModuleName(dep.(blueprint.Module)))
+				ctx.OtherModuleName(module))
 		}
 	}
 }
@@ -1958,13 +1958,13 @@ func (j *Binary) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	// Set the jniLibs of this binary.
 	// These will be added to `LOCAL_REQUIRED_MODULES`, and the kati packaging system will
 	// install these alongside the java binary.
-	ctx.VisitDirectDepsWithTag(jniInstallTag, func(jni android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(jniInstallTag, func(jni android.ModuleProxy) {
 		// Use the BaseModuleName of the dependency (without any prebuilt_ prefix)
-		bmn, _ := jni.(interface{ BaseModuleName() string })
-		j.androidMkNamesOfJniLibs = append(j.androidMkNamesOfJniLibs, bmn.BaseModuleName()+":"+jni.Target().Arch.ArchType.Bitness())
+		commonInfo, _ := android.OtherModuleProvider(ctx, jni, android.CommonModuleInfoKey)
+		j.androidMkNamesOfJniLibs = append(j.androidMkNamesOfJniLibs, commonInfo.BaseModuleName+":"+commonInfo.Target.Arch.ArchType.Bitness())
 	})
 	// Check that native libraries are not listed in `required`. Prompt users to use `jni_libs` instead.
-	ctx.VisitDirectDepsWithTag(android.RequiredDepTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(android.RequiredDepTag, func(dep android.ModuleProxy) {
 		if _, hasSharedLibraryInfo := android.OtherModuleProvider(ctx, dep, cc.SharedLibraryInfoProvider); hasSharedLibraryInfo {
 			ctx.ModuleErrorf("cc_library %s is no longer supported in `required` of java_binary modules. Please use jni_libs instead.", dep.Name())
 		}
@@ -2355,7 +2355,7 @@ func (al *ApiLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	var bootclassPaths android.Paths
 	var staticLibs android.Paths
 	var systemModulesPaths android.Paths
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(dep)
 		switch tag {
 		case javaApiContributionTag:
@@ -2384,8 +2384,8 @@ func (al *ApiLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 				systemModulesPaths = append(systemModulesPaths, sm.HeaderJars...)
 			}
 		case metalavaCurrentApiTimestampTag:
-			if currentApiTimestampProvider, ok := dep.(currentApiTimestampProvider); ok {
-				al.validationPaths = append(al.validationPaths, currentApiTimestampProvider.CurrentApiTimestamp())
+			if currentApiTimestampProvider, ok := android.OtherModuleProvider(ctx, dep, DroidStubsInfoProvider); ok {
+				al.validationPaths = append(al.validationPaths, currentApiTimestampProvider.CurrentApiTimestamp)
 			}
 		case aconfigDeclarationTag:
 			if provider, ok := android.OtherModuleProvider(ctx, dep, android.AconfigDeclarationsProviderKey); ok {
@@ -2761,7 +2761,7 @@ func (j *Import) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	var staticJars android.Paths
 	var staticResourceJars android.Paths
 	var staticHeaderJars android.Paths
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(module)
 		if dep, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
 			switch tag {
@@ -3395,7 +3395,7 @@ var String = proptools.String
 var inList = android.InList[string]
 
 // Add class loader context (CLC) of a given dependency to the current CLC.
-func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
+func addCLCFromDep(ctx android.ModuleContext, depModule android.ModuleProxy,
 	clcMap dexpreopt.ClassLoaderContextMap) {
 
 	dep, ok := android.OtherModuleProvider(ctx, depModule, JavaInfoProvider)
@@ -3455,7 +3455,7 @@ func addCLCFromDep(ctx android.ModuleContext, depModule android.Module,
 	}
 }
 
-func addMissingOptionalUsesLibsFromDep(ctx android.ModuleContext, depModule android.Module,
+func addMissingOptionalUsesLibsFromDep(ctx android.ModuleContext, depModule android.ModuleProxy,
 	usesLibrary *usesLibrary) {
 
 	dep, ok := android.OtherModuleProvider(ctx, depModule, JavaInfoProvider)

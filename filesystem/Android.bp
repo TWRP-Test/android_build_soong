@@ -17,6 +17,7 @@ bootstrap_go_package {
     srcs: [
         "aconfig_files.go",
         "android_device.go",
+        "android_device_product_out.go",
         "avb_add_hash_footer.go",
         "avb_gen_vbmeta_image.go",
         "bootimg.go",

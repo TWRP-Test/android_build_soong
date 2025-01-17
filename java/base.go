@@ -1978,7 +1978,7 @@ func (j *Module) useCompose(ctx android.BaseModuleContext) bool {
 }
 
 func collectDepProguardSpecInfo(ctx android.ModuleContext) (transitiveProguardFlags, transitiveUnconditionalExportedFlags []depset.DepSet[android.Path]) {
-	ctx.VisitDirectDeps(func(m android.Module) {
+	ctx.VisitDirectDepsProxy(func(m android.ModuleProxy) {
 		depProguardInfo, _ := android.OtherModuleProvider(ctx, m, ProguardSpecInfoProvider)
 		depTag := ctx.OtherModuleDependencyTag(m)
 
@@ -2151,7 +2151,7 @@ func (j *providesTransitiveHeaderJarsForR8) collectTransitiveHeaderJarsForR8(ctx
 	directStaticLibs := android.Paths{}
 	transitiveLibs := []depset.DepSet[android.Path]{}
 	transitiveStaticLibs := []depset.DepSet[android.Path]{}
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		// don't add deps of the prebuilt version of the same library
 		if ctx.ModuleName() == android.RemoveOptionalPrebuiltPrefix(module.Name()) {
 			return
@@ -2275,7 +2275,7 @@ func (j *Module) JacocoReportClassesFile() android.Path {
 
 func (j *Module) collectTransitiveSrcFiles(ctx android.ModuleContext, mine android.Paths) {
 	var fromDeps []depset.DepSet[android.Path]
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(module)
 		if tag == staticLibTag {
 			if depInfo, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
@@ -2433,7 +2433,7 @@ func (j *Module) collectDeps(ctx android.ModuleContext) deps {
 	var transitiveStaticJarsImplementationLibs []depset.DepSet[android.Path]
 	var transitiveStaticJarsResourceLibs []depset.DepSet[android.Path]
 
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		otherName := ctx.OtherModuleName(module)
 		tag := ctx.OtherModuleDependencyTag(module)
 
@@ -2467,7 +2467,7 @@ func (j *Module) collectDeps(ctx android.ModuleContext) deps {
 				deps.bootClasspath = append(deps.bootClasspath, dep.HeaderJars...)
 				transitiveBootClasspathHeaderJars = append(transitiveBootClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
 			case sdkLibTag, libTag, instrumentationForTag:
-				if _, ok := module.(*Plugin); ok {
+				if _, ok := android.OtherModuleProvider(ctx, module, JavaPluginInfoProvider); ok {
 					ctx.ModuleErrorf("a java_plugin (%s) cannot be used as a libs dependency", otherName)
 				}
 				deps.classpath = append(deps.classpath, dep.HeaderJars...)
@@ -2485,7 +2485,7 @@ func (j *Module) collectDeps(ctx android.ModuleContext) deps {
 				deps.java9Classpath = append(deps.java9Classpath, dep.HeaderJars...)
 				transitiveJava9ClasspathHeaderJars = append(transitiveJava9ClasspathHeaderJars, dep.TransitiveStaticLibsHeaderJars)
 			case staticLibTag:
-				if _, ok := module.(*Plugin); ok {
+				if _, ok := android.OtherModuleProvider(ctx, module, JavaPluginInfoProvider); ok {
 					ctx.ModuleErrorf("a java_plugin (%s) cannot be used as a static_libs dependency", otherName)
 				}
 				deps.classpath = append(deps.classpath, dep.HeaderJars...)
@@ -2505,40 +2505,40 @@ func (j *Module) collectDeps(ctx android.ModuleContext) deps {
 				transitiveStaticJarsImplementationLibs = append(transitiveStaticJarsImplementationLibs, dep.TransitiveStaticLibsImplementationJars)
 				transitiveStaticJarsResourceLibs = append(transitiveStaticJarsResourceLibs, dep.TransitiveStaticLibsResourceJars)
 			case pluginTag:
-				if plugin, ok := module.(*Plugin); ok {
-					if plugin.pluginProperties.Processor_class != nil {
-						addPlugins(&deps, dep.ImplementationAndResourcesJars, *plugin.pluginProperties.Processor_class)
+				if plugin, ok := android.OtherModuleProvider(ctx, module, JavaPluginInfoProvider); ok {
+					if plugin.ProcessorClass != nil {
+						addPlugins(&deps, dep.ImplementationAndResourcesJars, *plugin.ProcessorClass)
 					} else {
 						addPlugins(&deps, dep.ImplementationAndResourcesJars)
 					}
 					// Turbine doesn't run annotation processors, so any module that uses an
 					// annotation processor that generates API is incompatible with the turbine
 					// optimization.
-					deps.disableTurbine = deps.disableTurbine || Bool(plugin.pluginProperties.Generates_api)
+					deps.disableTurbine = deps.disableTurbine || plugin.GeneratesApi
 				} else {
 					ctx.PropertyErrorf("plugins", "%q is not a java_plugin module", otherName)
 				}
 			case errorpronePluginTag:
-				if _, ok := module.(*Plugin); ok {
+				if _, ok := android.OtherModuleProvider(ctx, module, JavaPluginInfoProvider); ok {
 					deps.errorProneProcessorPath = append(deps.errorProneProcessorPath, dep.ImplementationAndResourcesJars...)
 				} else {
 					ctx.PropertyErrorf("plugins", "%q is not a java_plugin module", otherName)
 				}
 			case exportedPluginTag:
-				if plugin, ok := module.(*Plugin); ok {
+				if plugin, ok := android.OtherModuleProvider(ctx, module, JavaPluginInfoProvider); ok {
 					j.exportedPluginJars = append(j.exportedPluginJars, dep.ImplementationAndResourcesJars...)
-					if plugin.pluginProperties.Processor_class != nil {
-						j.exportedPluginClasses = append(j.exportedPluginClasses, *plugin.pluginProperties.Processor_class)
+					if plugin.ProcessorClass != nil {
+						j.exportedPluginClasses = append(j.exportedPluginClasses, *plugin.ProcessorClass)
 					}
 					// Turbine doesn't run annotation processors, so any module that uses an
 					// annotation processor that generates API is incompatible with the turbine
 					// optimization.
-					j.exportedDisableTurbine = Bool(plugin.pluginProperties.Generates_api)
+					j.exportedDisableTurbine = plugin.GeneratesApi
 				} else {
 					ctx.PropertyErrorf("exported_plugins", "%q is not a java_plugin module", otherName)
 				}
 			case kotlinPluginTag:
-				if _, ok := module.(*KotlinPlugin); ok {
+				if _, ok := android.OtherModuleProvider(ctx, module, KotlinPluginInfoProvider); ok {
 					deps.kotlinPlugins = append(deps.kotlinPlugins, dep.ImplementationAndResourcesJars...)
 				} else {
 					ctx.PropertyErrorf("kotlin_plugins", "%q is not a kotlin_plugin module", otherName)
@@ -2550,21 +2550,21 @@ func (j *Module) collectDeps(ctx android.ModuleContext) deps {
 					JavaInfo: dep,
 				})
 			}
-		} else if dep, ok := module.(android.SourceFileProducer); ok {
+		} else if dep, ok := android.OtherModuleProvider(ctx, module, android.SourceFilesInfoProvider); ok {
 			switch tag {
 			case sdkLibTag, libTag:
-				checkProducesJars(ctx, dep)
-				deps.classpath = append(deps.classpath, dep.Srcs()...)
-				deps.dexClasspath = append(deps.classpath, dep.Srcs()...)
+				checkProducesJars(ctx, dep, module)
+				deps.classpath = append(deps.classpath, dep.Srcs...)
+				deps.dexClasspath = append(deps.classpath, dep.Srcs...)
 				transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars,
-					depset.New(depset.PREORDER, dep.Srcs(), nil))
+					depset.New(depset.PREORDER, dep.Srcs, nil))
 			case staticLibTag:
-				checkProducesJars(ctx, dep)
-				deps.classpath = append(deps.classpath, dep.Srcs()...)
-				deps.staticJars = append(deps.staticJars, dep.Srcs()...)
-				deps.staticHeaderJars = append(deps.staticHeaderJars, dep.Srcs()...)
+				checkProducesJars(ctx, dep, module)
+				deps.classpath = append(deps.classpath, dep.Srcs...)
+				deps.staticJars = append(deps.staticJars, dep.Srcs...)
+				deps.staticHeaderJars = append(deps.staticHeaderJars, dep.Srcs...)
 
-				depHeaderJars := depset.New(depset.PREORDER, dep.Srcs(), nil)
+				depHeaderJars := depset.New(depset.PREORDER, dep.Srcs, nil)
 				transitiveClasspathHeaderJars = append(transitiveClasspathHeaderJars, depHeaderJars)
 				transitiveStaticJarsHeaderLibs = append(transitiveStaticJarsHeaderLibs, depHeaderJars)
 				transitiveStaticJarsImplementationLibs = append(transitiveStaticJarsImplementationLibs, depHeaderJars)
@@ -2740,7 +2740,7 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 	module := ctx.Module()
 	moduleName := module.Name()
 
-	ctx.VisitDirectDeps(func(m android.Module) {
+	ctx.VisitDirectDepsProxy(func(m android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(m)
 		// This logic mirrors that in (*Module).collectDeps above.  There are several places
 		// where we explicitly return RenameUseExclude, even though it is the default, to
@@ -2779,10 +2779,8 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 					//fmt.Printf("collectDirectDepsProviders: %v -> %v StubsLinkType unknown\n", module, m)
 					// Fall through to the heuristic logic.
 				}
-				switch reflect.TypeOf(m).String() {
-				case "*java.GeneratedJavaLibraryModule":
+				if _, ok := android.OtherModuleProvider(ctx, m, android.CodegenInfoProvider); ok {
 					// Probably a java_aconfig_library module.
-					// TODO: make this check better.
 					return RenameUseInclude
 				}
 				switch tag {
@@ -2805,7 +2803,7 @@ func collectDirectDepsProviders(ctx android.ModuleContext) (result *JarJarProvid
 				default:
 					return RenameUseExclude
 				}
-			} else if _, ok := m.(android.SourceFileProducer); ok {
+			} else if _, ok := android.OtherModuleProvider(ctx, m, android.SourceFilesInfoProvider); ok {
 				switch tag {
 				case sdkLibTag, libTag, staticLibTag:
 					return RenameUseInclude

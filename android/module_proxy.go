@@ -11,6 +11,10 @@ type ModuleProxy struct {
 
 var _ Module = (*ModuleProxy)(nil)
 
+func (m ModuleProxy) IsNil() bool {
+	return m.module.IsNil()
+}
+
 func (m ModuleProxy) Name() string {
 	return m.module.Name()
 }

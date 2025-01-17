@@ -1040,7 +1040,7 @@ func (a *AndroidLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) 
 	}
 
 	prebuiltJniPackages := android.Paths{}
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		if info, ok := android.OtherModuleProvider(ctx, module, JniPackageProvider); ok {
 			prebuiltJniPackages = append(prebuiltJniPackages, info.JniPackages...)
 		}
@@ -1455,7 +1455,7 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	var transitiveStaticLibsImplementationJars []depset.DepSet[android.Path]
 	var transitiveStaticLibsResourceJars []depset.DepSet[android.Path]
 
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		if dep, ok := android.OtherModuleProvider(ctx, module, JavaInfoProvider); ok {
 			tag := ctx.OtherModuleDependencyTag(module)
 			switch tag {

@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
@@ -357,7 +358,7 @@ func (j *Javadoc) collectDeps(ctx android.ModuleContext) deps {
 		deps.aidlPreprocess = sdkDep.aidl
 	}
 
-	ctx.VisitDirectDeps(func(module android.Module) {
+	ctx.VisitDirectDepsProxy(func(module android.ModuleProxy) {
 		otherName := ctx.OtherModuleName(module)
 		tag := ctx.OtherModuleDependencyTag(module)
 
@@ -381,9 +382,9 @@ func (j *Javadoc) collectDeps(ctx android.ModuleContext) deps {
 				deps.classpath = append(deps.classpath, dep.HeaderJars...)
 				deps.aidlIncludeDirs = append(deps.aidlIncludeDirs, dep.AidlIncludeDirs...)
 				deps.aconfigProtoFiles = append(deps.aconfigProtoFiles, dep.AconfigIntermediateCacheOutputPaths...)
-			} else if dep, ok := module.(android.SourceFileProducer); ok {
-				checkProducesJars(ctx, dep)
-				deps.classpath = append(deps.classpath, dep.Srcs()...)
+			} else if dep, ok := android.OtherModuleProvider(ctx, module, android.SourceFilesInfoProvider); ok {
+				checkProducesJars(ctx, dep, module)
+				deps.classpath = append(deps.classpath, dep.Srcs...)
 			} else {
 				ctx.ModuleErrorf("depends on non-java module %q", otherName)
 			}
@@ -874,6 +875,13 @@ type ExportedDroiddocDirProperties struct {
 	Path *string
 }
 
+type ExportedDroiddocDirInfo struct {
+	Deps android.Paths
+	Dir  android.Path
+}
+
+var ExportedDroiddocDirInfoProvider = blueprint.NewProvider[ExportedDroiddocDirInfo]()
+
 type ExportedDroiddocDir struct {
 	android.ModuleBase
 
@@ -897,6 +905,11 @@ func (d *ExportedDroiddocDir) GenerateAndroidBuildActions(ctx android.ModuleCont
 	path := String(d.properties.Path)
 	d.dir = android.PathForModuleSrc(ctx, path)
 	d.deps = android.PathsForModuleSrc(ctx, []string{filepath.Join(path, "**/*")})
+
+	android.SetProvider(ctx, ExportedDroiddocDirInfoProvider, ExportedDroiddocDirInfo{
+		Dir:  d.dir,
+		Deps: d.deps,
+	})
 }
 
 // Defaults

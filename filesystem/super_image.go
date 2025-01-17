@@ -17,6 +17,7 @@ package filesystem
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -50,16 +51,29 @@ type SuperImageProperties struct {
 	Ab_update *bool
 	// whether dynamic partitions is enabled on devices that were launched without this support
 	Retrofit *bool
-	// whether virtual A/B seamless update is enabled
-	Virtual_ab *bool
-	// whether retrofitting virtual A/B seamless update is enabled
-	Virtual_ab_retrofit *bool
 	// whether the output is a sparse image
 	Sparse *bool
 	// information about how partitions within the super partition are grouped together
 	Partition_groups []PartitionGroupsInfo
 	// whether dynamic partitions is used
 	Use_dynamic_partitions *bool
+	Virtual_ab             struct {
+		// whether virtual A/B seamless update is enabled
+		Enable *bool
+		// whether retrofitting virtual A/B seamless update is enabled
+		Retrofit *bool
+		// If set, device uses virtual A/B Compression
+		Compression *bool
+		// This value controls the compression algorithm used for VABC.
+		// Valid options are defined in system/core/fs_mgr/libsnapshot/cow_writer.cpp
+		// e.g. "none", "gz", "brotli"
+		Compression_method *string
+		// Specifies maximum bytes to be compressed at once during ota. Options: 4096, 8192, 16384, 32768, 65536, 131072, 262144.
+		Compression_factor *int64
+		// Specifies COW version to be used by update_engine and libsnapshot. If this value is not
+		// specified we default to COW version 2 in update_engine for backwards compatibility
+		Cow_version *int64
+	}
 }
 
 type PartitionGroupsInfo struct {
@@ -166,13 +180,18 @@ func (s *superImage) buildMiscInfo(ctx android.ModuleContext) (android.Path, and
 		miscInfoString.WriteRune('\n')
 	}
 
+	addStr("build_super_partition", "true")
 	addStr("use_dynamic_partitions", strconv.FormatBool(proptools.Bool(s.properties.Use_dynamic_partitions)))
-	addStr("dynamic_partition_retrofit", strconv.FormatBool(proptools.Bool(s.properties.Retrofit)))
+	if proptools.Bool(s.properties.Retrofit) {
+		addStr("dynamic_partition_retrofit", "true")
+	}
 	addStr("lpmake", "lpmake")
 	addStr("super_metadata_device", proptools.String(s.properties.Metadata_device))
 	if len(s.properties.Block_devices) > 0 {
 		addStr("super_block_devices", strings.Join(s.properties.Block_devices, " "))
 	}
+	addStr("super_partition_size", strconv.Itoa(proptools.Int(s.properties.Size)))
+	// TODO: In make, there's more complicated logic than just this surrounding super_*_device_size
 	addStr("super_super_device_size", strconv.Itoa(proptools.Int(s.properties.Size)))
 	var groups, partitionList []string
 	for _, groupInfo := range s.properties.Partition_groups {
@@ -189,10 +208,42 @@ func (s *superImage) buildMiscInfo(ctx android.ModuleContext) (android.Path, and
 	addStr("super_partition_groups", strings.Join(groups, " "))
 	addStr("dynamic_partition_list", strings.Join(partitionList, " "))
 
-	addStr("virtual_ab", strconv.FormatBool(proptools.Bool(s.properties.Virtual_ab)))
-	addStr("virtual_ab_retrofit", strconv.FormatBool(proptools.Bool(s.properties.Virtual_ab_retrofit)))
 	addStr("ab_update", strconv.FormatBool(proptools.Bool(s.properties.Ab_update)))
-	addStr("build_non_sparse_super_partition", strconv.FormatBool(!proptools.Bool(s.properties.Sparse)))
+
+	if proptools.Bool(s.properties.Virtual_ab.Enable) {
+		addStr("virtual_ab", "true")
+		if proptools.Bool(s.properties.Virtual_ab.Retrofit) {
+			addStr("virtual_ab_retrofit", "true")
+		}
+		addStr("virtual_ab_compression", strconv.FormatBool(proptools.Bool(s.properties.Virtual_ab.Compression)))
+		if s.properties.Virtual_ab.Compression_method != nil {
+			matched, _ := regexp.MatchString("^[a-zA-Z0-9_-]+$", *s.properties.Virtual_ab.Compression_method)
+			if !matched {
+				ctx.PropertyErrorf("virtual_ab.compression_method", "compression_method cannot have special characters")
+			}
+			addStr("virtual_ab_compression_method", *s.properties.Virtual_ab.Compression_method)
+		}
+		if s.properties.Virtual_ab.Compression_factor != nil {
+			addStr("virtual_ab_compression_factor", strconv.FormatInt(*s.properties.Virtual_ab.Compression_factor, 10))
+		}
+		if s.properties.Virtual_ab.Cow_version != nil {
+			addStr("virtual_ab_cow_version", strconv.FormatInt(*s.properties.Virtual_ab.Cow_version, 10))
+		}
+
+	} else {
+		if s.properties.Virtual_ab.Retrofit != nil {
+			ctx.PropertyErrorf("virtual_ab.retrofit", "This property cannot be set when virtual_ab is disabled")
+		}
+		if s.properties.Virtual_ab.Compression != nil {
+			ctx.PropertyErrorf("virtual_ab.compression", "This property cannot be set when virtual_ab is disabled")
+		}
+		if s.properties.Virtual_ab.Compression_method != nil {
+			ctx.PropertyErrorf("virtual_ab.compression_method", "This property cannot be set when virtual_ab is disabled")
+		}
+		if s.properties.Virtual_ab.Compression_factor != nil {
+			ctx.PropertyErrorf("virtual_ab.compression_factor", "This property cannot be set when virtual_ab is disabled")
+		}
+	}
 
 	subImageInfo := make(map[string]FilesystemInfo)
 	var deps android.Paths

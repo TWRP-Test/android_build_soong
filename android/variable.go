@@ -655,6 +655,10 @@ type PartitionVariables struct {
 	BoardSuperPartitionGroups         map[string]BoardSuperPartitionGroupProps `json:",omitempty"`
 	ProductVirtualAbOta               bool                                     `json:",omitempty"`
 	ProductVirtualAbOtaRetrofit       bool                                     `json:",omitempty"`
+	ProductVirtualAbCompression       bool                                     `json:",omitempty"`
+	ProductVirtualAbCompressionMethod string                                   `json:",omitempty"`
+	ProductVirtualAbCompressionFactor string                                   `json:",omitempty"`
+	ProductVirtualAbCowVersion        string                                   `json:",omitempty"`
 	AbOtaUpdater                      bool                                     `json:",omitempty"`
 
 	// Avb (android verified boot) stuff

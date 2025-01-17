@@ -398,7 +398,7 @@ func (l *linter) lint(ctx android.ModuleContext) {
 		}
 	}
 
-	extraLintCheckModules := ctx.GetDirectDepsWithTag(extraLintCheckTag)
+	extraLintCheckModules := ctx.GetDirectDepsProxyWithTag(extraLintCheckTag)
 	for _, extraLintCheckModule := range extraLintCheckModules {
 		if dep, ok := android.OtherModuleProvider(ctx, extraLintCheckModule, JavaInfoProvider); ok {
 			l.extraLintCheckJars = append(l.extraLintCheckJars, dep.ImplementationAndResourcesJars...)
@@ -423,7 +423,7 @@ func (l *linter) lint(ctx android.ModuleContext) {
 
 	depSetsBuilder := NewLintDepSetBuilder().Direct(html, text, xml, baseline)
 
-	ctx.VisitDirectDepsWithTag(staticLibTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(staticLibTag, func(dep android.ModuleProxy) {
 		if info, ok := android.OtherModuleProvider(ctx, dep, LintProvider); ok {
 			depSetsBuilder.Transitive(info)
 		}

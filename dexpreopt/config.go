@@ -507,36 +507,37 @@ func dex2oatPathFromDep(ctx android.ModuleContext) android.Path {
 	// final variants, while prebuilt_postdeps needs to run before many of the
 	// PostDeps mutators, like the APEX mutators). Hence we need to dig out the
 	// prebuilt explicitly here instead.
-	var dex2oatModule android.Module
-	ctx.WalkDeps(func(child, parent android.Module) bool {
-		if parent == ctx.Module() && ctx.OtherModuleDependencyTag(child) == Dex2oatDepTag {
+	var dex2oatModule android.ModuleProxy
+	ctx.WalkDepsProxy(func(child, parent android.ModuleProxy) bool {
+		prebuiltInfo, isPrebuilt := android.OtherModuleProvider(ctx, child, android.PrebuiltModuleInfoProvider)
+		if ctx.EqualModules(parent, ctx.Module()) && ctx.OtherModuleDependencyTag(child) == Dex2oatDepTag {
 			// Found the source module, or prebuilt module that has replaced the source.
 			dex2oatModule = child
-			if android.IsModulePrebuilt(child) {
+			if isPrebuilt {
 				return false // If it's the prebuilt we're done.
 			} else {
 				return true // Recurse to check if the source has a prebuilt dependency.
 			}
 		}
-		if parent == dex2oatModule && ctx.OtherModuleDependencyTag(child) == android.PrebuiltDepTag {
-			if p := android.GetEmbeddedPrebuilt(child); p != nil && p.UsePrebuilt() {
+		if ctx.EqualModules(parent, dex2oatModule) && ctx.OtherModuleDependencyTag(child) == android.PrebuiltDepTag {
+			if isPrebuilt && prebuiltInfo.UsePrebuilt {
 				dex2oatModule = child // Found a prebuilt that should be used.
 			}
 		}
 		return false
 	})
 
-	if dex2oatModule == nil {
+	if dex2oatModule.IsNil() {
 		// If this happens there's probably a missing call to AddToolDeps in DepsMutator.
 		panic(fmt.Sprintf("Failed to lookup %s dependency", dex2oatBin))
 	}
 
-	dex2oatPath := dex2oatModule.(android.HostToolProvider).HostToolPath()
-	if !dex2oatPath.Valid() {
+	dex2oatPath, ok := android.OtherModuleProvider(ctx, dex2oatModule, android.HostToolProviderInfoProvider)
+	if !ok || !dex2oatPath.HostToolPath.Valid() {
 		panic(fmt.Sprintf("Failed to find host tool path in %s", dex2oatModule))
 	}
 
-	return dex2oatPath.Path()
+	return dex2oatPath.HostToolPath.Path()
 }
 
 // createGlobalSoongConfig creates a GlobalSoongConfig from the current context.

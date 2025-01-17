@@ -420,10 +420,6 @@ func (b *bootimg) addAvbFooter(ctx android.ModuleContext, unsignedImage android.
 		cmd.FlagWithArg("--rollback_index ", strconv.FormatInt(*b.properties.Avb_rollback_index, 10))
 	}
 
-	if !ctx.Config().KatiEnabled() {
-		copyImageFileToProductOut(ctx, builder, b.bootImageType.String(), output)
-	}
-
 	builder.Build("add_avb_footer", fmt.Sprintf("Adding avb footer to %s", b.BaseModuleName()))
 	return output
 }
@@ -438,10 +434,6 @@ func (b *bootimg) signImage(ctx android.ModuleContext, unsignedImage android.Pat
 		Input(propFile).
 		Implicits(toolDeps).
 		Output(output)
-
-	if !ctx.Config().KatiEnabled() {
-		copyImageFileToProductOut(ctx, builder, b.bootImageType.String(), output)
-	}
 
 	builder.Build("sign_bootimg", fmt.Sprintf("Signing %s", b.BaseModuleName()))
 	return output

@@ -173,6 +173,7 @@ func createVbmetaPartitions(ctx android.LoadHookContext, generatedPartitionTypes
 			Rollback_index:     ri,
 			Chained_partitions: chainedPartitions,
 			Partitions:         proptools.NewSimpleConfigurable(partitionModules),
+			Partition_name:     proptools.StringPtr("vbmeta"),
 		}, &struct {
 			Name *string
 		}{

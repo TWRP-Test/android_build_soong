@@ -43,6 +43,7 @@ var (
 		STATIC_DEP_FILES       string
 		WHOLE_STATIC_DEPS      string
 		WHOLE_STATIC_DEP_FILES string
+		HEADER_LIBS            string
 		LICENSES               string
 
 		// module_type=package
@@ -71,6 +72,7 @@ var (
 		"static_dep_files",
 		"whole_static_deps",
 		"whole_static_dep_files",
+		"header_libs",
 		"licenses",
 
 		"pkg_default_applicable_licenses",
@@ -106,6 +108,8 @@ var (
 		ComplianceMetadataProp.WHOLE_STATIC_DEPS,
 		// Space separated file paths of whole static dependencies
 		ComplianceMetadataProp.WHOLE_STATIC_DEP_FILES,
+		// Space separated modules name of header libs
+		ComplianceMetadataProp.HEADER_LIBS,
 		ComplianceMetadataProp.LICENSES,
 		// module_type=package
 		ComplianceMetadataProp.PKG_DEFAULT_APPLICABLE_LICENSES,

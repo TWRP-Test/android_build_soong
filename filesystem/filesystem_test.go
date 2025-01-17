@@ -136,22 +136,6 @@ func TestFileSystemDeps(t *testing.T) {
 	}
 }
 
-func TestIncludeMakeBuiltFiles(t *testing.T) {
-	result := fixture.RunTestWithBp(t, `
-		android_filesystem {
-			name: "myfilesystem",
-			include_make_built_files: "system",
-		}
-	`)
-
-	output := result.ModuleForTests("myfilesystem", "android_common").Output("myfilesystem.img")
-
-	stampFile := "out/target/product/test_device/obj/PACKAGING/system_intermediates/staging_dir.stamp"
-	fileListFile := "out/target/product/test_device/obj/PACKAGING/system_intermediates/file_list.txt"
-	android.AssertStringListContains(t, "deps of filesystem must include the staging dir stamp file", output.Implicits.Strings(), stampFile)
-	android.AssertStringListContains(t, "deps of filesystem must include the staging dir file list", output.Implicits.Strings(), fileListFile)
-}
-
 func TestFileSystemFillsLinkerConfigWithStubLibs(t *testing.T) {
 	result := fixture.RunTestWithBp(t, `
 		android_system_image {

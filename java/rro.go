@@ -139,6 +139,25 @@ func (r *RuntimeResourceOverlay) GenerateAndroidBuildActions(ctx android.ModuleC
 	r.aapt.hasNoCode = true
 	// Do not remove resources without default values nor dedupe resource configurations with the same value
 	aaptLinkFlags := []string{"--no-resource-deduping", "--no-resource-removal"}
+
+	// Add TARGET_AAPT_CHARACTERISTICS values to AAPT link flags if they exist and --product flags were not provided.
+	hasProduct := android.PrefixInList(r.aaptProperties.Aaptflags, "--product")
+	if !hasProduct && len(ctx.Config().ProductAAPTCharacteristics()) > 0 {
+		aaptLinkFlags = append(aaptLinkFlags, "--product", ctx.Config().ProductAAPTCharacteristics())
+	}
+
+	if !Bool(r.aaptProperties.Aapt_include_all_resources) {
+		// Product AAPT config
+		for _, aaptConfig := range ctx.Config().ProductAAPTConfig() {
+			aaptLinkFlags = append(aaptLinkFlags, "-c", aaptConfig)
+		}
+
+		// Product AAPT preferred config
+		if len(ctx.Config().ProductAAPTPreferredConfig()) > 0 {
+			aaptLinkFlags = append(aaptLinkFlags, "--preferred-density", ctx.Config().ProductAAPTPreferredConfig())
+		}
+	}
+
 	// Allow the override of "package name" and "overlay target package name"
 	manifestPackageName, overridden := ctx.DeviceConfig().OverrideManifestPackageNameFor(ctx.ModuleName())
 	if overridden || r.overridableProperties.Package_name != nil {

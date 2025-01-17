@@ -20,12 +20,25 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
 	"android/soong/java/config"
 	"android/soong/remoteexec"
 )
+
+type StubsArtifactsInfo struct {
+	ApiVersionsXml android.WritablePath
+}
+
+type DroidStubsInfo struct {
+	CurrentApiTimestamp android.Path
+	EverythingArtifacts StubsArtifactsInfo
+	ExportableArtifacts StubsArtifactsInfo
+}
+
+var DroidStubsInfoProvider = blueprint.NewProvider[DroidStubsInfo]()
 
 // The values allowed for Droidstubs' Api_levels_sdk_type
 var allowedApiLevelSdkTypes = []string{"public", "system", "module-lib", "system-server"}
@@ -498,9 +511,9 @@ func (d *Droidstubs) annotationsFlags(ctx android.ModuleContext, cmd *android.Ru
 }
 
 func (d *Droidstubs) mergeAnnoDirFlags(ctx android.ModuleContext, cmd *android.RuleBuilderCommand) {
-	ctx.VisitDirectDepsWithTag(metalavaMergeAnnotationsDirTag, func(m android.Module) {
-		if t, ok := m.(*ExportedDroiddocDir); ok {
-			cmd.FlagWithArg("--merge-qualifier-annotations ", t.dir.String()).Implicits(t.deps)
+	ctx.VisitDirectDepsProxyWithTag(metalavaMergeAnnotationsDirTag, func(m android.ModuleProxy) {
+		if t, ok := android.OtherModuleProvider(ctx, m, ExportedDroiddocDirInfoProvider); ok {
+			cmd.FlagWithArg("--merge-qualifier-annotations ", t.Dir.String()).Implicits(t.Deps)
 		} else {
 			ctx.PropertyErrorf("merge_annotations_dirs",
 				"module %q is not a metalava merge-annotations dir", ctx.OtherModuleName(m))
@@ -509,9 +522,9 @@ func (d *Droidstubs) mergeAnnoDirFlags(ctx android.ModuleContext, cmd *android.R
 }
 
 func (d *Droidstubs) inclusionAnnotationsFlags(ctx android.ModuleContext, cmd *android.RuleBuilderCommand) {
-	ctx.VisitDirectDepsWithTag(metalavaMergeInclusionAnnotationsDirTag, func(m android.Module) {
-		if t, ok := m.(*ExportedDroiddocDir); ok {
-			cmd.FlagWithArg("--merge-inclusion-annotations ", t.dir.String()).Implicits(t.deps)
+	ctx.VisitDirectDepsProxyWithTag(metalavaMergeInclusionAnnotationsDirTag, func(m android.ModuleProxy) {
+		if t, ok := android.OtherModuleProvider(ctx, m, ExportedDroiddocDirInfoProvider); ok {
+			cmd.FlagWithArg("--merge-inclusion-annotations ", t.Dir.String()).Implicits(t.Deps)
 		} else {
 			ctx.PropertyErrorf("merge_inclusion_annotations_dirs",
 				"module %q is not a metalava merge-annotations dir", ctx.OtherModuleName(m))
@@ -525,12 +538,12 @@ func (d *Droidstubs) apiLevelsAnnotationsFlags(ctx android.ModuleContext, cmd *a
 		d.apiLevelsGenerationFlags(ctx, cmd, stubsType, apiVersionsXml)
 		apiVersions = apiVersionsXml
 	} else {
-		ctx.VisitDirectDepsWithTag(metalavaAPILevelsModuleTag, func(m android.Module) {
-			if s, ok := m.(*Droidstubs); ok {
+		ctx.VisitDirectDepsProxyWithTag(metalavaAPILevelsModuleTag, func(m android.ModuleProxy) {
+			if s, ok := android.OtherModuleProvider(ctx, m, DroidStubsInfoProvider); ok {
 				if stubsType == Everything {
-					apiVersions = s.everythingArtifacts.apiVersionsXml
+					apiVersions = s.EverythingArtifacts.ApiVersionsXml
 				} else if stubsType == Exportable {
-					apiVersions = s.exportableArtifacts.apiVersionsXml
+					apiVersions = s.ExportableArtifacts.ApiVersionsXml
 				} else {
 					ctx.ModuleErrorf("%s stubs type does not generate api-versions.xml file", stubsType.String())
 				}
@@ -603,18 +616,18 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 
 	var dirs []string
 	var extensions_dir string
-	ctx.VisitDirectDepsWithTag(metalavaAPILevelsAnnotationsDirTag, func(m android.Module) {
-		if t, ok := m.(*ExportedDroiddocDir); ok {
-			extRegex := regexp.MustCompile(t.dir.String() + extensionsPattern)
+	ctx.VisitDirectDepsProxyWithTag(metalavaAPILevelsAnnotationsDirTag, func(m android.ModuleProxy) {
+		if t, ok := android.OtherModuleProvider(ctx, m, ExportedDroiddocDirInfoProvider); ok {
+			extRegex := regexp.MustCompile(t.Dir.String() + extensionsPattern)
 
 			// Grab the first extensions_dir and we find while scanning ExportedDroiddocDir.deps;
 			// ideally this should be read from prebuiltApis.properties.Extensions_*
-			for _, dep := range t.deps {
+			for _, dep := range t.Deps {
 				// Check to see if it matches an extension first.
 				depBase := dep.Base()
 				if extRegex.MatchString(dep.String()) && d.properties.Extensions_info_file != nil {
 					if extensions_dir == "" {
-						extensions_dir = t.dir.String() + "/extensions"
+						extensions_dir = t.Dir.String() + "/extensions"
 					}
 					cmd.Implicit(dep)
 				} else if depBase == filename {
@@ -638,7 +651,7 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 				}
 			}
 
-			dirs = append(dirs, t.dir.String())
+			dirs = append(dirs, t.Dir.String())
 		} else {
 			ctx.PropertyErrorf("api_levels_annotations_dirs",
 				"module %q is not a metalava api-levels-annotations dir", ctx.OtherModuleName(m))
@@ -1339,6 +1352,16 @@ func (d *Droidstubs) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 		rule.Build("nullabilityWarningsCheck", "nullability warnings check")
 	}
+
+	android.SetProvider(ctx, DroidStubsInfoProvider, DroidStubsInfo{
+		CurrentApiTimestamp: d.CurrentApiTimestamp(),
+		EverythingArtifacts: StubsArtifactsInfo{
+			ApiVersionsXml: d.everythingArtifacts.apiVersionsXml,
+		},
+		ExportableArtifacts: StubsArtifactsInfo{
+			ApiVersionsXml: d.exportableArtifacts.apiVersionsXml,
+		},
+	})
 
 	d.setOutputFiles(ctx)
 }

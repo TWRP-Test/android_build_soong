@@ -39,9 +39,29 @@ func createSuperImage(ctx android.LoadHookContext, partitions []string, partitio
 		Block_devices:          partitionVars.BoardSuperPartitionBlockDevices,
 		Ab_update:              proptools.BoolPtr(partitionVars.AbOtaUpdater),
 		Retrofit:               proptools.BoolPtr(partitionVars.ProductRetrofitDynamicPartitions),
-		Virtual_ab:             proptools.BoolPtr(partitionVars.ProductVirtualAbOta),
-		Virtual_ab_retrofit:    proptools.BoolPtr(partitionVars.ProductVirtualAbOtaRetrofit),
 		Use_dynamic_partitions: proptools.BoolPtr(partitionVars.ProductUseDynamicPartitions),
+	}
+	if partitionVars.ProductVirtualAbOta {
+		superImageProps.Virtual_ab.Enable = proptools.BoolPtr(true)
+		superImageProps.Virtual_ab.Retrofit = proptools.BoolPtr(partitionVars.ProductVirtualAbOtaRetrofit)
+		superImageProps.Virtual_ab.Compression = proptools.BoolPtr(partitionVars.ProductVirtualAbCompression)
+		if partitionVars.ProductVirtualAbCompressionMethod != "" {
+			superImageProps.Virtual_ab.Compression_method = proptools.StringPtr(partitionVars.ProductVirtualAbCompressionMethod)
+		}
+		if partitionVars.ProductVirtualAbCompressionFactor != "" {
+			factor, err := strconv.ParseInt(partitionVars.ProductVirtualAbCompressionFactor, 10, 32)
+			if err != nil {
+				ctx.ModuleErrorf("Compression factor must be an int, got %q", partitionVars.ProductVirtualAbCompressionFactor)
+			}
+			superImageProps.Virtual_ab.Compression_factor = proptools.Int64Ptr(factor)
+		}
+		if partitionVars.ProductVirtualAbCowVersion != "" {
+			version, err := strconv.ParseInt(partitionVars.ProductVirtualAbCowVersion, 10, 32)
+			if err != nil {
+				ctx.ModuleErrorf("COW version must be an int, got %q", partitionVars.ProductVirtualAbCowVersion)
+			}
+			superImageProps.Virtual_ab.Cow_version = proptools.Int64Ptr(version)
+		}
 	}
 	size, _ := strconv.ParseInt(partitionVars.BoardSuperPartitionSize, 10, 64)
 	superImageProps.Size = proptools.Int64Ptr(size)

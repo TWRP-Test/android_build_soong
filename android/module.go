@@ -1850,7 +1850,7 @@ type SourceFilesInfo struct {
 	Srcs Paths
 }
 
-var SourceFilesInfoKey = blueprint.NewProvider[SourceFilesInfo]()
+var SourceFilesInfoProvider = blueprint.NewProvider[SourceFilesInfo]()
 
 // FinalModuleBuildTargetsInfo is used by buildTargetSingleton to create checkbuild and
 // per-directory build targets. Only set on the final variant of each module
@@ -1872,6 +1872,7 @@ type CommonModuleInfo struct {
 	BaseModuleName          string
 	CanHaveApexVariants     bool
 	MinSdkVersion           string
+	SdkVersion              string
 	NotAvailableForPlatform bool
 	// There some subtle differences between this one and the one above.
 	NotInPlatform bool
@@ -1890,15 +1891,16 @@ var CommonModuleInfoKey = blueprint.NewProvider[CommonModuleInfo]()
 
 type PrebuiltModuleInfo struct {
 	SourceExists bool
+	UsePrebuilt  bool
 }
 
 var PrebuiltModuleInfoProvider = blueprint.NewProvider[PrebuiltModuleInfo]()
 
-type HostToolProviderData struct {
+type HostToolProviderInfo struct {
 	HostToolPath OptionalPath
 }
 
-var HostToolProviderKey = blueprint.NewProvider[HostToolProviderData]()
+var HostToolProviderInfoProvider = blueprint.NewProvider[HostToolProviderInfo]()
 
 type SourceFileGenerator interface {
 	GeneratedSourceFiles() Paths
@@ -2085,7 +2087,7 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 	}
 
 	if sourceFileProducer, ok := m.module.(SourceFileProducer); ok {
-		SetProvider(ctx, SourceFilesInfoKey, SourceFilesInfo{Srcs: sourceFileProducer.Srcs()})
+		SetProvider(ctx, SourceFilesInfoProvider, SourceFilesInfo{Srcs: sourceFileProducer.Srcs()})
 	}
 
 	if ctx.IsFinalModule(m.module) {
@@ -2183,6 +2185,17 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 		commonData.MinSdkVersion = mm.MinSdkVersion()
 	}
 
+	if mm, ok := m.module.(interface {
+		SdkVersion(ctx EarlyModuleContext) ApiLevel
+	}); ok {
+		ver := mm.SdkVersion(ctx)
+		if !ver.IsNone() {
+			commonData.SdkVersion = ver.String()
+		}
+	} else if mm, ok := m.module.(interface{ SdkVersion() string }); ok {
+		commonData.SdkVersion = mm.SdkVersion()
+	}
+
 	if m.commonProperties.ForcedDisabled {
 		commonData.Enabled = false
 	} else {
@@ -2200,10 +2213,11 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 	if p, ok := m.module.(PrebuiltInterface); ok && p.Prebuilt() != nil {
 		SetProvider(ctx, PrebuiltModuleInfoProvider, PrebuiltModuleInfo{
 			SourceExists: p.Prebuilt().SourceExists(),
+			UsePrebuilt:  p.Prebuilt().UsePrebuilt(),
 		})
 	}
 	if h, ok := m.module.(HostToolProvider); ok {
-		SetProvider(ctx, HostToolProviderKey, HostToolProviderData{
+		SetProvider(ctx, HostToolProviderInfoProvider, HostToolProviderInfo{
 			HostToolPath: h.HostToolPath()})
 	}
 
@@ -2786,7 +2800,7 @@ func outputFilesForModule(ctx PathContext, module Module, tag string) (Paths, er
 			if sourceFileProducer, ok := module.(SourceFileProducer); ok {
 				return sourceFileProducer.Srcs(), nil
 			}
-		} else if sourceFiles, ok := OtherModuleProvider(octx, module, SourceFilesInfoKey); ok {
+		} else if sourceFiles, ok := OtherModuleProvider(octx, module, SourceFilesInfoProvider); ok {
 			if tag != "" {
 				return nil, fmt.Errorf("module %q is a SourceFileProducer, which does not support tag %q", pathContextName(ctx, module), tag)
 			}

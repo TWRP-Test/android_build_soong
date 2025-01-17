@@ -173,13 +173,14 @@ func (v *vbmeta) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	algorithm := proptools.StringDefault(v.properties.Algorithm, "SHA256_RSA4096")
 	cmd.FlagWithArg("--algorithm ", algorithm)
 
+	cmd.FlagWithArg("--padding_size ", "4096")
+
 	cmd.FlagWithArg("--rollback_index ", v.rollbackIndexCommand(ctx))
 	ril := proptools.IntDefault(v.properties.Rollback_index_location, 0)
 	if ril < 0 {
 		ctx.PropertyErrorf("rollback_index_location", "must be 0, 1, 2, ...")
 		return
 	}
-	cmd.FlagWithArg("--rollback_index_location ", strconv.Itoa(ril))
 
 	for _, avb_prop := range v.properties.Avb_properties {
 		key := proptools.String(avb_prop.Key)
@@ -283,10 +284,6 @@ func (v *vbmeta) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	builder.Command().Text("truncate").
 		FlagWithArg("-s ", strconv.Itoa(vbmetaMaxSize)).
 		Output(output)
-
-	if !ctx.Config().KatiEnabled() {
-		copyImageFileToProductOut(ctx, builder, v.partitionName(), output)
-	}
 
 	builder.Build("vbmeta", fmt.Sprintf("vbmeta %s", ctx.ModuleName()))
 

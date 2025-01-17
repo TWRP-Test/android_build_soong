@@ -673,7 +673,7 @@ func (a *AndroidApp) aaptBuildActions(ctx android.ModuleContext) {
 
 func (a *AndroidApp) proguardBuildActions(ctx android.ModuleContext) {
 	var staticLibProguardFlagFiles android.Paths
-	ctx.VisitDirectDeps(func(m android.Module) {
+	ctx.VisitDirectDepsProxy(func(m android.ModuleProxy) {
 		depProguardInfo, _ := android.OtherModuleProvider(ctx, m, ProguardSpecInfoProvider)
 		staticLibProguardFlagFiles = append(staticLibProguardFlagFiles, depProguardInfo.UnconditionallyExportedProguardFlags.ToList()...)
 		if ctx.OtherModuleDependencyTag(m) == staticLibTag {
@@ -1113,18 +1113,23 @@ func collectAppDeps(ctx android.ModuleContext, app appDepsInterface,
 			app.SdkVersion(ctx).Kind != android.SdkCorePlatform && !app.RequiresStableAPIs(ctx)
 	}
 	jniLib, prebuiltJniPackages := collectJniDeps(ctx, shouldCollectRecursiveNativeDeps,
-		checkNativeSdkVersion, func(parent, child android.Module) bool {
+		checkNativeSdkVersion, func(parent, child android.ModuleProxy) bool {
 			apkInApex := ctx.Module().(android.ApexModule).NotInPlatform()
-			childLinkable, _ := child.(cc.LinkableInterface)
-			parentLinkable, _ := parent.(cc.LinkableInterface)
-			useStubsOfDep := childLinkable.IsStubs()
-			if apkInApex && parentLinkable != nil {
-				vintf := childLinkable.(cc.VersionedLinkableInterface).VersionedInterface()
+			childLinkable, _ := android.OtherModuleProvider(ctx, child, cc.LinkableInfoProvider)
+			parentIsLinkable := false
+			if ctx.EqualModules(ctx.Module(), parent) {
+				parentLinkable, _ := ctx.Module().(cc.LinkableInterface)
+				parentIsLinkable = parentLinkable != nil
+			} else {
+				_, parentIsLinkable = android.OtherModuleProvider(ctx, parent, cc.LinkableInfoProvider)
+			}
+			useStubsOfDep := childLinkable.IsStubs
+			if apkInApex && parentIsLinkable {
 				// APK-in-APEX
 				// If the parent is a linkable interface, use stubs if the dependency edge crosses an apex boundary.
-				useStubsOfDep = useStubsOfDep || (vintf.HasStubsVariants() && cc.ShouldUseStubForApex(ctx, parent, child))
+				useStubsOfDep = useStubsOfDep || (childLinkable.HasStubsVariants && cc.ShouldUseStubForApex(ctx, parent, child))
 			}
-			return !childLinkable.IsNdk(ctx.Config()) && !useStubsOfDep
+			return !childLinkable.IsNdk && !useStubsOfDep
 		})
 
 	var certificates []Certificate
@@ -1160,22 +1165,25 @@ func collectAppDeps(ctx android.ModuleContext, app appDepsInterface,
 func collectJniDeps(ctx android.ModuleContext,
 	shouldCollectRecursiveNativeDeps bool,
 	checkNativeSdkVersion bool,
-	filter func(parent, child android.Module) bool) ([]jniLib, android.Paths) {
+	filter func(parent, child android.ModuleProxy) bool) ([]jniLib, android.Paths) {
 	var jniLibs []jniLib
 	var prebuiltJniPackages android.Paths
 	seenModulePaths := make(map[string]bool)
 
-	ctx.WalkDeps(func(module android.Module, parent android.Module) bool {
+	ctx.WalkDepsProxy(func(module, parent android.ModuleProxy) bool {
+		if !android.OtherModuleProviderOrDefault(ctx, module, android.CommonModuleInfoKey).Enabled {
+			return false
+		}
 		otherName := ctx.OtherModuleName(module)
 		tag := ctx.OtherModuleDependencyTag(module)
 
 		if IsJniDepTag(tag) || cc.IsSharedDepTag(tag) {
-			if dep, ok := module.(cc.LinkableInterface); ok {
+			if dep, ok := android.OtherModuleProvider(ctx, module, cc.LinkableInfoProvider); ok {
 				if filter != nil && !filter(parent, module) {
 					return false
 				}
 
-				lib := dep.OutputFile()
+				lib := dep.OutputFile
 				if lib.Valid() {
 					path := lib.Path()
 					if seenModulePaths[path.String()] {
@@ -1183,7 +1191,8 @@ func collectJniDeps(ctx android.ModuleContext,
 					}
 					seenModulePaths[path.String()] = true
 
-					if checkNativeSdkVersion && dep.SdkVersion() == "" {
+					commonInfo := android.OtherModuleProviderOrDefault(ctx, module, android.CommonModuleInfoKey)
+					if checkNativeSdkVersion && commonInfo.SdkVersion == "" {
 						ctx.PropertyErrorf("jni_libs", "JNI dependency %q uses platform APIs, but this module does not",
 							otherName)
 					}
@@ -1191,11 +1200,11 @@ func collectJniDeps(ctx android.ModuleContext,
 					jniLibs = append(jniLibs, jniLib{
 						name:           ctx.OtherModuleName(module),
 						path:           path,
-						target:         module.Target(),
-						coverageFile:   dep.CoverageOutputFile(),
-						unstrippedFile: dep.UnstrippedOutputFile(),
-						partition:      dep.Partition(),
-						installPaths:   android.OtherModuleProviderOrDefault(ctx, dep, android.InstallFilesProvider).InstallFiles,
+						target:         commonInfo.Target,
+						coverageFile:   dep.CoverageOutputFile,
+						unstrippedFile: dep.UnstrippedOutputFile,
+						partition:      dep.Partition,
+						installPaths:   android.OtherModuleProviderOrDefault(ctx, module, android.InstallFilesProvider).InstallFiles,
 					})
 				} else if ctx.Config().AllowMissingDependencies() {
 					ctx.AddMissingDependencies([]string{otherName})

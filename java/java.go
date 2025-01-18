@@ -3358,6 +3358,8 @@ func DefaultsFactory() android.Module {
 		&bootclasspathFragmentProperties{},
 		&SourceOnlyBootclasspathProperties{},
 		&ravenwoodTestProperties{},
+		&AndroidAppImportProperties{},
+		&UsesLibraryProperties{},
 	)
 
 	android.InitDefaultsModule(module)

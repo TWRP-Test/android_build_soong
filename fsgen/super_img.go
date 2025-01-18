@@ -27,7 +27,12 @@ func buildingSuperImage(partitionVars android.PartitionVariables) bool {
 	return partitionVars.ProductBuildSuperPartition
 }
 
-func createSuperImage(ctx android.LoadHookContext, partitions []string, partitionVars android.PartitionVariables) []string {
+func createSuperImage(
+	ctx android.LoadHookContext,
+	partitions []string,
+	partitionVars android.PartitionVariables,
+	systemOtherImageName string,
+) []string {
 	baseProps := &struct {
 		Name *string
 	}{
@@ -78,6 +83,10 @@ func createSuperImage(ctx android.LoadHookContext, partitions []string, partitio
 		partitionGroupsInfo = append(partitionGroupsInfo, info)
 	}
 	superImageProps.Partition_groups = partitionGroupsInfo
+
+	if systemOtherImageName != "" {
+		superImageProps.System_other_partition = proptools.StringPtr(systemOtherImageName)
+	}
 
 	var superImageSubpartitions []string
 	partitionNameProps := &filesystem.SuperImagePartitionNameProperties{}

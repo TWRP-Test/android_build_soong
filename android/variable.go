@@ -624,6 +624,8 @@ type PartitionVariables struct {
 	VendorDlkmSecurityPatch string `json:",omitempty"`
 	OdmDlkmSecurityPatch    string `json:",omitempty"`
 
+	BuildingSystemOtherImage bool `json:",omitempty"`
+
 	// Boot image stuff
 	BuildingRamdiskImage              bool     `json:",omitempty"`
 	ProductBuildBootImage             bool     `json:",omitempty"`

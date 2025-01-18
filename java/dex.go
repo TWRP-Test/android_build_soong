@@ -378,7 +378,7 @@ func (d *dexer) r8Flags(ctx android.ModuleContext, dexParams *compileDexParams, 
 		r8Flags = append(r8Flags, "--keep-runtime-invisible-annotations")
 	}
 
-	if BoolDefault(opt.Proguard_compatibility, true) {
+	if BoolDefault(opt.Proguard_compatibility, !ctx.Config().UseR8FullModeByDefault()) {
 		r8Flags = append(r8Flags, "--force-proguard-compatibility")
 	}
 

@@ -28,8 +28,11 @@ import (
 // Note that this is ALL aconfig_declarations modules present in the tree, not just
 // ones that are relevant to the product currently being built, so that that infra
 // doesn't need to pull from multiple builds and merge them.
-func AllAconfigDeclarationsFactory() android.Singleton {
-	return &allAconfigDeclarationsSingleton{releaseMap: make(map[string]allAconfigReleaseDeclarationsSingleton)}
+func AllAconfigDeclarationsFactory() android.SingletonModule {
+	module := &allAconfigDeclarationsSingleton{releaseMap: make(map[string]allAconfigReleaseDeclarationsSingleton)}
+	module.AddProperties(&module.properties)
+	android.InitAndroidArchModule(module, android.DeviceSupported, android.MultilibCommon)
+	return module
 }
 
 type allAconfigReleaseDeclarationsSingleton struct {
@@ -37,8 +40,15 @@ type allAconfigReleaseDeclarationsSingleton struct {
 	intermediateTextProtoPath   android.OutputPath
 }
 
+type allAconfigReleaseDeclarationsProperties struct {
+	Api_files []string `android:"arch_variant,path"`
+}
+
 type allAconfigDeclarationsSingleton struct {
+	android.SingletonModuleBase
+
 	releaseMap map[string]allAconfigReleaseDeclarationsSingleton
+	properties allAconfigReleaseDeclarationsProperties
 }
 
 func (this *allAconfigDeclarationsSingleton) sortedConfigNames() []string {
@@ -50,7 +60,30 @@ func (this *allAconfigDeclarationsSingleton) sortedConfigNames() []string {
 	return names
 }
 
-func (this *allAconfigDeclarationsSingleton) GenerateBuildActions(ctx android.SingletonContext) {
+func (this *allAconfigDeclarationsSingleton) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+	apiFiles := android.Paths{}
+	for _, apiFile := range this.properties.Api_files {
+		if path := android.PathForModuleSrc(ctx, apiFile); path != nil {
+			apiFiles = append(apiFiles, path)
+		}
+	}
+	flagFile := android.PathForIntermediates(ctx, "all_aconfig_declarations.pb")
+
+	output := android.PathForIntermediates(ctx, "finalized-flags.txt")
+
+	ctx.Build(pctx, android.BuildParams{
+		Rule:   RecordFinalizedFlagsRule,
+		Inputs: append(apiFiles, flagFile),
+		Output: output,
+		Args: map[string]string{
+			"api_files": android.JoinPathsWithPrefix(apiFiles, "--api-file "),
+			"flag_file": "--flag-file " + flagFile.String(),
+		},
+	})
+	ctx.Phony("all_aconfig_declarations", output)
+}
+
+func (this *allAconfigDeclarationsSingleton) GenerateSingletonBuildActions(ctx android.SingletonContext) {
 	for _, rcName := range append([]string{""}, ctx.Config().ReleaseAconfigExtraReleaseConfigs()...) {
 		// Find all of the aconfig_declarations modules
 		var packages = make(map[string]int)
@@ -116,4 +149,5 @@ func (this *allAconfigDeclarationsSingleton) MakeVars(ctx android.MakeVarsContex
 			ctx.DistForGoalWithFilename(goal, this.releaseMap[rcName].intermediateTextProtoPath, assembleFileName(rcName, "flags.textproto"))
 		}
 	}
+	ctx.DistForGoalWithFilename("sdk", android.PathForIntermediates(ctx, "finalized-flags.txt"), "finalized-flags.txt")
 }

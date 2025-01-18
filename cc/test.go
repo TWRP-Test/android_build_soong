@@ -29,8 +29,8 @@ type TestLinkerProperties struct {
 	// if set, build against the gtest library. Defaults to true.
 	Gtest *bool
 
-	// if set, use the isolated gtest runner. Defaults to true if gtest is also true and the arch is Windows, false
-	// otherwise.
+	// if set, use the isolated gtest runner. Defaults to false.
+	// Isolation is not supported on Windows.
 	Isolated *bool
 }
 
@@ -198,8 +198,8 @@ func (test *testDecorator) gtest() bool {
 	return BoolDefault(test.LinkerProperties.Gtest, true)
 }
 
-func (test *testDecorator) isolated(ctx android.EarlyModuleContext) bool {
-	return BoolDefault(test.LinkerProperties.Isolated, false)
+func (test *testDecorator) isolated(ctx android.BaseModuleContext) bool {
+	return BoolDefault(test.LinkerProperties.Isolated, false) && !ctx.Windows()
 }
 
 // NOTE: Keep this in sync with cc/cc_test.bzl#gtest_copts

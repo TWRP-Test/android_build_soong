@@ -70,6 +70,13 @@ var (
 				"${aconfig}",
 			},
 		}, "cache_files")
+	RecordFinalizedFlagsRule = pctx.AndroidStaticRule("RecordFinalizedFlagsRule",
+		blueprint.RuleParams{
+			Command: `${record-finalized-flags} ${flag_file} ${api_files} > ${out}`,
+			CommandDeps: []string{
+				"${record-finalized-flags}",
+			},
+		}, "api_files", "flag_file")
 
 	CreateStorageRule = pctx.AndroidStaticRule("aconfig_create_storage",
 		blueprint.RuleParams{
@@ -112,12 +119,13 @@ func init() {
 	RegisterBuildComponents(android.InitRegistrationContext)
 	pctx.HostBinToolVariable("aconfig", "aconfig")
 	pctx.HostBinToolVariable("soong_zip", "soong_zip")
+	pctx.HostBinToolVariable("record-finalized-flags", "record-finalized-flags")
 }
 
 func RegisterBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("aconfig_declarations", DeclarationsFactory)
 	ctx.RegisterModuleType("aconfig_values", ValuesFactory)
 	ctx.RegisterModuleType("aconfig_value_set", ValueSetFactory)
-	ctx.RegisterParallelSingletonType("all_aconfig_declarations", AllAconfigDeclarationsFactory)
+	ctx.RegisterSingletonModuleType("all_aconfig_declarations", AllAconfigDeclarationsFactory)
 	ctx.RegisterParallelSingletonType("exported_java_aconfig_library", ExportedJavaDeclarationsLibraryFactory)
 }

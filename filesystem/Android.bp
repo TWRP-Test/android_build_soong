@@ -28,6 +28,7 @@ bootstrap_go_package {
         "raw_binary.go",
         "super_image.go",
         "system_image.go",
+        "system_other.go",
         "vbmeta.go",
         "testing.go",
     ],

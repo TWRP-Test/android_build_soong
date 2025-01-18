@@ -59,6 +59,45 @@ func TestAndroidAppImport(t *testing.T) {
 	android.AssertStringEquals(t, "Invalid args", "/system/app/foo/foo.apk", rule.Args["install_path"])
 }
 
+func TestAndroidAppImportWithDefaults(t *testing.T) {
+	ctx, _ := testJava(t, `
+		android_app_import {
+			name: "foo",
+			defaults: ["foo_defaults"],
+		}
+
+		java_defaults {
+			name: "foo_defaults",
+			apk: "prebuilts/apk/app.apk",
+			certificate: "platform",
+			dex_preopt: {
+				enabled: true,
+			},
+		}
+		`)
+
+	variant := ctx.ModuleForTests("foo", "android_common")
+
+	// Check dexpreopt outputs.
+	if variant.MaybeOutput("dexpreopt/foo/oat/arm64/package.vdex").Rule == nil ||
+		variant.MaybeOutput("dexpreopt/foo/oat/arm64/package.odex").Rule == nil {
+		t.Errorf("can't find dexpreopt outputs")
+	}
+
+	// Check cert signing flag.
+	signedApk := variant.Output("signed/foo.apk")
+	signingFlag := signedApk.Args["certificates"]
+	expected := "build/make/target/product/security/platform.x509.pem build/make/target/product/security/platform.pk8"
+	if expected != signingFlag {
+		t.Errorf("Incorrect signing flags, expected: %q, got: %q", expected, signingFlag)
+	}
+	rule := variant.Rule("genProvenanceMetaData")
+	android.AssertStringEquals(t, "Invalid input", "prebuilts/apk/app.apk", rule.Inputs[0].String())
+	android.AssertStringEquals(t, "Invalid output", "out/soong/.intermediates/provenance_metadata/foo/provenance_metadata.textproto", rule.Output.String())
+	android.AssertStringEquals(t, "Invalid args", "foo", rule.Args["module_name"])
+	android.AssertStringEquals(t, "Invalid args", "/system/app/foo/foo.apk", rule.Args["install_path"])
+}
+
 func TestAndroidAppImport_NoDexPreopt(t *testing.T) {
 	ctx, _ := testJava(t, `
 		android_app_import {

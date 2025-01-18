@@ -635,18 +635,12 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 					cmd.Implicit(dep)
 				} else if depBase == AndroidPlusUpdatableJar && d.properties.Extensions_info_file != nil {
 					// The output api-versions.xml has been requested to include information on SDK
-					// extensions. That means it also needs to include
-					// so
-					// The module-lib and system-server directories should use `android-plus-updatable.jar`
-					// instead of `android.jar`. See AndroidPlusUpdatableJar for more information.
-					cmd.Implicit(dep)
-				} else if filename != "android.jar" && depBase == "android.jar" {
-					// Metalava implicitly searches these patterns:
-					//  prebuilts/tools/common/api-versions/android-{version:level}/android.jar
-					//  prebuilts/sdk/{version:level}/public/android.jar
-					// Add android.jar files from the api_levels_annotations_dirs directories to try
-					// to satisfy these patterns.  If Metalava can't find a match for an API level
-					// between 1 and 28 in at least one pattern it will fail.
+					// extensions, i.e. updatable Apis. That means it also needs to include the history of
+					// those updatable APIs. Usually, they would be included in the `android.jar` file but
+					// unfortunately, the `module-lib` and `system-server` cannot as it would lead to build
+					// cycles. So, the module-lib and system-server directories contain an
+					// `android-plus-updatable.jar` that should be used instead of `android.jar`. See
+					// AndroidPlusUpdatableJar for more information.
 					cmd.Implicit(dep)
 				}
 			}
@@ -678,6 +672,10 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 
 			addPattern(filename)
 		}
+
+		if extensions_dir != "" {
+			cmd.FlagWithArg("--android-jar-pattern ", fmt.Sprintf("%s/{version:extension}/%s/{module}.jar", extensions_dir, sdkDir))
+		}
 	}
 
 	if d.properties.Extensions_info_file != nil {
@@ -686,7 +684,6 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 		}
 		info_file := android.PathForModuleSrc(ctx, *d.properties.Extensions_info_file)
 		cmd.Implicit(info_file)
-		cmd.FlagWithArg("--sdk-extensions-root ", extensions_dir)
 		cmd.FlagWithArg("--sdk-extensions-info ", info_file.String())
 	}
 }

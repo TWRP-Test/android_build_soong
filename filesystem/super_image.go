@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -55,6 +56,9 @@ type SuperImageProperties struct {
 	Sparse *bool
 	// information about how partitions within the super partition are grouped together
 	Partition_groups []PartitionGroupsInfo
+	// Name of the system_other partition filesystem module. This module will be installed to
+	// the "b" slot of the system partition in a/b partition builds.
+	System_other_partition *string
 	// whether dynamic partitions is used
 	Use_dynamic_partitions *bool
 	Virtual_ab             struct {
@@ -127,6 +131,12 @@ type superImageDepTagType struct {
 
 var subImageDepTag superImageDepTagType
 
+type systemOtherDepTagType struct {
+	blueprint.BaseDependencyTag
+}
+
+var systemOtherDepTag systemOtherDepTagType
+
 func (s *superImage) DepsMutator(ctx android.BottomUpMutatorContext) {
 	addDependencyIfDefined := func(dep *string) {
 		if dep != nil {
@@ -143,6 +153,9 @@ func (s *superImage) DepsMutator(ctx android.BottomUpMutatorContext) {
 	addDependencyIfDefined(s.partitionProps.Vendor_dlkm_partition)
 	addDependencyIfDefined(s.partitionProps.Odm_partition)
 	addDependencyIfDefined(s.partitionProps.Odm_dlkm_partition)
+	if s.properties.System_other_partition != nil {
+		ctx.AddDependency(ctx.Module(), systemOtherDepTag, *s.properties.System_other_partition)
+	}
 }
 
 func (s *superImage) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -296,6 +309,20 @@ func (s *superImage) buildMiscInfo(ctx android.ModuleContext) (android.Path, and
 			handleSubPartition("odm_dlkm", s.partitionProps.Odm_dlkm_partition)
 		default:
 			ctx.ModuleErrorf("partition %q is not a super image supported partition", p)
+		}
+	}
+
+	if s.properties.System_other_partition != nil {
+		if !slices.Contains(partitionList, "system") {
+			ctx.PropertyErrorf("system_other_partition", "Must have a system partition to use a system_other partition")
+		}
+		systemOther := ctx.GetDirectDepProxyWithTag(*s.properties.System_other_partition, systemOtherDepTag)
+		systemOtherFiles := android.OutputFilesForModule(ctx, systemOther, "")
+		if len(systemOtherFiles) != 1 {
+			ctx.PropertyErrorf("system_other_partition", "Expected 1 output file from module %q", *&s.properties.System_other_partition)
+		} else {
+			addStr("system_other_image", systemOtherFiles[0].String())
+			deps = append(deps, systemOtherFiles[0])
 		}
 	}
 

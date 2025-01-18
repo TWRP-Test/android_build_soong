@@ -2175,6 +2175,10 @@ func (c *config) UseTransitiveJarsInClasspath() bool {
 	return c.productVariables.GetBuildFlagBool("RELEASE_USE_TRANSITIVE_JARS_IN_CLASSPATH")
 }
 
+func (c *config) UseR8FullModeByDefault() bool {
+	return c.productVariables.GetBuildFlagBool("RELEASE_R8_FULL_MODE_BY_DEFAULT")
+}
+
 func (c *config) UseR8OnlyRuntimeVisibleAnnotations() bool {
 	return c.productVariables.GetBuildFlagBool("RELEASE_R8_ONLY_RUNTIME_VISIBLE_ANNOTATIONS")
 }
@@ -2199,7 +2203,7 @@ var (
 		"RELEASE_APEX_CONTRIBUTIONS_CONFIGINFRASTRUCTURE":    "com.android.configinfrastructure",
 		"RELEASE_APEX_CONTRIBUTIONS_CONNECTIVITY":            "com.android.tethering",
 		"RELEASE_APEX_CONTRIBUTIONS_CONSCRYPT":               "com.android.conscrypt",
-		"RELEASE_APEX_CONTRIBUTIONS_CRASHRECOVERY":           "",
+		"RELEASE_APEX_CONTRIBUTIONS_CRASHRECOVERY":           "com.android.crashrecovery",
 		"RELEASE_APEX_CONTRIBUTIONS_DEVICELOCK":              "com.android.devicelock",
 		"RELEASE_APEX_CONTRIBUTIONS_DOCUMENTSUIGOOGLE":       "",
 		"RELEASE_APEX_CONTRIBUTIONS_EXTSERVICES":             "com.android.extservices",
@@ -2210,9 +2214,11 @@ var (
 		"RELEASE_APEX_CONTRIBUTIONS_MODULE_METADATA":         "",
 		"RELEASE_APEX_CONTRIBUTIONS_NETWORKSTACKGOOGLE":      "",
 		"RELEASE_APEX_CONTRIBUTIONS_NEURALNETWORKS":          "com.android.neuralnetworks",
+		"RELEASE_APEX_CONTRIBUTIONS_NFC":                     "com.android.nfcservices",
 		"RELEASE_APEX_CONTRIBUTIONS_ONDEVICEPERSONALIZATION": "com.android.ondevicepersonalization",
 		"RELEASE_APEX_CONTRIBUTIONS_PERMISSION":              "com.android.permission",
 		"RELEASE_APEX_CONTRIBUTIONS_PRIMARY_LIBS":            "",
+		"RELEASE_APEX_CONTRIBUTIONS_PROFILING":               "com.android.profiling",
 		"RELEASE_APEX_CONTRIBUTIONS_REMOTEKEYPROVISIONING":   "com.android.rkpd",
 		"RELEASE_APEX_CONTRIBUTIONS_RESOLV":                  "com.android.resolv",
 		"RELEASE_APEX_CONTRIBUTIONS_SCHEDULING":              "com.android.scheduling",
@@ -2221,6 +2227,7 @@ var (
 		"RELEASE_APEX_CONTRIBUTIONS_STATSD":                  "com.android.os.statsd",
 		"RELEASE_APEX_CONTRIBUTIONS_TELEMETRY_TVP":           "",
 		"RELEASE_APEX_CONTRIBUTIONS_TZDATA":                  "com.android.tzdata",
+		"RELEASE_APEX_CONTRIBUTIONS_UPROBESTATS":             "com.android.uprobestats",
 		"RELEASE_APEX_CONTRIBUTIONS_UWB":                     "com.android.uwb",
 		"RELEASE_APEX_CONTRIBUTIONS_WIFI":                    "com.android.wifi",
 	}

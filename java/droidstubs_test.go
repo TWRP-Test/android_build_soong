@@ -303,7 +303,7 @@ func TestDroidstubsWithSdkExtensions(t *testing.T) {
 	m := ctx.ModuleForTests("baz-stubs", "android_common")
 	manifest := m.Output("metalava.sbox.textproto")
 	cmdline := String(android.RuleBuilderSboxProtoForTests(t, ctx, manifest).Commands[0].Command)
-	android.AssertStringDoesContain(t, "sdk-extensions-root present", cmdline, "--sdk-extensions-root sdk/extensions")
+	android.AssertStringDoesContain(t, "android-jar-pattern present", cmdline, "--android-jar-pattern sdk/extensions/{version:extension}/public/{module}.jar")
 	android.AssertStringDoesContain(t, "sdk-extensions-info present", cmdline, "--sdk-extensions-info sdk/extensions/info.txt")
 }
 

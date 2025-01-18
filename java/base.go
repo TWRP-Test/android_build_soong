@@ -1336,6 +1336,12 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		kotlincFlags := j.properties.Kotlincflags
 		CheckKotlincFlags(ctx, kotlincFlags)
 
+		// Available kotlin versions can be found at
+		// https://github.com/JetBrains/kotlin/blob/master/compiler/util/src/org/jetbrains/kotlin/config/LanguageVersionSettings.kt#L560
+		// in the `LanguageVersion` class.
+		// For now, avoid targeting language versions directly, as we'd like to kee our source
+		// code version aligned as much as possible. Ideally, after defaulting to "2", we
+		// can remove the "1.9" option entirely, or at least make it emit a warning.
 		kotlin_lang_version := proptools.StringDefault(j.properties.Kotlin_lang_version, "1.9")
 		if kotlin_lang_version == "1.9" {
 			kotlincFlags = append(kotlincFlags, "-language-version 1.9")
@@ -1343,7 +1349,6 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 			kotlincFlags = append(kotlincFlags, "-Xsuppress-version-warnings", "-Xconsistent-data-class-copy-visibility")
 		} else {
 			ctx.PropertyErrorf("kotlin_lang_version", "Must be one of `1.9` or `2`")
-
 		}
 
 		// Workaround for KT-46512

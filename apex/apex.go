@@ -2570,12 +2570,21 @@ func (a *apexBundle) checkStaticLinkingToStubLibraries(ctx android.ModuleContext
 			fromName := ctx.OtherModuleName(from)
 			toName := ctx.OtherModuleName(to)
 
-			// The dynamic linker and crash_dump tool in the runtime APEX is the only
+			// The dynamic linker and crash_dump tool in the runtime APEX is an
 			// exception to this rule. It can't make the static dependencies dynamic
 			// because it can't do the dynamic linking for itself.
 			// Same rule should be applied to linkerconfig, because it should be executed
 			// only with static linked libraries before linker is available with ld.config.txt
 			if apexName == "com.android.runtime" && (fromName == "linker" || fromName == "crash_dump" || fromName == "linkerconfig") {
+				return false
+			}
+
+			// b/389067742 adds libz as an exception to this check. Although libz is
+			// a part of NDK and thus provides a stable interface, it never was the
+			// intention because the upstream zlib provides neither ABI- nor behavior-
+			// stability. Therefore, we want to allow portable components like APEXes to
+			// bundle libz by statically linking to it.
+			if toName == "libz" {
 				return false
 			}
 

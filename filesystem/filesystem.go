@@ -20,6 +20,7 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -746,12 +747,9 @@ func (f *filesystem) buildFileContexts(ctx android.ModuleContext) android.Path {
 
 func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, android.Paths) {
 	var deps android.Paths
-	var propFileString strings.Builder
+	var lines []string
 	addStr := func(name string, value string) {
-		propFileString.WriteString(name)
-		propFileString.WriteRune('=')
-		propFileString.WriteString(value)
-		propFileString.WriteRune('\n')
+		lines = append(lines, fmt.Sprintf("%s=%s", name, value))
 	}
 	addPath := func(name string, path android.Path) {
 		addStr(name, path.String())
@@ -880,8 +878,10 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 		addStr("needs_compress", "1")
 	}
 
+	sort.Strings(lines)
+
 	propFilePreProcessing := android.PathForModuleOut(ctx, "prop_pre_processing")
-	android.WriteFileRuleVerbatim(ctx, propFilePreProcessing, propFileString.String())
+	android.WriteFileRule(ctx, propFilePreProcessing, strings.Join(lines, "\n"))
 	propFile := android.PathForModuleOut(ctx, "prop")
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   textFileProcessorRule,

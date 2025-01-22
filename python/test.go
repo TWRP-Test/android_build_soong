@@ -199,13 +199,13 @@ func (p *PythonTestModule) GenerateAndroidBuildActions(ctx android.ModuleContext
 	}
 
 	if p.isTestHost() && len(p.testProperties.Data_device_bins_both) > 0 {
-		ctx.VisitDirectDepsWithTag(dataDeviceBinsTag, func(dep android.Module) {
+		ctx.VisitDirectDepsProxyWithTag(dataDeviceBinsTag, func(dep android.ModuleProxy) {
 			p.data = append(p.data, android.DataPath{SrcPath: android.OutputFileForModule(ctx, dep, "")})
 		})
 	}
 
 	// Emulate the data property for java_data dependencies.
-	for _, javaData := range ctx.GetDirectDepsWithTag(javaDataTag) {
+	for _, javaData := range ctx.GetDirectDepsProxyWithTag(javaDataTag) {
 		for _, javaDataSrcPath := range android.OutputFilesForModule(ctx, javaData, "") {
 			p.data = append(p.data, android.DataPath{SrcPath: javaDataSrcPath})
 		}

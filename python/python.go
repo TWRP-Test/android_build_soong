@@ -22,11 +22,22 @@ import (
 	"regexp"
 	"strings"
 
+	"android/soong/cc"
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 
 	"android/soong/android"
 )
+
+type PythonLibraryInfo struct {
+	SrcsPathMappings   []pathMapping
+	DataPathMappings   []pathMapping
+	SrcsZip            android.Path
+	PrecompiledSrcsZip android.Path
+	PkgPath            string
+}
+
+var PythonLibraryInfoProvider = blueprint.NewProvider[PythonLibraryInfo]()
 
 func init() {
 	registerPythonMutators(android.InitRegistrationContext)
@@ -173,16 +184,6 @@ func newModule(hod android.HostOrDeviceSupported, multilib android.Multilib) *Py
 	}
 }
 
-// interface implemented by Python modules to provide source and data mappings and zip to python
-// modules that depend on it
-type pythonDependency interface {
-	getSrcsPathMappings() []pathMapping
-	getDataPathMappings() []pathMapping
-	getSrcsZip() android.Path
-	getPrecompiledSrcsZip() android.Path
-	getPkgPath() string
-}
-
 // getSrcsPathMappings gets this module's path mapping of src source path : runfiles destination
 func (p *PythonLibraryModule) getSrcsPathMappings() []pathMapping {
 	return p.srcsPathMappings
@@ -211,8 +212,6 @@ func (p *PythonLibraryModule) getPkgPath() string {
 func (p *PythonLibraryModule) getBaseProperties() *BaseProperties {
 	return &p.properties
 }
-
-var _ pythonDependency = (*PythonLibraryModule)(nil)
 
 func (p *PythonLibraryModule) init() android.Module {
 	p.AddProperties(&p.properties, &p.protoProperties, &p.sourceProperties)
@@ -464,7 +463,7 @@ func (p *PythonLibraryModule) GenerateAndroidBuildActions(ctx android.ModuleCont
 	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, p.properties.Device_first_data)...)
 
 	// Emulate the data property for java_data dependencies.
-	for _, javaData := range ctx.GetDirectDepsWithTag(javaDataTag) {
+	for _, javaData := range ctx.GetDirectDepsProxyWithTag(javaDataTag) {
 		expandedData = append(expandedData, android.OutputFilesForModule(ctx, javaData, "")...)
 	}
 
@@ -492,6 +491,14 @@ func (p *PythonLibraryModule) GenerateAndroidBuildActions(ctx android.ModuleCont
 	// generate the zipfile of all source and data files
 	p.srcsZip = p.createSrcsZip(ctx, pkgPath)
 	p.precompiledSrcsZip = p.precompileSrcs(ctx)
+
+	android.SetProvider(ctx, PythonLibraryInfoProvider, PythonLibraryInfo{
+		SrcsPathMappings:   p.getSrcsPathMappings(),
+		DataPathMappings:   p.getDataPathMappings(),
+		SrcsZip:            p.getSrcsZip(),
+		PkgPath:            p.getPkgPath(),
+		PrecompiledSrcsZip: p.getPrecompiledSrcsZip(),
+	})
 }
 
 func isValidPythonPath(path string) error {
@@ -657,16 +664,16 @@ func (p *PythonLibraryModule) precompileSrcs(ctx android.ModuleContext) android.
 		stdLib = p.srcsZip
 		stdLibPkg = p.getPkgPath()
 	} else {
-		ctx.VisitDirectDepsWithTag(hostStdLibTag, func(module android.Module) {
-			if dep, ok := module.(pythonDependency); ok {
-				stdLib = dep.getPrecompiledSrcsZip()
-				stdLibPkg = dep.getPkgPath()
+		ctx.VisitDirectDepsProxyWithTag(hostStdLibTag, func(module android.ModuleProxy) {
+			if dep, ok := android.OtherModuleProvider(ctx, module, PythonLibraryInfoProvider); ok {
+				stdLib = dep.PrecompiledSrcsZip
+				stdLibPkg = dep.PkgPath
 			}
 		})
 	}
-	ctx.VisitDirectDepsWithTag(hostLauncherTag, func(module android.Module) {
-		if dep, ok := module.(IntermPathProvider); ok {
-			optionalLauncher := dep.IntermPathForModuleOut()
+	ctx.VisitDirectDepsProxyWithTag(hostLauncherTag, func(module android.ModuleProxy) {
+		if dep, ok := android.OtherModuleProvider(ctx, module, cc.LinkableInfoProvider); ok {
+			optionalLauncher := dep.OutputFile
 			if optionalLauncher.Valid() {
 				launcher = optionalLauncher.Path()
 			}
@@ -674,9 +681,9 @@ func (p *PythonLibraryModule) precompileSrcs(ctx android.ModuleContext) android.
 	})
 	var launcherSharedLibs android.Paths
 	var ldLibraryPath []string
-	ctx.VisitDirectDepsWithTag(hostlauncherSharedLibTag, func(module android.Module) {
-		if dep, ok := module.(IntermPathProvider); ok {
-			optionalPath := dep.IntermPathForModuleOut()
+	ctx.VisitDirectDepsProxyWithTag(hostlauncherSharedLibTag, func(module android.ModuleProxy) {
+		if dep, ok := android.OtherModuleProvider(ctx, module, cc.LinkableInfoProvider); ok {
+			optionalPath := dep.OutputFile
 			if optionalPath.Valid() {
 				launcherSharedLibs = append(launcherSharedLibs, optionalPath.Path())
 				ldLibraryPath = append(ldLibraryPath, filepath.Dir(optionalPath.Path().String()))
@@ -707,16 +714,6 @@ func (p *PythonLibraryModule) precompileSrcs(ctx android.ModuleContext) android.
 	return out
 }
 
-// isPythonLibModule returns whether the given module is a Python library PythonLibraryModule or not
-func isPythonLibModule(module blueprint.Module) bool {
-	if _, ok := module.(*PythonLibraryModule); ok {
-		if _, ok := module.(*PythonBinaryModule); !ok {
-			return true
-		}
-	}
-	return false
-}
-
 // collectPathsFromTransitiveDeps checks for source/data files for duplicate paths
 // for module and its transitive dependencies and collects list of data/source file
 // zips for transitive dependencies.
@@ -737,7 +734,7 @@ func (p *PythonLibraryModule) collectPathsFromTransitiveDeps(ctx android.ModuleC
 	var result android.Paths
 
 	// visit all its dependencies in depth first.
-	ctx.WalkDeps(func(child, parent android.Module) bool {
+	ctx.WalkDepsProxy(func(child, _ android.ModuleProxy) bool {
 		// we only collect dependencies tagged as python library deps
 		if ctx.OtherModuleDependencyTag(child) != pythonLibTag {
 			return false
@@ -747,27 +744,29 @@ func (p *PythonLibraryModule) collectPathsFromTransitiveDeps(ctx android.ModuleC
 		}
 		seen[child] = true
 		// Python modules only can depend on Python libraries.
-		if !isPythonLibModule(child) {
+		dep, isLibrary := android.OtherModuleProvider(ctx, child, PythonLibraryInfoProvider)
+		_, isBinary := android.OtherModuleProvider(ctx, child, PythonBinaryInfoProvider)
+		if !isLibrary || isBinary {
 			ctx.PropertyErrorf("libs",
 				"the dependency %q of module %q is not Python library!",
 				ctx.OtherModuleName(child), ctx.ModuleName())
 		}
 		// collect source and data paths, checking that there are no duplicate output file conflicts
-		if dep, ok := child.(pythonDependency); ok {
-			srcs := dep.getSrcsPathMappings()
+		if isLibrary {
+			srcs := dep.SrcsPathMappings
 			for _, path := range srcs {
 				checkForDuplicateOutputPath(ctx, destToPySrcs,
 					path.dest, path.src.String(), ctx.ModuleName(), ctx.OtherModuleName(child))
 			}
-			data := dep.getDataPathMappings()
+			data := dep.DataPathMappings
 			for _, path := range data {
 				checkForDuplicateOutputPath(ctx, destToPyData,
 					path.dest, path.src.String(), ctx.ModuleName(), ctx.OtherModuleName(child))
 			}
 			if precompiled {
-				result = append(result, dep.getPrecompiledSrcsZip())
+				result = append(result, dep.PrecompiledSrcsZip)
 			} else {
-				result = append(result, dep.getSrcsZip())
+				result = append(result, dep.SrcsZip)
 			}
 		}
 		return true

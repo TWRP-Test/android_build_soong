@@ -657,7 +657,7 @@ func (d *Droidstubs) apiLevelsGenerationFlags(ctx android.ModuleContext, cmd *an
 	for _, sdkDir := range sdkDirs {
 		for _, dir := range dirs {
 			addPattern := func(jarFilename string) {
-				cmd.FlagWithArg("--android-jar-pattern ", fmt.Sprintf("%s/{version:level}/%s/%s", dir, sdkDir, jarFilename))
+				cmd.FlagWithArg("--android-jar-pattern ", fmt.Sprintf("%s/{version:major.minor?}/%s/%s", dir, sdkDir, jarFilename))
 			}
 
 			if sdkDir == "module-lib" || sdkDir == "system-server" {

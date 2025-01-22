@@ -70,6 +70,8 @@ type AppInfo struct {
 
 	// EmbeddedJNILibs is the list of paths to JNI libraries that were embedded in the APK.
 	EmbeddedJNILibs android.Paths
+
+	MergedManifestFile android.Path
 }
 
 var AppInfoProvider = blueprint.NewProvider[*AppInfo]()
@@ -419,9 +421,10 @@ func (a *AndroidApp) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		}
 	}
 	android.SetProvider(ctx, AppInfoProvider, &AppInfo{
-		Updatable:       Bool(a.appProperties.Updatable),
-		TestHelperApp:   false,
-		EmbeddedJNILibs: embeddedJniLibs,
+		Updatable:          Bool(a.appProperties.Updatable),
+		TestHelperApp:      false,
+		EmbeddedJNILibs:    embeddedJniLibs,
+		MergedManifestFile: a.mergedManifest,
 	})
 
 	a.requiredModuleNames = a.getRequiredModuleNames(ctx)
@@ -707,7 +710,7 @@ func (a *AndroidApp) installPath(ctx android.ModuleContext) android.InstallPath 
 	return android.PathForModuleInstall(ctx, installDir, a.installApkName+".apk")
 }
 
-func (a *AndroidApp) dexBuildActions(ctx android.ModuleContext) (android.Path, android.Path) {
+func (a *AndroidApp) dexBuildActions(ctx android.ModuleContext) (android.Path, android.Path, *JavaInfo) {
 	a.dexpreopter.installPath = a.installPath(ctx)
 	a.dexpreopter.isApp = true
 	if a.dexProperties.Uncompress_dex == nil {
@@ -753,12 +756,8 @@ func (a *AndroidApp) dexBuildActions(ctx android.ModuleContext) (android.Path, a
 			packageResources = binaryResources
 		}
 	}
-	if javaInfo != nil {
-		setExtraJavaInfo(ctx, a, javaInfo)
-		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
-	}
 
-	return a.dexJarFile.PathOrNil(), packageResources
+	return a.dexJarFile.PathOrNil(), packageResources, javaInfo
 }
 
 func (a *AndroidApp) jniBuildActions(jniLibs []jniLib, prebuiltJniPackages android.Paths, ctx android.ModuleContext) android.WritablePath {
@@ -965,7 +964,7 @@ func (a *AndroidApp) generateAndroidBuildActions(ctx android.ModuleContext) {
 	a.linter.resources = a.aapt.resourceFiles
 	a.linter.buildModuleReportZip = ctx.Config().UnbundledBuildApps()
 
-	dexJarFile, packageResources := a.dexBuildActions(ctx)
+	dexJarFile, packageResources, javaInfo := a.dexBuildActions(ctx)
 
 	// No need to check the SDK version of the JNI deps unless we embed them
 	checkNativeSdkVersion := a.shouldEmbedJnis(ctx) && !Bool(a.appProperties.Jni_uses_platform_apis)
@@ -1080,6 +1079,12 @@ func (a *AndroidApp) generateAndroidBuildActions(ctx android.ModuleContext) {
 			isPrebuilt:     false,
 		},
 	)
+
+	if javaInfo != nil {
+		javaInfo.OutputFile = a.outputFile
+		setExtraJavaInfo(ctx, a, javaInfo)
+		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
+	}
 
 	a.setOutputFiles(ctx)
 }

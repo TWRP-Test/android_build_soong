@@ -204,7 +204,7 @@ func disableSourceApexVariant(ctx android.BaseModuleContext) bool {
 	}
 	apexInfo, _ := android.ModuleProvider(ctx, android.ApexInfoProvider)
 	psi := android.PrebuiltSelectionInfoMap{}
-	ctx.VisitDirectDeps(func(am android.Module) {
+	ctx.VisitDirectDepsProxy(func(am android.ModuleProxy) {
 		if prebuiltSelectionInfo, ok := android.OtherModuleProvider(ctx, am, android.PrebuiltSelectionInfoProvider); ok {
 			psi = prebuiltSelectionInfo
 		}

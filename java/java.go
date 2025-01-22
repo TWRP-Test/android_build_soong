@@ -360,6 +360,9 @@ type JavaInfo struct {
 
 	SdkVersion android.SdkSpec
 
+	// output file of the module, which may be a classes jar or a dex jar
+	OutputFile android.Path
+
 	AndroidLibraryDependencyInfo *AndroidLibraryDependencyInfo
 
 	UsesLibraryDependencyInfo *UsesLibraryDependencyInfo
@@ -1658,17 +1661,17 @@ func (j *Test) generateAndroidBuildActionsWithConfig(ctx android.ModuleContext, 
 
 	j.extraTestConfigs = android.PathsForModuleSrc(ctx, j.testProperties.Test_options.Extra_test_configs)
 
-	ctx.VisitDirectDepsWithTag(dataNativeBinsTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(dataNativeBinsTag, func(dep android.ModuleProxy) {
 		j.data = append(j.data, android.OutputFileForModule(ctx, dep, ""))
 	})
 
-	ctx.VisitDirectDepsWithTag(dataDeviceBinsTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(dataDeviceBinsTag, func(dep android.ModuleProxy) {
 		j.data = append(j.data, android.OutputFileForModule(ctx, dep, ""))
 	})
 
 	var directImplementationDeps android.Paths
 	var transitiveImplementationDeps []depset.DepSet[android.Path]
-	ctx.VisitDirectDepsWithTag(jniLibTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(jniLibTag, func(dep android.ModuleProxy) {
 		sharedLibInfo, _ := android.OtherModuleProvider(ctx, dep, cc.SharedLibraryInfoProvider)
 		if sharedLibInfo.SharedLibrary != nil {
 			// Copy to an intermediate output directory to append "lib[64]" to the path,

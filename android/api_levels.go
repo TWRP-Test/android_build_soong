@@ -465,6 +465,7 @@ func getApiLevelsMapReleasedVersions() (map[string]int, error) {
 		"Tiramisu":        33,
 		"UpsideDownCake":  34,
 		"VanillaIceCream": 35,
+		"Baklava":         36,
 	}, nil
 }
 

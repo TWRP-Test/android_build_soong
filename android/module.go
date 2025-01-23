@@ -990,8 +990,9 @@ func (m *ModuleBase) baseDepsMutator(ctx BottomUpMutatorContext) {
 	// 2. `boot_signer` is `required` by modules like `build_image` which is explicitly list as
 	// the top-level build goal (in the shell file that invokes Soong).
 	// 3. `boot_signer` depends on `bouncycastle-unbundled` which is in the missing git project.
-	// 4. aosp_kernel-build-tools invokes soong with `--skip-make`. Therefore, the absence of
-	// ALLOW_MISSING_DEPENDENCIES didn't cause a problem.
+	// 4. aosp_kernel-build-tools invokes soong with `--soong-only`. Therefore, the absence of
+	// ALLOW_MISSING_DEPENDENCIES didn't cause a problem, as previously only make processed required
+	// dependencies.
 	// 5. Now, since Soong understands `required` deps, it tries to build `boot_signer` and the
 	// absence of external/bouncycastle fails the build.
 	//

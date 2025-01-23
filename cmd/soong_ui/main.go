@@ -471,20 +471,6 @@ func buildActionConfig(ctx build.Context, args ...string) build.Config {
 		description: "Build action: build from the top of the source tree.",
 		action:      build.BUILD_MODULES,
 	}, {
-		// This is redirecting to mma build command behaviour. Once it has soaked for a
-		// while, the build command is deleted from here once it has been removed from the
-		// envsetup.sh.
-		name:        "modules-in-a-dir-no-deps",
-		description: "Build action: builds all of the modules in the current directory without their dependencies.",
-		action:      build.BUILD_MODULES_IN_A_DIRECTORY,
-	}, {
-		// This is redirecting to mmma build command behaviour. Once it has soaked for a
-		// while, the build command is deleted from here once it has been removed from the
-		// envsetup.sh.
-		name:        "modules-in-dirs-no-deps",
-		description: "Build action: builds all of the modules in the supplied directories without their dependencies.",
-		action:      build.BUILD_MODULES_IN_DIRECTORIES,
-	}, {
 		name:        "modules-in-a-dir",
 		description: "Build action: builds all of the modules in the current directory and their dependencies.",
 		action:      build.BUILD_MODULES_IN_A_DIRECTORY,

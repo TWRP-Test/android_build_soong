@@ -76,7 +76,7 @@ func runNinjaForBuild(ctx Context, config Config) {
 			//"--frontend-file", fifo,
 		}
 	default:
-		// NINJA_NINJA is the default.
+		// NINJA_NINJA or NINJA_NINJAGO.
 		executable = config.NinjaBin()
 		args = []string{
 			"-d", "keepdepfile",
@@ -351,12 +351,18 @@ func (c *ninjaStucknessChecker) check(ctx Context, config Config) {
 }
 
 // Constructs and runs the Ninja command line to get the inputs of a goal.
-// For now, this will always run ninja, because ninjago, n2 and siso don't have the
+// For n2 and siso, this will always run ninja, because they don't have the
 // `-t inputs` command.  This command will use the inputs command's -d option,
 // to use the dep file iff ninja was the executor. For other executors, the
 // results will be wrong.
 func runNinjaInputs(ctx Context, config Config, goal string) ([]string, error) {
-	executable := config.PrebuiltBuildTool("ninja")
+	var executable string
+	switch config.ninjaCommand {
+	case NINJA_N2, NINJA_SISO:
+		executable = config.PrebuiltBuildTool("ninja")
+	default:
+		executable = config.NinjaBin()
+	}
 
 	args := []string{
 		"-f",

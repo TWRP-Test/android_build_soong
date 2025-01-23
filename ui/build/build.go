@@ -33,26 +33,13 @@ func SetupOutDir(ctx Context, config Config) {
 	ensureEmptyFileExists(ctx, filepath.Join(config.OutDir(), "CleanSpec.mk"))
 	ensureEmptyDirectoriesExist(ctx, config.TempDir())
 
-	// Potentially write a marker file for whether kati is enabled. This is used by soong_build to
-	// potentially run the AndroidMk singleton and postinstall commands.
-	// Note that the absence of the  file does not not preclude running Kati for product
-	// configuration purposes.
-	katiEnabledMarker := filepath.Join(config.SoongOutDir(), ".soong.kati_enabled")
-	if config.SkipKatiNinja() {
-		os.Remove(katiEnabledMarker)
-		// Note that we can not remove the file for SkipKati builds yet -- some continuous builds
-		// --skip-make builds rely on kati targets being defined.
-	} else if !config.SkipKati() {
-		ensureEmptyFileExists(ctx, katiEnabledMarker)
-	}
-
 	// The ninja_build file is used by our buildbots to understand that the output
 	// can be parsed as ninja output.
 	ensureEmptyFileExists(ctx, filepath.Join(config.OutDir(), "ninja_build"))
 	ensureEmptyFileExists(ctx, filepath.Join(config.OutDir(), ".out-dir"))
 
 	if buildDateTimeFile, ok := config.environ.Get("BUILD_DATETIME_FILE"); ok {
-		err := ioutil.WriteFile(buildDateTimeFile, []byte(config.buildDateTime), 0666) // a+rw
+		err := os.WriteFile(buildDateTimeFile, []byte(config.buildDateTime), 0666) // a+rw
 		if err != nil {
 			ctx.Fatalln("Failed to write BUILD_DATETIME to file:", err)
 		}
@@ -98,6 +85,21 @@ func SetupOutDir(ctx Context, config Config) {
 		}
 	}
 	writeValueIfChanged(ctx, config, config.SoongOutDir(), "build_hostname.txt", hostname)
+}
+
+// SetupKatiEnabledMarker creates or delets a file that tells soong_build if we're running with
+// kati.
+func SetupKatiEnabledMarker(ctx Context, config Config) {
+	// Potentially write a marker file for whether kati is enabled. This is used by soong_build to
+	// potentially run the AndroidMk singleton and postinstall commands.
+	// Note that the absence of the file does not preclude running Kati for product
+	// configuration purposes.
+	katiEnabledMarker := filepath.Join(config.SoongOutDir(), ".soong.kati_enabled")
+	if config.SkipKati() || config.SkipKatiNinja() {
+		os.Remove(katiEnabledMarker)
+	} else {
+		ensureEmptyFileExists(ctx, katiEnabledMarker)
+	}
 }
 
 var combinedBuildNinjaTemplate = template.Must(template.New("combined").Parse(`
@@ -329,9 +331,15 @@ func Build(ctx Context, config Config) {
 
 	if what&RunProductConfig != 0 {
 		runMakeProductConfig(ctx, config)
+
+		// Re-evaluate what to run because there are product variables that control how
+		// soong and make are run.
+		what = evaluateWhatToRun(config, ctx.Verboseln)
 	}
 
 	// Everything below here depends on product config.
+
+	SetupKatiEnabledMarker(ctx, config)
 
 	if inList("installclean", config.Arguments()) ||
 		inList("install-clean", config.Arguments()) {

@@ -246,6 +246,8 @@ func runMakeProductConfig(ctx Context, config Config) {
 		// `true` will relegate missing outputs to warnings.
 		"BUILD_BROKEN_MISSING_OUTPUTS",
 
+		"PRODUCT_SOONG_ONLY",
+
 		// Not used, but useful to be in the soong.log
 		"TARGET_BUILD_TYPE",
 		"HOST_ARCH",
@@ -314,4 +316,11 @@ func runMakeProductConfig(ctx Context, config Config) {
 	config.SetBuildBrokenNinjaUsesEnvVars(strings.Fields(makeVars["BUILD_BROKEN_NINJA_USES_ENV_VARS"]))
 	config.SetSourceRootDirs(strings.Fields(makeVars["PRODUCT_SOURCE_ROOT_DIRS"]))
 	config.SetBuildBrokenMissingOutputs(makeVars["BUILD_BROKEN_MISSING_OUTPUTS"] == "true")
+
+	if !config.skipKatiControlledByFlags {
+		if makeVars["PRODUCT_SOONG_ONLY"] == "true" {
+			config.skipKati = true
+			config.skipKatiNinja = true
+		}
+	}
 }

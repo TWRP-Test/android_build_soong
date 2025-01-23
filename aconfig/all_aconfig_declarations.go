@@ -19,6 +19,8 @@ import (
 	"slices"
 
 	"android/soong/android"
+
+	"github.com/google/blueprint/proptools"
 )
 
 // A singleton module that collects all of the aconfig flags declared in the
@@ -41,7 +43,7 @@ type allAconfigReleaseDeclarationsSingleton struct {
 }
 
 type allAconfigReleaseDeclarationsProperties struct {
-	Api_files []string `android:"arch_variant,path"`
+	Api_files proptools.Configurable[[]string] `android:"arch_variant,path"`
 }
 
 type allAconfigDeclarationsSingleton struct {
@@ -62,7 +64,7 @@ func (this *allAconfigDeclarationsSingleton) sortedConfigNames() []string {
 
 func (this *allAconfigDeclarationsSingleton) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	apiFiles := android.Paths{}
-	for _, apiFile := range this.properties.Api_files {
+	for _, apiFile := range this.properties.Api_files.GetOrDefault(ctx, nil) {
 		if path := android.PathForModuleSrc(ctx, apiFile); path != nil {
 			apiFiles = append(apiFiles, path)
 		}

@@ -63,6 +63,7 @@ const (
 	NINJA_NINJA
 	NINJA_N2
 	NINJA_SISO
+	NINJA_NINJAGO
 )
 
 type Config struct{ *configImpl }
@@ -77,26 +78,27 @@ type configImpl struct {
 	logsPrefix    string
 
 	// From the arguments
-	parallel                 int
-	keepGoing                int
-	verbose                  bool
-	checkbuild               bool
-	dist                     bool
-	jsonModuleGraph          bool
-	reportMkMetrics          bool // Collect and report mk2bp migration progress metrics.
-	soongDocs                bool
-	skipConfig               bool
-	skipKati                 bool
-	skipKatiNinja            bool
-	skipSoong                bool
-	skipNinja                bool
-	skipSoongTests           bool
-	searchApiDir             bool // Scan the Android.bp files generated in out/api_surfaces
-	skipMetricsUpload        bool
-	buildStartedTime         int64 // For metrics-upload-only - manually specify a build-started time
-	buildFromSourceStub      bool
-	incrementalBuildActions  bool
-	ensureAllowlistIntegrity bool // For CI builds - make sure modules are mixed-built
+	parallel                  int
+	keepGoing                 int
+	verbose                   bool
+	checkbuild                bool
+	dist                      bool
+	jsonModuleGraph           bool
+	reportMkMetrics           bool // Collect and report mk2bp migration progress metrics.
+	soongDocs                 bool
+	skipConfig                bool
+	skipKati                  bool
+	skipKatiControlledByFlags bool
+	skipKatiNinja             bool
+	skipSoong                 bool
+	skipNinja                 bool
+	skipSoongTests            bool
+	searchApiDir              bool // Scan the Android.bp files generated in out/api_surfaces
+	skipMetricsUpload         bool
+	buildStartedTime          int64 // For metrics-upload-only - manually specify a build-started time
+	buildFromSourceStub       bool
+	incrementalBuildActions   bool
+	ensureAllowlistIntegrity  bool // For CI builds - make sure modules are mixed-built
 
 	// From the product config
 	katiArgs        []string
@@ -323,6 +325,8 @@ func NewConfig(ctx Context, args ...string) Config {
 		ret.ninjaCommand = NINJA_N2
 	case "siso":
 		ret.ninjaCommand = NINJA_SISO
+	case "ninjago":
+		ret.ninjaCommand = NINJA_NINJAGO
 	default:
 		if os.Getenv("SOONG_USE_N2") == "true" {
 			ret.ninjaCommand = NINJA_N2
@@ -843,15 +847,20 @@ func (c *configImpl) parseArgs(ctx Context, args []string) {
 			c.emptyNinjaFile = true
 		} else if arg == "--skip-ninja" {
 			c.skipNinja = true
-		} else if arg == "--skip-make" {
-			// TODO(ccross): deprecate this, it has confusing behaviors.  It doesn't run kati,
-			//   but it does run a Kati ninja file if the .kati_enabled marker file was created
-			//   by a previous build.
-			c.skipConfig = true
-			c.skipKati = true
 		} else if arg == "--soong-only" {
+			if c.skipKatiControlledByFlags {
+				ctx.Fatalf("Cannot specify both --soong-only and --no-soong-only")
+			}
+			c.skipKatiControlledByFlags = true
 			c.skipKati = true
 			c.skipKatiNinja = true
+		} else if arg == "--no-soong-only" {
+			if c.skipKatiControlledByFlags {
+				ctx.Fatalf("Cannot specify both --soong-only and --no-soong-only")
+			}
+			c.skipKatiControlledByFlags = true
+			c.skipKati = false
+			c.skipKatiNinja = false
 		} else if arg == "--config-only" {
 			c.skipKati = true
 			c.skipKatiNinja = true
@@ -1339,6 +1348,10 @@ func (c *configImpl) canSupportRBE() bool {
 }
 
 func (c *configImpl) UseABFS() bool {
+	if c.ninjaCommand == NINJA_NINJAGO {
+		return true
+	}
+
 	if v, ok := c.environ.Get("NO_ABFS"); ok {
 		v = strings.ToLower(strings.TrimSpace(v))
 		if v == "true" || v == "1" {

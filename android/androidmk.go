@@ -741,8 +741,29 @@ func (c *androidMkSingleton) GenerateBuildActions(ctx SingletonContext) {
 // defined through the androidmk mechanisms, so this function is an alternate implementation of
 // the androidmk singleton that just focuses on getting the dist contributions
 func (c *androidMkSingleton) soongOnlyBuildActions(ctx SingletonContext, mods []blueprint.Module) {
-	allDistContributions := getDistContributionsFromMods(ctx, mods)
+	allDistContributions, moduleInfoJSONs := getSoongOnlyDataFromMods(ctx, mods)
 
+	// Build module-info.json. Only in builds with HasDeviceProduct(), as we need a named
+	// device to have a TARGET_OUT folder.
+	if ctx.Config().HasDeviceProduct() {
+		moduleInfoJSONPath := pathForInstall(ctx, Android, X86_64, "", "module-info.json")
+		if err := writeModuleInfoJSON(ctx, moduleInfoJSONs, moduleInfoJSONPath); err != nil {
+			ctx.Errorf("%s", err)
+		}
+		ctx.Phony("module-info", moduleInfoJSONPath)
+		ctx.Phony("droidcore-unbundled", moduleInfoJSONPath)
+		allDistContributions = append(allDistContributions, distContributions{
+			copiesForGoals: []*copiesForGoals{{
+				goals: "general-tests droidcore-unbundled",
+				copies: []distCopy{{
+					from: moduleInfoJSONPath,
+					dest: "module-info.json",
+				}},
+			}},
+		})
+	}
+
+	// Build dist.mk for the packaging step to read and generate dist targets
 	distMkFile := absolutePath(filepath.Join(ctx.Config().katiPackageMkDir(), "dist.mk"))
 
 	var goalOutputPairs []string
@@ -793,8 +814,11 @@ func writeValueIfChanged(ctx SingletonContext, path string, value string) {
 	}
 }
 
-func getDistContributionsFromMods(ctx fillInEntriesContext, mods []blueprint.Module) []distContributions {
+// getSoongOnlyDataFromMods gathers data from the given modules needed in soong-only builds.
+// Currently, this is the dist contributions, and the module-info.json contents.
+func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module) ([]distContributions, []*ModuleInfoJSON) {
 	var allDistContributions []distContributions
+	var moduleInfoJSONs []*ModuleInfoJSON
 	for _, mod := range mods {
 		if amod, ok := mod.(Module); ok && shouldSkipAndroidMkProcessing(ctx, amod.base()) {
 			continue
@@ -805,6 +829,9 @@ func getDistContributionsFromMods(ctx fillInEntriesContext, mods []blueprint.Mod
 			info.PrimaryInfo.fillInEntries(ctx, mod)
 			if info.PrimaryInfo.disabled() {
 				continue
+			}
+			if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
+				moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON)
 			}
 			if contribution := info.PrimaryInfo.getDistContributions(ctx, mod); contribution != nil {
 				allDistContributions = append(allDistContributions, *contribution)
@@ -831,6 +858,9 @@ func getDistContributionsFromMods(ctx fillInEntriesContext, mods []blueprint.Mod
 				if data.Entries.disabled() {
 					continue
 				}
+				if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
+					moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON)
+				}
 				if contribution := data.Entries.getDistContributions(mod); contribution != nil {
 					allDistContributions = append(allDistContributions, *contribution)
 				}
@@ -841,6 +871,9 @@ func getDistContributionsFromMods(ctx fillInEntriesContext, mods []blueprint.Mod
 					if entries.disabled() {
 						continue
 					}
+					if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
+						moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON)
+					}
 					if contribution := entries.getDistContributions(mod); contribution != nil {
 						allDistContributions = append(allDistContributions, *contribution)
 					}
@@ -850,7 +883,7 @@ func getDistContributionsFromMods(ctx fillInEntriesContext, mods []blueprint.Mod
 			}
 		}
 	}
-	return allDistContributions
+	return allDistContributions, moduleInfoJSONs
 }
 
 func translateAndroidMk(ctx SingletonContext, absMkFile string, moduleInfoJSONPath WritablePath, mods []blueprint.Module) error {

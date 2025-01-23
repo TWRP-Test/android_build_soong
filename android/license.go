@@ -18,6 +18,16 @@ import (
 	"github.com/google/blueprint"
 )
 
+type LicenseInfo struct {
+	EffectiveLicenses          []string
+	PackageName                *string
+	EffectiveLicenseText       NamedPaths
+	EffectiveLicenseKinds      []string
+	EffectiveLicenseConditions []string
+}
+
+var LicenseInfoProvider = blueprint.NewProvider[LicenseInfo]()
+
 type licenseKindDependencyTag struct {
 	blueprint.BaseDependencyTag
 }
@@ -71,14 +81,22 @@ func (m *licenseModule) GenerateAndroidBuildActions(ctx ModuleContext) {
 	// license modules have no licenses, but license_kinds must refer to license_kind modules
 	mergeStringProps(&m.base().commonProperties.Effective_licenses, ctx.ModuleName())
 	namePathProps(&m.base().commonProperties.Effective_license_text, m.properties.Package_name, PathsForModuleSrc(ctx, m.properties.License_text)...)
-	for _, module := range ctx.GetDirectDepsWithTag(licenseKindTag) {
-		if lk, ok := module.(*licenseKindModule); ok {
-			mergeStringProps(&m.base().commonProperties.Effective_license_conditions, lk.properties.Conditions...)
+	for _, module := range ctx.GetDirectDepsProxyWithTag(licenseKindTag) {
+		if lk, ok := OtherModuleProvider(ctx, module, LicenseKindInfoProvider); ok {
+			mergeStringProps(&m.base().commonProperties.Effective_license_conditions, lk.Conditions...)
 			mergeStringProps(&m.base().commonProperties.Effective_license_kinds, ctx.OtherModuleName(module))
 		} else {
 			ctx.ModuleErrorf("license_kinds property %q is not a license_kind module", ctx.OtherModuleName(module))
 		}
 	}
+
+	SetProvider(ctx, LicenseInfoProvider, LicenseInfo{
+		EffectiveLicenses:          m.base().commonProperties.Effective_licenses,
+		PackageName:                m.properties.Package_name,
+		EffectiveLicenseText:       m.base().commonProperties.Effective_license_text,
+		EffectiveLicenseKinds:      m.base().commonProperties.Effective_license_kinds,
+		EffectiveLicenseConditions: m.base().commonProperties.Effective_license_conditions,
+	})
 }
 
 func LicenseFactory() Module {

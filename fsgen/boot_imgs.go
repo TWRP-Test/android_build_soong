@@ -69,23 +69,26 @@ func createBootImage(ctx android.LoadHookContext, dtbImg dtbImg) bool {
 	ctx.CreateModule(
 		filesystem.BootimgFactory,
 		&filesystem.BootimgProperties{
-			Kernel_prebuilt:    proptools.StringPtr(":" + kernelFilegroupName),
-			Header_version:     proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
-			Partition_size:     partitionSize,
-			Use_avb:            avbInfo.avbEnable,
-			Avb_mode:           avbInfo.avbMode,
-			Avb_private_key:    avbInfo.avbkeyFilegroup,
-			Avb_rollback_index: avbInfo.avbRollbackIndex,
-			Avb_algorithm:      avbInfo.avbAlgorithm,
-			Security_patch:     securityPatch,
-			Dtb_prebuilt:       dtbPrebuilt,
-			Cmdline:            cmdline,
-			Stem:               proptools.StringPtr("boot.img"),
+			Kernel_prebuilt:             proptools.StringPtr(":" + kernelFilegroupName),
+			Header_version:              proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
+			Partition_size:              partitionSize,
+			Use_avb:                     avbInfo.avbEnable,
+			Avb_mode:                    avbInfo.avbMode,
+			Avb_private_key:             avbInfo.avbkeyFilegroup,
+			Avb_rollback_index:          avbInfo.avbRollbackIndex,
+			Avb_rollback_index_location: avbInfo.avbRollbackIndexLocation,
+			Avb_algorithm:               avbInfo.avbAlgorithm,
+			Security_patch:              securityPatch,
+			Dtb_prebuilt:                dtbPrebuilt,
+			Cmdline:                     cmdline,
+			Stem:                        proptools.StringPtr("boot.img"),
 		},
 		&struct {
-			Name *string
+			Name       *string
+			Visibility []string
 		}{
-			Name: proptools.StringPtr(bootImageName),
+			Name:       proptools.StringPtr(bootImageName),
+			Visibility: []string{"//visibility:public"},
 		},
 	)
 	return true
@@ -123,23 +126,26 @@ func createVendorBootImage(ctx android.LoadHookContext, dtbImg dtbImg) bool {
 	ctx.CreateModule(
 		filesystem.BootimgFactory,
 		&filesystem.BootimgProperties{
-			Boot_image_type:    proptools.StringPtr("vendor_boot"),
-			Ramdisk_module:     proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor_ramdisk")),
-			Header_version:     proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
-			Partition_size:     partitionSize,
-			Use_avb:            avbInfo.avbEnable,
-			Avb_mode:           avbInfo.avbMode,
-			Avb_private_key:    avbInfo.avbkeyFilegroup,
-			Avb_rollback_index: avbInfo.avbRollbackIndex,
-			Dtb_prebuilt:       dtbPrebuilt,
-			Cmdline:            cmdline,
-			Bootconfig:         vendorBootConfigImg,
-			Stem:               proptools.StringPtr("vendor_boot.img"),
+			Boot_image_type:             proptools.StringPtr("vendor_boot"),
+			Ramdisk_module:              proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor_ramdisk")),
+			Header_version:              proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
+			Partition_size:              partitionSize,
+			Use_avb:                     avbInfo.avbEnable,
+			Avb_mode:                    avbInfo.avbMode,
+			Avb_private_key:             avbInfo.avbkeyFilegroup,
+			Avb_rollback_index:          avbInfo.avbRollbackIndex,
+			Avb_rollback_index_location: avbInfo.avbRollbackIndexLocation,
+			Dtb_prebuilt:                dtbPrebuilt,
+			Cmdline:                     cmdline,
+			Bootconfig:                  vendorBootConfigImg,
+			Stem:                        proptools.StringPtr("vendor_boot.img"),
 		},
 		&struct {
-			Name *string
+			Name       *string
+			Visibility []string
 		}{
-			Name: proptools.StringPtr(bootImageName),
+			Name:       proptools.StringPtr(bootImageName),
+			Visibility: []string{"//visibility:public"},
 		},
 	)
 	return true
@@ -172,22 +178,25 @@ func createInitBootImage(ctx android.LoadHookContext) bool {
 	ctx.CreateModule(
 		filesystem.BootimgFactory,
 		&filesystem.BootimgProperties{
-			Boot_image_type:    proptools.StringPtr("init_boot"),
-			Ramdisk_module:     proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "ramdisk")),
-			Header_version:     proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
-			Security_patch:     securityPatch,
-			Partition_size:     partitionSize,
-			Use_avb:            avbInfo.avbEnable,
-			Avb_mode:           avbInfo.avbMode,
-			Avb_private_key:    avbInfo.avbkeyFilegroup,
-			Avb_rollback_index: avbInfo.avbRollbackIndex,
-			Avb_algorithm:      avbInfo.avbAlgorithm,
-			Stem:               proptools.StringPtr("init_boot.img"),
+			Boot_image_type:             proptools.StringPtr("init_boot"),
+			Ramdisk_module:              proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "ramdisk")),
+			Header_version:              proptools.StringPtr(partitionVariables.BoardBootHeaderVersion),
+			Security_patch:              securityPatch,
+			Partition_size:              partitionSize,
+			Use_avb:                     avbInfo.avbEnable,
+			Avb_mode:                    avbInfo.avbMode,
+			Avb_private_key:             avbInfo.avbkeyFilegroup,
+			Avb_rollback_index:          avbInfo.avbRollbackIndex,
+			Avb_rollback_index_location: avbInfo.avbRollbackIndexLocation,
+			Avb_algorithm:               avbInfo.avbAlgorithm,
+			Stem:                        proptools.StringPtr("init_boot.img"),
 		},
 		&struct {
-			Name *string
+			Name       *string
+			Visibility []string
 		}{
-			Name: proptools.StringPtr(bootImageName),
+			Name:       proptools.StringPtr(bootImageName),
+			Visibility: []string{"//visibility:public"},
 		},
 	)
 	return true

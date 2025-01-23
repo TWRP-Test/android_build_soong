@@ -131,6 +131,9 @@ type FilesystemProperties struct {
 	// The index used to prevent rollback of the image. Only used if use_avb is true.
 	Rollback_index *int64
 
+	// Rollback index location of this image. Must be 0, 1, 2, etc.
+	Rollback_index_location *int64
+
 	// Name of the partition stored in vbmeta desc. Defaults to the name of this module.
 	Partition_name *string
 
@@ -537,6 +540,33 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	if proptools.Bool(f.properties.Unchecked_module) {
 		ctx.UncheckedModule()
 	}
+
+	f.setVbmetaPartitionProvider(ctx)
+}
+
+func (f *filesystem) setVbmetaPartitionProvider(ctx android.ModuleContext) {
+	var extractedPublicKey android.ModuleOutPath
+	if f.properties.Avb_private_key != nil {
+		key := android.PathForModuleSrc(ctx, proptools.String(f.properties.Avb_private_key))
+		extractedPublicKey = android.PathForModuleOut(ctx, f.partitionName()+".avbpubkey")
+		ctx.Build(pctx, android.BuildParams{
+			Rule:   extractPublicKeyRule,
+			Input:  key,
+			Output: extractedPublicKey,
+		})
+	}
+
+	var ril int
+	if f.properties.Rollback_index_location != nil {
+		ril = proptools.Int(f.properties.Rollback_index_location)
+	}
+
+	android.SetProvider(ctx, vbmetaPartitionProvider, vbmetaPartitionInfo{
+		Name:                  f.partitionName(),
+		RollbackIndexLocation: ril,
+		PublicKey:             extractedPublicKey,
+		Output:                f.output,
+	})
 }
 
 func (f *filesystem) getMapFile(ctx android.ModuleContext) android.WritablePath {

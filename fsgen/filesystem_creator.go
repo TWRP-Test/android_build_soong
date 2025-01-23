@@ -178,7 +178,7 @@ func (f *filesystemCreator) createInternalModules(ctx android.LoadHookContext) {
 		)
 	}
 
-	for _, x := range createVbmetaPartitions(ctx, finalSoongGeneratedPartitions) {
+	for _, x := range f.createVbmetaPartitions(ctx, finalSoongGeneratedPartitions) {
 		f.properties.Vbmeta_module_names = append(f.properties.Vbmeta_module_names, x.moduleName)
 		f.properties.Vbmeta_partition_names = append(f.properties.Vbmeta_partition_names, x.partitionName)
 	}
@@ -865,6 +865,8 @@ func generateFsProps(ctx android.EarlyModuleContext, partitionType string) (*fil
 	fsProps.Avb_algorithm = avbInfo.avbAlgorithm
 	// BOARD_AVB_SYSTEM_ROLLBACK_INDEX
 	fsProps.Rollback_index = avbInfo.avbRollbackIndex
+	// BOARD_AVB_SYSTEM_ROLLBACK_INDEX_LOCATION
+	fsProps.Rollback_index_location = avbInfo.avbRollbackIndexLocation
 	fsProps.Avb_hash_algorithm = avbInfo.avbHashAlgorithm
 
 	fsProps.Partition_name = proptools.StringPtr(partitionType)
@@ -893,13 +895,14 @@ func generateFsProps(ctx android.EarlyModuleContext, partitionType string) (*fil
 }
 
 type avbInfo struct {
-	avbEnable        *bool
-	avbKeyPath       *string
-	avbkeyFilegroup  *string
-	avbAlgorithm     *string
-	avbRollbackIndex *int64
-	avbMode          *string
-	avbHashAlgorithm *string
+	avbEnable                *bool
+	avbKeyPath               *string
+	avbkeyFilegroup          *string
+	avbAlgorithm             *string
+	avbRollbackIndex         *int64
+	avbRollbackIndexLocation *int64
+	avbMode                  *string
+	avbHashAlgorithm         *string
 }
 
 func getAvbInfo(config android.Config, partitionType string) avbInfo {
@@ -945,6 +948,13 @@ func getAvbInfo(config android.Config, partitionType string) avbInfo {
 				panic(fmt.Sprintf("Rollback index must be an int, got %s", specificPartitionVars.BoardAvbRollbackIndex))
 			}
 			result.avbRollbackIndex = &parsed
+		}
+		if specificPartitionVars.BoardAvbRollbackIndexLocation != "" {
+			parsed, err := strconv.ParseInt(specificPartitionVars.BoardAvbRollbackIndexLocation, 10, 64)
+			if err != nil {
+				panic(fmt.Sprintf("Rollback index location must be an int, got %s", specificPartitionVars.BoardAvbRollbackIndexLocation))
+			}
+			result.avbRollbackIndexLocation = &parsed
 		}
 
 		// Make allows you to pass arbitrary arguments to avbtool via this variable, but in practice

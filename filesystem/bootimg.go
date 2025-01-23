@@ -99,6 +99,9 @@ type BootimgProperties struct {
 	// The index used to prevent rollback of the image on device.
 	Avb_rollback_index *int64
 
+	// Rollback index location of this image. Must be 0, 1, 2, etc.
+	Avb_rollback_index_location *int64
+
 	// The security patch passed to as the com.android.build.<type>.security_patch avb property.
 	// Replacement for the make variables BOOT_SECURITY_PATCH / INIT_BOOT_SECURITY_PATCH.
 	Security_patch *string
@@ -236,6 +239,27 @@ func (b *bootimg) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		Dtb:        b.getDtbPath(ctx),
 		Bootconfig: b.getBootconfigPath(ctx),
 		Output:     output,
+	})
+
+	extractedPublicKey := android.PathForModuleOut(ctx, b.partitionName()+".avbpubkey")
+	if b.properties.Avb_private_key != nil {
+		key := android.PathForModuleSrc(ctx, proptools.String(b.properties.Avb_private_key))
+		ctx.Build(pctx, android.BuildParams{
+			Rule:   extractPublicKeyRule,
+			Input:  key,
+			Output: extractedPublicKey,
+		})
+	}
+	var ril int
+	if b.properties.Avb_rollback_index_location != nil {
+		ril = proptools.Int(b.properties.Avb_rollback_index_location)
+	}
+
+	android.SetProvider(ctx, vbmetaPartitionProvider, vbmetaPartitionInfo{
+		Name:                  b.bootImageType.String(),
+		RollbackIndexLocation: ril,
+		PublicKey:             extractedPublicKey,
+		Output:                output,
 	})
 }
 

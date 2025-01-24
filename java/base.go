@@ -1342,12 +1342,17 @@ func (j *Module) compile(ctx android.ModuleContext, extraSrcJars, extraClasspath
 		// For now, avoid targeting language versions directly, as we'd like to kee our source
 		// code version aligned as much as possible. Ideally, after defaulting to "2", we
 		// can remove the "1.9" option entirely, or at least make it emit a warning.
-		kotlin_lang_version := proptools.StringDefault(j.properties.Kotlin_lang_version, "1.9")
-		if kotlin_lang_version == "1.9" {
+		kotlin_default_lang_version := "1.9"
+		if build_flag_lang_version, ok := ctx.Config().GetBuildFlag("RELEASE_KOTLIN_LANG_VERSION"); ok {
+			kotlin_default_lang_version = build_flag_lang_version
+		}
+		kotlin_lang_version := proptools.StringDefault(j.properties.Kotlin_lang_version, kotlin_default_lang_version)
+		switch kotlin_lang_version {
+		case "1.9":
 			kotlincFlags = append(kotlincFlags, "-language-version 1.9")
-		} else if kotlin_lang_version == "2" {
+		case "2":
 			kotlincFlags = append(kotlincFlags, "-Xsuppress-version-warnings", "-Xconsistent-data-class-copy-visibility")
-		} else {
+		default:
 			ctx.PropertyErrorf("kotlin_lang_version", "Must be one of `1.9` or `2`")
 		}
 
@@ -2225,6 +2230,8 @@ func (j *Module) ClassLoaderContexts() dexpreopt.ClassLoaderContextMap {
 func (j *Module) IDEInfo(ctx android.BaseModuleContext, dpInfo *android.IdeInfo) {
 	if j.expandJarjarRules != nil {
 		dpInfo.Jarjar_rules = append(dpInfo.Jarjar_rules, j.expandJarjarRules.String())
+	}
+	if j.headerJarFile != nil {
 		// Add the header jar so that the rdeps can be resolved to the repackaged classes.
 		dpInfo.Jars = append(dpInfo.Jars, j.headerJarFile.String())
 	}

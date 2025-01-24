@@ -1767,6 +1767,7 @@ func (mod *Module) depsToPaths(ctx android.ModuleContext) PathDeps {
 	depPaths.depClangFlags = android.FirstUniqueStrings(depPaths.depClangFlags)
 	depPaths.depIncludePaths = android.FirstUniquePaths(depPaths.depIncludePaths)
 	depPaths.depSystemIncludePaths = android.FirstUniquePaths(depPaths.depSystemIncludePaths)
+	depPaths.depLinkFlags = android.FirstUniqueStrings(depPaths.depLinkFlags)
 
 	return depPaths
 }

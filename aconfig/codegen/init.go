@@ -26,6 +26,7 @@ var (
 	// For java_aconfig_library: Generate java library
 	javaRule = pctx.AndroidStaticRule("java_aconfig_library",
 		blueprint.RuleParams{
+			// LINT.IfChange
 			Command: `rm -rf ${out}.tmp` +
 				` && mkdir -p ${out}.tmp` +
 				` && ${aconfig} create-java-lib` +
@@ -34,14 +35,16 @@ var (
 				`    --out ${out}.tmp` +
 				`    --allow-instrumentation ${debug}` +
 				`    --new-exported ${new_exported}` +
+				`		 --check-api-level ${check_api_level}` +
 				` && $soong_zip -write_if_changed -jar -o ${out} -C ${out}.tmp -D ${out}.tmp` +
 				` && rm -rf ${out}.tmp`,
+			// LINT.ThenChange(/aconfig/init.go)
 			CommandDeps: []string{
 				"$aconfig",
 				"$soong_zip",
 			},
 			Restat: true,
-		}, "mode", "debug", "new_exported")
+		}, "mode", "debug", "new_exported", "check_api_level")
 
 	// For cc_aconfig_library: Generate C++ library
 	cppRule = pctx.AndroidStaticRule("cc_aconfig_library",

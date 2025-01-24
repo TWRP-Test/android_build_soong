@@ -294,6 +294,10 @@ func (c Config) ReleaseFingerprintAconfigPackages() bool {
 	return c.config.productVariables.GetBuildFlagBool("RELEASE_FINGERPRINT_ACONFIG_PACKAGES")
 }
 
+func (c Config) ReleaseAconfigCheckApiLevel() bool {
+	return c.config.productVariables.GetBuildFlagBool("RELEASE_ACONFIG_CHECK_API_LEVEL")
+}
+
 // A DeviceConfig object represents the configuration for a particular device
 // being built. For now there will only be one of these, but in the future there
 // may be multiple devices being built.

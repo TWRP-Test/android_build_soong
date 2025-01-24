@@ -1655,6 +1655,7 @@ func (m *ModuleBase) generateVariantTarget(ctx *moduleContext) {
 func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 	var allInstalledFiles InstallPaths
 	var allCheckbuildTargets Paths
+	var alloutputFiles Paths
 	ctx.VisitAllModuleVariantProxies(func(module ModuleProxy) {
 		var checkbuildTarget Path
 		var uncheckedModule bool
@@ -1670,6 +1671,9 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 			checkbuildTarget = info.CheckbuildTarget
 			uncheckedModule = info.UncheckedModule
 			skipAndroidMkProcessing = OtherModuleProviderOrDefault(ctx, module, CommonModuleInfoKey).SkipAndroidMkProcessing
+		}
+		if outputFiles, err := outputFilesForModule(ctx, module, ""); err == nil {
+			alloutputFiles = append(alloutputFiles, outputFiles...)
 		}
 		// A module's -checkbuild phony targets should
 		// not be created if the module is not exported to make.
@@ -1699,6 +1703,12 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 	if len(allCheckbuildTargets) > 0 {
 		name := namespacePrefix + ctx.ModuleName() + "-checkbuild"
 		ctx.Phony(name, allCheckbuildTargets...)
+		deps = append(deps, PathForPhony(ctx, name))
+	}
+
+	if len(alloutputFiles) > 0 {
+		name := namespacePrefix + ctx.ModuleName() + "-outputs"
+		ctx.Phony(name, alloutputFiles...)
 		deps = append(deps, PathForPhony(ctx, name))
 	}
 

@@ -668,9 +668,9 @@ func (m *moduleContext) installFile(installPath InstallPath, name string, srcPat
 				extraFiles:    extraZip,
 			})
 		} else {
-			rule := Cp
+			rule := CpWithBash
 			if executable {
-				rule = CpExecutable
+				rule = CpExecutableWithBash
 			}
 
 			extraCmds := ""
@@ -690,6 +690,7 @@ func (m *moduleContext) installFile(installPath InstallPath, name string, srcPat
 				OrderOnly:   orderOnlyDeps,
 				Args: map[string]string{
 					"extraCmds": extraCmds,
+					"cpFlags":   "-f",
 				},
 			})
 		}
@@ -730,7 +731,7 @@ func (m *moduleContext) InstallSymlink(installPath InstallPath, name string, src
 			// the mtime of the symlink must be updated when the binary is modified, so use a
 			// normal dependency here instead of an order-only dependency.
 			m.Build(pctx, BuildParams{
-				Rule:        Symlink,
+				Rule:        SymlinkWithBash,
 				Description: "install symlink " + fullInstallPath.Base(),
 				Output:      fullInstallPath,
 				Input:       srcPath,

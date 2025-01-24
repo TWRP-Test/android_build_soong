@@ -59,6 +59,7 @@ func (this *exportedJavaDeclarationsLibrarySingleton) GenerateBuildActions(ctx a
 			"cache_files":      android.JoinPathsWithPrefix(cacheFiles, " "),
 			"use_new_storage":  strconv.FormatBool(newStorage),
 			"use_new_exported": strconv.FormatBool(newExported),
+			"check_api_level":  strconv.FormatBool(ctx.Config().ReleaseAconfigCheckApiLevel()),
 		},
 	})
 	ctx.Phony("exported_java_aconfig_library", this.intermediatePath)

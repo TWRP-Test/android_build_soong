@@ -144,7 +144,7 @@ func getSdkSnapshotBuildInfo(t *testing.T, result *android.TestResult, sdk *sdk)
 	seenBuildNumberFile := false
 	for _, bp := range buildParams {
 		switch bp.Rule.String() {
-		case android.Cp.String():
+		case android.Cp.String(), android.CpWithBash.String():
 			output := bp.Output
 			// Get destination relative to the snapshot root
 			dest := output.Rel()

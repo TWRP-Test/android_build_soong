@@ -112,9 +112,10 @@ func (callbacks *JavaAconfigDeclarationsLibraryCallbacks) GenerateSourceJarBuild
 		Output:      srcJarPath,
 		Description: "aconfig.srcjar",
 		Args: map[string]string{
-			"mode":         mode,
-			"debug":        strconv.FormatBool(ctx.Config().ReleaseReadFromNewStorage()),
-			"new_exported": strconv.FormatBool(newExported),
+			"mode":            mode,
+			"debug":           strconv.FormatBool(ctx.Config().ReleaseReadFromNewStorage()),
+			"new_exported":    strconv.FormatBool(newExported),
+			"check_api_level": strconv.FormatBool(ctx.Config().ReleaseAconfigCheckApiLevel()),
 		},
 	})
 

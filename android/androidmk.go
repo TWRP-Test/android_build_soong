@@ -746,10 +746,17 @@ func (c *androidMkSingleton) soongOnlyBuildActions(ctx SingletonContext, mods []
 	// Build module-info.json. Only in builds with HasDeviceProduct(), as we need a named
 	// device to have a TARGET_OUT folder.
 	if ctx.Config().HasDeviceProduct() {
+		preMergePath := PathForOutput(ctx, "module_info_pre_merging.json")
 		moduleInfoJSONPath := pathForInstall(ctx, Android, X86_64, "", "module-info.json")
-		if err := writeModuleInfoJSON(ctx, moduleInfoJSONs, moduleInfoJSONPath); err != nil {
+		if err := writeModuleInfoJSON(ctx, moduleInfoJSONs, preMergePath); err != nil {
 			ctx.Errorf("%s", err)
 		}
+		builder := NewRuleBuilder(pctx, ctx)
+		builder.Command().
+			BuiltTool("merge_module_info_json").
+			FlagWithOutput("-o ", moduleInfoJSONPath).
+			Input(preMergePath)
+		builder.Build("merge_module_info_json", "merge module info json")
 		ctx.Phony("module-info", moduleInfoJSONPath)
 		ctx.Phony("droidcore-unbundled", moduleInfoJSONPath)
 		allDistContributions = append(allDistContributions, distContributions{

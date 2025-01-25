@@ -480,6 +480,9 @@ type ApiScopeProperties struct {
 
 	// Extra libs used when compiling stubs for this scope.
 	Libs []string
+
+	// Name to override the api_surface that is passed down to droidstubs.
+	Api_surface *string
 }
 
 type sdkLibraryProperties struct {

@@ -1719,6 +1719,16 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 		}
 
 		ctx.Phony(namespacePrefix+ctx.ModuleName()+suffix, deps...)
+		if ctx.Device() {
+			// Generate a target suffix for use in atest etc.
+			ctx.Phony(namespacePrefix+ctx.ModuleName()+"-target"+suffix, deps...)
+		} else if ctx.Target().HostCross {
+			// Generate a host-cross suffix for use in atest etc.
+			ctx.Phony(namespacePrefix+ctx.ModuleName()+"-host-cross"+suffix, deps...)
+		} else {
+			// Generate a host suffix for use in atest etc.
+			ctx.Phony(namespacePrefix+ctx.ModuleName()+"-host"+suffix, deps...)
+		}
 
 		info.BlueprintDir = ctx.ModuleDir()
 		SetProvider(ctx, FinalModuleBuildTargetsProvider, info)

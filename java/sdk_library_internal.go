@@ -174,6 +174,20 @@ func (module *SdkLibrary) createImplLibrary(mctx android.DefaultableHookContext)
 	mctx.CreateModule(LibraryFactory, properties...)
 }
 
+// getApiSurfaceForScope returns the api surface name to use for the apiScope. If one is specified
+// in the corresponding ApiScopeProperties.Api_surface property that is used, otherwise the name of
+// the apiScope is used.
+func (module *SdkLibrary) getApiSurfaceForScope(apiScope *apiScope) *string {
+	scopeProperties := module.scopeToProperties[apiScope]
+
+	apiSurface := scopeProperties.Api_surface
+	if apiSurface == nil {
+		apiSurface = &apiScope.name
+	}
+
+	return apiSurface
+}
+
 // Creates the [Droidstubs] module with ".stubs.source.<[apiScope.name]>" that creates stubs
 // source files from the given full source files and also updates and checks the API
 // specification files (i.e. "*-current.txt", "*-removed.txt" files).
@@ -227,7 +241,7 @@ func (module *SdkLibrary) createDroidstubs(mctx android.DefaultableHookContext, 
 	props.Srcs = append(props.Srcs, module.properties.Srcs...)
 	props.Srcs = append(props.Srcs, module.sdkLibraryProperties.Api_srcs...)
 	props.Sdk_version = module.deviceProperties.Sdk_version
-	props.Api_surface = &apiScope.name
+	props.Api_surface = module.getApiSurfaceForScope(apiScope)
 	props.System_modules = module.deviceProperties.System_modules
 	props.Installable = proptools.BoolPtr(false)
 	// A droiddoc module has only one Libs property and doesn't distinguish between

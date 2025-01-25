@@ -252,6 +252,18 @@ func NewConfig(ctx Context, args ...string) Config {
 	}
 	ret.parseArgs(ctx, args)
 
+	if value, ok := ret.environ.Get("SOONG_ONLY"); ok && !ret.skipKatiControlledByFlags {
+		if value == "true" || value == "1" || value == "y" || value == "yes" {
+			ret.skipKatiControlledByFlags = true
+			ret.skipKati = true
+			ret.skipKatiNinja = true
+		} else {
+			ret.skipKatiControlledByFlags = true
+			ret.skipKati = false
+			ret.skipKatiNinja = false
+		}
+	}
+
 	if ret.ninjaWeightListSource == HINT_FROM_SOONG {
 		ret.environ.Set("SOONG_GENERATES_NINJA_HINT", "always")
 	} else if ret.ninjaWeightListSource == DEFAULT {
@@ -393,6 +405,9 @@ func NewConfig(ctx Context, args ...string) Config {
 		// Use config.ninjaCommand instead.
 		"SOONG_NINJA",
 		"SOONG_USE_N2",
+
+		// Already incorporated into the config object
+		"SOONG_ONLY",
 	)
 
 	if ret.UseGoma() || ret.ForceUseGoma() {

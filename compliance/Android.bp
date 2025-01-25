@@ -34,7 +34,6 @@ notice_xml {
     name: "notice_xml_system",
     partition_name: "system",
     visibility: [
-        "//build/make/target/product/generic",
-        "//build/make/target/product/gsi",
+        "//visibility:any_system_partition",
     ],
 }

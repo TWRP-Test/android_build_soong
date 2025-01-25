@@ -198,7 +198,7 @@ func determineUnstableModule(mctx ModuleContext) bool {
 	unstableModule := module.Name() == "framework-minus-apex"
 	if installable, ok := module.(InstallableModule); ok {
 		for _, staticDepTag := range installable.StaticDependencyTags() {
-			mctx.VisitDirectDepsWithTag(staticDepTag, func(dep Module) {
+			mctx.VisitDirectDepsProxyWithTag(staticDepTag, func(dep ModuleProxy) {
 				if unstableInfo, ok := OtherModuleProvider(mctx, dep, unstableInfoProvider); ok {
 					unstableModule = unstableModule || unstableInfo.ContainsPlatformPrivateApis
 				}

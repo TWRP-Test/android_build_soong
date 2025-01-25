@@ -49,6 +49,7 @@ type CompilerInfo struct {
 type ProtobufDecoratorInfo struct{}
 
 type SourceProviderInfo struct {
+	Srcs                  android.Paths
 	ProtobufDecoratorInfo *ProtobufDecoratorInfo
 }
 
@@ -1065,9 +1066,9 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 			mod.sourceProvider.GenerateSource(ctx, deps)
 			mod.sourceProvider.setSubName(ctx.ModuleSubDir())
 		} else {
-			sourceMod := actx.GetDirectDepWithTag(mod.Name(), sourceDepTag)
-			sourceLib := sourceMod.(*Module).compiler.(*libraryDecorator)
-			mod.sourceProvider.setOutputFiles(sourceLib.sourceProvider.Srcs())
+			sourceMod := actx.GetDirectDepProxyWithTag(mod.Name(), sourceDepTag)
+			sourceLib := android.OtherModuleProviderOrDefault(ctx, sourceMod, RustInfoProvider).SourceProviderInfo
+			mod.sourceProvider.setOutputFiles(sourceLib.Srcs)
 		}
 		ctx.CheckbuildFile(mod.sourceProvider.Srcs()...)
 	}
@@ -1155,10 +1156,11 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 		}
 	}
 	if mod.sourceProvider != nil {
+		rustInfo.SourceProviderInfo = &SourceProviderInfo{
+			Srcs: mod.sourceProvider.Srcs(),
+		}
 		if _, ok := mod.sourceProvider.(*protobufDecorator); ok {
-			rustInfo.SourceProviderInfo = &SourceProviderInfo{
-				ProtobufDecoratorInfo: &ProtobufDecoratorInfo{},
-			}
+			rustInfo.SourceProviderInfo.ProtobufDecoratorInfo = &ProtobufDecoratorInfo{}
 		}
 	}
 	android.SetProvider(ctx, RustInfoProvider, rustInfo)
@@ -1203,12 +1205,12 @@ func buildComplianceMetadataInfo(ctx *moduleContext, mod *Module, deps PathDeps)
 	metadataInfo.SetStringValue(android.ComplianceMetadataProp.BUILT_FILES, mod.outputFile.String())
 
 	// Static libs
-	staticDeps := ctx.GetDirectDepsWithTag(rlibDepTag)
+	staticDeps := ctx.GetDirectDepsProxyWithTag(rlibDepTag)
 	staticDepNames := make([]string, 0, len(staticDeps))
 	for _, dep := range staticDeps {
 		staticDepNames = append(staticDepNames, dep.Name())
 	}
-	ccStaticDeps := ctx.GetDirectDepsWithTag(cc.StaticDepTag(false))
+	ccStaticDeps := ctx.GetDirectDepsProxyWithTag(cc.StaticDepTag(false))
 	for _, dep := range ccStaticDeps {
 		staticDepNames = append(staticDepNames, dep.Name())
 	}
@@ -1226,7 +1228,7 @@ func buildComplianceMetadataInfo(ctx *moduleContext, mod *Module, deps PathDeps)
 	metadataInfo.SetListValue(android.ComplianceMetadataProp.STATIC_DEP_FILES, android.FirstUniqueStrings(staticDepPaths))
 
 	// C Whole static libs
-	ccWholeStaticDeps := ctx.GetDirectDepsWithTag(cc.StaticDepTag(true))
+	ccWholeStaticDeps := ctx.GetDirectDepsProxyWithTag(cc.StaticDepTag(true))
 	wholeStaticDepNames := make([]string, 0, len(ccWholeStaticDeps))
 	for _, dep := range ccStaticDeps {
 		wholeStaticDepNames = append(wholeStaticDepNames, dep.Name())

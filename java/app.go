@@ -405,6 +405,14 @@ func (a *AndroidTestHelperApp) GenerateAndroidBuildActions(ctx android.ModuleCon
 		Updatable:     Bool(a.appProperties.Updatable),
 		TestHelperApp: true,
 	})
+
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	moduleInfoJSON.Tags = append(moduleInfoJSON.Tags, "tests")
+	if len(a.appTestHelperAppProperties.Test_suites) > 0 {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, a.appTestHelperAppProperties.Test_suites...)
+	} else {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "null-suite")
+	}
 }
 
 func (a *AndroidApp) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -1086,6 +1094,14 @@ func (a *AndroidApp) generateAndroidBuildActions(ctx android.ModuleContext) {
 		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
 	}
 
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	moduleInfoJSON.Class = []string{"APPS"}
+	if !a.embeddedJniLibs {
+		for _, jniLib := range a.jniLibs {
+			moduleInfoJSON.ExtraRequired = append(moduleInfoJSON.ExtraRequired, jniLib.name)
+		}
+	}
+
 	a.setOutputFiles(ctx)
 }
 
@@ -1617,6 +1633,22 @@ func (a *AndroidTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		TopLevelTarget: true,
 	})
 
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	moduleInfoJSON.Tags = append(moduleInfoJSON.Tags, "tests")
+	if a.testConfig != nil {
+		moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, a.testConfig.String())
+	}
+	moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, a.extraTestConfigs.Strings()...)
+	if len(a.testProperties.Test_suites) > 0 {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, a.testProperties.Test_suites...)
+	} else {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "null-suite")
+	}
+
+	if _, ok := testConfig.(android.WritablePath); ok {
+		moduleInfoJSON.AutoTestConfig = []string{"true"}
+	}
+	moduleInfoJSON.TestMainlineModules = append(moduleInfoJSON.TestMainlineModules, a.testProperties.Test_mainline_modules...)
 }
 
 func testcaseRel(paths android.Paths) []string {

@@ -292,7 +292,6 @@ var (
 		"-Wno-error=deprecated",          // in external/googletest/googletest
 		// New warnings to be fixed after clang-r522817
 		"-Wno-error=invalid-offsetof",
-		"-Wno-error=thread-safety-reference-return",
 
 		// Allow using VLA CXX extension.
 		"-Wno-vla-cxx-extension",

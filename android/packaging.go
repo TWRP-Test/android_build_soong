@@ -22,6 +22,7 @@ import (
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/gobtools"
 	"github.com/google/blueprint/proptools"
+	"github.com/google/blueprint/uniquelist"
 )
 
 // PackagingSpec abstracts a request to place a built artifact at a certain path in a package. A
@@ -42,7 +43,7 @@ type PackagingSpec struct {
 	// Whether relPathInPackage should be marked as executable or not
 	executable bool
 
-	effectiveLicenseFiles *Paths
+	effectiveLicenseFiles uniquelist.UniqueList[Path]
 
 	partition string
 
@@ -52,13 +53,13 @@ type PackagingSpec struct {
 	skipInstall bool
 
 	// Paths of aconfig files for the built artifact
-	aconfigPaths *Paths
+	aconfigPaths uniquelist.UniqueList[Path]
 
 	// ArchType of the module which produced this packaging spec
 	archType ArchType
 
 	// List of module names that this packaging spec overrides
-	overrides *[]string
+	overrides uniquelist.UniqueList[string]
 
 	// Name of the module where this packaging spec is output of
 	owner string
@@ -69,12 +70,12 @@ type packagingSpecGob struct {
 	SrcPath               Path
 	SymlinkTarget         string
 	Executable            bool
-	EffectiveLicenseFiles *Paths
+	EffectiveLicenseFiles Paths
 	Partition             string
 	SkipInstall           bool
-	AconfigPaths          *Paths
+	AconfigPaths          Paths
 	ArchType              ArchType
-	Overrides             *[]string
+	Overrides             []string
 	Owner                 string
 }
 
@@ -84,12 +85,12 @@ func (p *PackagingSpec) ToGob() *packagingSpecGob {
 		SrcPath:               p.srcPath,
 		SymlinkTarget:         p.symlinkTarget,
 		Executable:            p.executable,
-		EffectiveLicenseFiles: p.effectiveLicenseFiles,
+		EffectiveLicenseFiles: p.effectiveLicenseFiles.ToSlice(),
 		Partition:             p.partition,
 		SkipInstall:           p.skipInstall,
-		AconfigPaths:          p.aconfigPaths,
+		AconfigPaths:          p.aconfigPaths.ToSlice(),
 		ArchType:              p.archType,
-		Overrides:             p.overrides,
+		Overrides:             p.overrides.ToSlice(),
 		Owner:                 p.owner,
 	}
 }
@@ -99,12 +100,12 @@ func (p *PackagingSpec) FromGob(data *packagingSpecGob) {
 	p.srcPath = data.SrcPath
 	p.symlinkTarget = data.SymlinkTarget
 	p.executable = data.Executable
-	p.effectiveLicenseFiles = data.EffectiveLicenseFiles
+	p.effectiveLicenseFiles = uniquelist.Make(data.EffectiveLicenseFiles)
 	p.partition = data.Partition
 	p.skipInstall = data.SkipInstall
-	p.aconfigPaths = data.AconfigPaths
+	p.aconfigPaths = uniquelist.Make(data.AconfigPaths)
 	p.archType = data.ArchType
-	p.overrides = data.Overrides
+	p.overrides = uniquelist.Make(data.Overrides)
 	p.owner = data.Owner
 }
 
@@ -154,10 +155,7 @@ func (p *PackagingSpec) SetRelPathInPackage(relPathInPackage string) {
 }
 
 func (p *PackagingSpec) EffectiveLicenseFiles() Paths {
-	if p.effectiveLicenseFiles == nil {
-		return Paths{}
-	}
-	return *p.effectiveLicenseFiles
+	return p.effectiveLicenseFiles.ToSlice()
 }
 
 func (p *PackagingSpec) Partition() string {
@@ -174,7 +172,7 @@ func (p *PackagingSpec) SkipInstall() bool {
 
 // Paths of aconfig files for the built artifact
 func (p *PackagingSpec) GetAconfigPaths() Paths {
-	return *p.aconfigPaths
+	return p.aconfigPaths.ToSlice()
 }
 
 type PackageModule interface {
@@ -507,9 +505,7 @@ func (p *PackagingBase) GatherPackagingSpecsWithFilterAndModifier(ctx ModuleCont
 			}
 
 			depNames = append(depNames, child.Name())
-			if ps.overrides != nil {
-				overridden = append(overridden, *ps.overrides...)
-			}
+			overridden = append(overridden, ps.overrides.ToSlice()...)
 		}
 	})
 

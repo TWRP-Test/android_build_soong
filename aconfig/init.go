@@ -72,11 +72,11 @@ var (
 		}, "cache_files")
 	RecordFinalizedFlagsRule = pctx.AndroidStaticRule("RecordFinalizedFlagsRule",
 		blueprint.RuleParams{
-			Command: `${record-finalized-flags} ${flag_file} ${api_files} > ${out}`,
+			Command: `${record-finalized-flags} ${parsed_flags_file} ${finalized_flags_file} ${api_signature_files} > ${out}`,
 			CommandDeps: []string{
 				"${record-finalized-flags}",
 			},
-		}, "api_files", "flag_file")
+		}, "api_signature_files", "finalized_flags_file", "parsed_flags_file")
 
 	CreateStorageRule = pctx.AndroidStaticRule("aconfig_create_storage",
 		blueprint.RuleParams{

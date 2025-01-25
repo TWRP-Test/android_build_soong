@@ -423,7 +423,7 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, s.testProperties.Device_common_data)...)
 	expandedData = append(expandedData, android.PathsForModuleSrc(ctx, s.testProperties.Device_first_data)...)
 	// Emulate the data property for java_data dependencies.
-	for _, javaData := range ctx.GetDirectDepsWithTag(shTestJavaDataTag) {
+	for _, javaData := range ctx.GetDirectDepsProxyWithTag(shTestJavaDataTag) {
 		expandedData = append(expandedData, android.OutputFilesForModule(ctx, javaData, "")...)
 	}
 	for _, d := range expandedData {
@@ -476,21 +476,24 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	s.extraTestConfigs = android.PathsForModuleSrc(ctx, s.testProperties.Extra_test_configs)
 	s.dataModules = make(map[string]android.Path)
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		depTag := ctx.OtherModuleDependencyTag(dep)
 		switch depTag {
 		case shTestDataBinsTag, shTestDataDeviceBinsTag:
 			path := android.OutputFileForModule(ctx, dep, "")
 			s.addToDataModules(ctx, path.Base(), path)
 		case shTestDataLibsTag, shTestDataDeviceLibsTag:
-			if cc, isCc := dep.(*cc.Module); isCc {
+			if _, isCc := android.OtherModuleProvider(ctx, dep, cc.CcInfoProvider); isCc {
 				// Copy to an intermediate output directory to append "lib[64]" to the path,
 				// so that it's compatible with the default rpath values.
 				var relPath string
-				if cc.Arch().ArchType.Multilib == "lib64" {
-					relPath = filepath.Join("lib64", cc.OutputFile().Path().Base())
+				linkableInfo := android.OtherModuleProviderOrDefault(ctx, dep, cc.LinkableInfoProvider)
+				commonInfo := android.OtherModuleProviderOrDefault(ctx, dep, android.CommonModuleInfoKey)
+
+				if commonInfo.Target.Arch.ArchType.Multilib == "lib64" {
+					relPath = filepath.Join("lib64", linkableInfo.OutputFile.Path().Base())
 				} else {
-					relPath = filepath.Join("lib", cc.OutputFile().Path().Base())
+					relPath = filepath.Join("lib", linkableInfo.OutputFile.Path().Base())
 				}
 				if _, exist := s.dataModules[relPath]; exist {
 					return
@@ -498,7 +501,7 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 				relocatedLib := android.PathForModuleOut(ctx, "relocated").Join(ctx, relPath)
 				ctx.Build(pctx, android.BuildParams{
 					Rule:   android.Cp,
-					Input:  cc.OutputFile().Path(),
+					Input:  linkableInfo.OutputFile.Path(),
 					Output: relocatedLib,
 				})
 				s.addToDataModules(ctx, relPath, relocatedLib)

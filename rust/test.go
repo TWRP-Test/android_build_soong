@@ -148,35 +148,36 @@ func (test *testDecorator) install(ctx ModuleContext) {
 	dataSrcPaths := android.PathsForModuleSrc(ctx, test.Properties.Data)
 	dataSrcPaths = append(dataSrcPaths, android.PathsForModuleSrc(ctx, test.Properties.Device_common_data)...)
 
-	ctx.VisitDirectDepsWithTag(dataLibDepTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(dataLibDepTag, func(dep android.ModuleProxy) {
 		depName := ctx.OtherModuleName(dep)
-		linkableDep, ok := dep.(cc.LinkableInterface)
+		linkableDep, ok := android.OtherModuleProvider(ctx, dep, cc.LinkableInfoProvider)
 		if !ok {
 			ctx.ModuleErrorf("data_lib %q is not a linkable module", depName)
 		}
-		if linkableDep.OutputFile().Valid() {
+		if linkableDep.OutputFile.Valid() {
 			// Copy the output in "lib[64]" so that it's compatible with
 			// the default rpath values.
+			commonInfo := android.OtherModuleProviderOrDefault(ctx, dep, android.CommonModuleInfoKey)
 			libDir := "lib"
-			if linkableDep.Target().Arch.ArchType.Multilib == "lib64" {
+			if commonInfo.Target.Arch.ArchType.Multilib == "lib64" {
 				libDir = "lib64"
 			}
 			test.data = append(test.data,
-				android.DataPath{SrcPath: linkableDep.OutputFile().Path(),
-					RelativeInstallPath: filepath.Join(libDir, linkableDep.RelativeInstallPath())})
+				android.DataPath{SrcPath: linkableDep.OutputFile.Path(),
+					RelativeInstallPath: filepath.Join(libDir, linkableDep.RelativeInstallPath)})
 		}
 	})
 
-	ctx.VisitDirectDepsWithTag(dataBinDepTag, func(dep android.Module) {
+	ctx.VisitDirectDepsProxyWithTag(dataBinDepTag, func(dep android.ModuleProxy) {
 		depName := ctx.OtherModuleName(dep)
-		linkableDep, ok := dep.(cc.LinkableInterface)
+		linkableDep, ok := android.OtherModuleProvider(ctx, dep, cc.LinkableInfoProvider)
 		if !ok {
 			ctx.ModuleErrorf("data_bin %q is not a linkable module", depName)
 		}
-		if linkableDep.OutputFile().Valid() {
+		if linkableDep.OutputFile.Valid() {
 			test.data = append(test.data,
-				android.DataPath{SrcPath: linkableDep.OutputFile().Path(),
-					RelativeInstallPath: linkableDep.RelativeInstallPath()})
+				android.DataPath{SrcPath: linkableDep.OutputFile.Path(),
+					RelativeInstallPath: linkableDep.RelativeInstallPath})
 		}
 	})
 

@@ -2419,7 +2419,7 @@ func buildComplianceMetadataInfo(ctx ModuleContext, c *Module, deps PathDeps) {
 		staticDepNames = append(staticDepNames, dep.Name())
 	}
 	// Process CrtBegin and CrtEnd as static libs
-	ctx.VisitDirectDeps(func(dep android.Module) {
+	ctx.VisitDirectDepsProxy(func(dep android.ModuleProxy) {
 		depName := ctx.OtherModuleName(dep)
 		depTag := ctx.OtherModuleDependencyTag(dep)
 		switch depTag {

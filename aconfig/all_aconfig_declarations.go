@@ -43,7 +43,8 @@ type allAconfigReleaseDeclarationsSingleton struct {
 }
 
 type allAconfigReleaseDeclarationsProperties struct {
-	Api_files proptools.Configurable[[]string] `android:"arch_variant,path"`
+	Api_signature_files  proptools.Configurable[[]string] `android:"arch_variant,path"`
+	Finalized_flags_file string                           `android:"arch_variant,path"`
 }
 
 type allAconfigDeclarationsSingleton struct {
@@ -63,23 +64,25 @@ func (this *allAconfigDeclarationsSingleton) sortedConfigNames() []string {
 }
 
 func (this *allAconfigDeclarationsSingleton) GenerateAndroidBuildActions(ctx android.ModuleContext) {
-	apiFiles := android.Paths{}
-	for _, apiFile := range this.properties.Api_files.GetOrDefault(ctx, nil) {
-		if path := android.PathForModuleSrc(ctx, apiFile); path != nil {
-			apiFiles = append(apiFiles, path)
+	apiSignatureFiles := android.Paths{}
+	for _, apiSignatureFile := range this.properties.Api_signature_files.GetOrDefault(ctx, nil) {
+		if path := android.PathForModuleSrc(ctx, apiSignatureFile); path != nil {
+			apiSignatureFiles = append(apiSignatureFiles, path)
 		}
 	}
-	flagFile := android.PathForIntermediates(ctx, "all_aconfig_declarations.pb")
+	finalizedFlagsFile := android.PathForModuleSrc(ctx, this.properties.Finalized_flags_file)
+	parsedFlagsFile := android.PathForIntermediates(ctx, "all_aconfig_declarations.pb")
 
 	output := android.PathForIntermediates(ctx, "finalized-flags.txt")
 
 	ctx.Build(pctx, android.BuildParams{
 		Rule:   RecordFinalizedFlagsRule,
-		Inputs: append(apiFiles, flagFile),
+		Inputs: append(apiSignatureFiles, finalizedFlagsFile, parsedFlagsFile),
 		Output: output,
 		Args: map[string]string{
-			"api_files": android.JoinPathsWithPrefix(apiFiles, "--api-file "),
-			"flag_file": "--flag-file " + flagFile.String(),
+			"api_signature_files":  android.JoinPathsWithPrefix(apiSignatureFiles, "--api-signature-file "),
+			"finalized_flags_file": "--finalized-flags-file " + finalizedFlagsFile.String(),
+			"parsed_flags_file":    "--parsed-flags-file " + parsedFlagsFile.String(),
 		},
 	})
 	ctx.Phony("all_aconfig_declarations", output)

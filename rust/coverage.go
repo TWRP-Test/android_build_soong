@@ -15,6 +15,7 @@
 package rust
 
 import (
+	"android/soong/android"
 	"github.com/google/blueprint"
 
 	"android/soong/cc"
@@ -65,16 +66,18 @@ func (cov *coverage) flags(ctx ModuleContext, flags Flags, deps PathDeps) (Flags
 		flags.RustFlags = append(flags.RustFlags,
 			"-C instrument-coverage", "-g")
 		if ctx.Device() {
-			coverage := ctx.GetDirectDepWithTag(CovLibraryName, cc.CoverageDepTag).(cc.LinkableInterface)
+			m := ctx.GetDirectDepProxyWithTag(CovLibraryName, cc.CoverageDepTag)
+			coverage := android.OtherModuleProviderOrDefault(ctx, m, cc.LinkableInfoProvider)
 			flags.LinkFlags = append(flags.LinkFlags,
-				profileInstrFlag, "-g", coverage.OutputFile().Path().String(), "-Wl,--wrap,open")
-			deps.StaticLibs = append(deps.StaticLibs, coverage.OutputFile().Path())
+				profileInstrFlag, "-g", coverage.OutputFile.Path().String(), "-Wl,--wrap,open")
+			deps.StaticLibs = append(deps.StaticLibs, coverage.OutputFile.Path())
 		}
 
 		// no_std modules are missing libprofiler_builtins which provides coverage, so we need to add it as a dependency.
 		if rustModule, ok := ctx.Module().(*Module); ok && rustModule.compiler.noStdlibs() {
-			profiler_builtins := ctx.GetDirectDepWithTag(ProfilerBuiltins, rlibDepTag).(*Module)
-			deps.RLibs = append(deps.RLibs, RustLibrary{Path: profiler_builtins.OutputFile().Path(), CrateName: profiler_builtins.CrateName()})
+			m := ctx.GetDirectDepProxyWithTag(ProfilerBuiltins, rlibDepTag)
+			profiler_builtins := android.OtherModuleProviderOrDefault(ctx, m, cc.LinkableInfoProvider)
+			deps.RLibs = append(deps.RLibs, RustLibrary{Path: profiler_builtins.OutputFile.Path(), CrateName: profiler_builtins.CrateName})
 		}
 
 		if cc.EnableContinuousCoverage(ctx) {

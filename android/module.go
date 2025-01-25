@@ -2145,6 +2145,22 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			}
 		}
 
+		// M(C)TS supports a full test suite and partial per-module MTS test suites, with naming mts-${MODULE}.
+		// To reduce repetition, if we find a partial M(C)TS test suite without an full M(C)TS test suite,
+		// we add the full test suite to our list. This was inherited from
+		// AndroidMkEntries.AddCompatibilityTestSuites.
+		suites := ctx.moduleInfoJSON.CompatibilitySuites
+		if PrefixInList(suites, "mts-") && !InList("mts", suites) {
+			suites = append(suites, "mts")
+		}
+		if PrefixInList(suites, "mcts-") && !InList("mcts", suites) {
+			suites = append(suites, "mcts")
+		}
+		ctx.moduleInfoJSON.CompatibilitySuites = suites
+
+		required := append(m.RequiredModuleNames(ctx), m.VintfFragmentModuleNames(ctx)...)
+		required = append(required, ctx.moduleInfoJSON.ExtraRequired...)
+
 		ctx.moduleInfoJSON.core = CoreModuleInfoJSON{
 			RegisterName:       m.moduleInfoRegisterName(ctx, ctx.moduleInfoJSON.SubName),
 			Path:               []string{ctx.ModuleDir()},
@@ -2154,7 +2170,7 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 			TargetDependencies: targetRequired,
 			HostDependencies:   hostRequired,
 			Data:               data,
-			Required:           append(m.RequiredModuleNames(ctx), m.VintfFragmentModuleNames(ctx)...),
+			Required:           required,
 		}
 		SetProvider(ctx, ModuleInfoJSONProvider, ctx.moduleInfoJSON)
 	}
@@ -2266,7 +2282,7 @@ func (m *ModuleBase) moduleInfoRegisterName(ctx ModuleContext, subName string) s
 	arches = slices.DeleteFunc(arches, func(target Target) bool {
 		return target.NativeBridge != ctx.Target().NativeBridge
 	})
-	if len(arches) > 0 && ctx.Arch().ArchType != arches[0].Arch.ArchType {
+	if len(arches) > 0 && ctx.Arch().ArchType != arches[0].Arch.ArchType && ctx.Arch().ArchType != Common {
 		if ctx.Arch().ArchType.Multilib == "lib32" {
 			suffix = "_32"
 		} else {

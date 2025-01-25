@@ -34,7 +34,7 @@ bootstrap_go_package {
 // but other verticals/platforms can override via soong config setting.
 all_aconfig_declarations {
     name: "all_aconfig_declarations",
-    api_files: select(soong_config_variable("android_aconfig", "opt_platform_api_srcs"), {
+    api_signature_files: select(soong_config_variable("android_aconfig", "opt_platform_api_srcs"), {
         "wear_sdk_api_srcs": [
             ":wear-sdk-api-current.txt",
             ":wear-sdk-api-system-current.txt",
@@ -46,4 +46,5 @@ all_aconfig_declarations {
             ":frameworks-base-api-module-lib-current.txt",
         ],
     }),
+    finalized_flags_file: ":finalized-flags",
 }

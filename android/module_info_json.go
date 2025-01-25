@@ -43,6 +43,7 @@ type ExtraModuleInfoJSON struct {
 	CompatibilitySuites []string `json:"compatibility_suites,omitempty"` // $(sort $(ALL_MODULES.$(m).COMPATIBILITY_SUITES))
 	AutoTestConfig      []string `json:"auto_test_config,omitempty"`     // $(ALL_MODULES.$(m).auto_test_config)
 	TestConfig          []string `json:"test_config,omitempty"`          // $(strip $(ALL_MODULES.$(m).TEST_CONFIG) $(ALL_MODULES.$(m).EXTRA_TEST_CONFIGS)
+	ExtraRequired       []string `json:"-"`
 }
 
 type ModuleInfoJSON struct {

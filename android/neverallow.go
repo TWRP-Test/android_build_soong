@@ -301,10 +301,8 @@ func createLimitDirgroupRule() []Rule {
 			Without("name", "trusty-arm64-virt-test-debug.lk.elf.gen").
 			Without("name", "trusty-x86_64.lk.elf.gen").
 			Without("name", "trusty-x86_64-test.lk.elf.gen").
-			Without("name", "trusty-arm64.wv.lk.elf.gen").
-			Without("name", "trusty-arm64-virt-test-debug.wv.lk.elf.gen").
-			Without("name", "trusty-x86_64.wv.lk.elf.gen").
-			Without("name", "trusty-x86_64-test.wv.lk.elf.gen").
+			Without("name", "trusty-widevine_vm-arm64.elf.gen").
+			Without("name", "trusty-widevine_vm-x86.elf.gen").
 			WithMatcher("dir_srcs", isSetMatcherInstance).Because(reason),
 		NeverAllow().
 			ModuleType("genrule").
@@ -312,10 +310,8 @@ func createLimitDirgroupRule() []Rule {
 			Without("name", "trusty-arm64-virt-test-debug.lk.elf.gen").
 			Without("name", "trusty-x86_64.lk.elf.gen").
 			Without("name", "trusty-x86_64-test.lk.elf.gen").
-			Without("name", "trusty-arm64.wv.lk.elf.gen").
-			Without("name", "trusty-arm64-virt-test-debug.wv.lk.elf.gen").
-			Without("name", "trusty-x86_64.wv.lk.elf.gen").
-			Without("name", "trusty-x86_64-test.wv.lk.elf.gen").
+			Without("name", "trusty-widevine_vm-arm64.elf.gen").
+			Without("name", "trusty-widevine_vm-x86.elf.gen").
 			With("keep_gendir", "true").Because(reason),
 	}
 }

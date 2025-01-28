@@ -28,6 +28,7 @@
     <api-surface name="core"/>
     <!-- These are used in libcore, external/conscrypt and external/icu. -->
     <api-surface name="core-platform" extends="public"/>
+    <api-surface name="core-platform-legacy" extends="public"/>
     <api-surface name="core-platform-plus-public"/>
     <api-surface name="intra-core" extends="public"/>
   </api-surfaces>

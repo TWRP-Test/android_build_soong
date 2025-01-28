@@ -46,5 +46,5 @@ all_aconfig_declarations {
             ":frameworks-base-api-module-lib-current.txt",
         ],
     }),
-    finalized_flags_file: ":finalized-flags",
+    finalized_flags_file: ":latest-finalized-flags",
 }

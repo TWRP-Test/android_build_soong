@@ -2318,6 +2318,7 @@ func init() {
 	scopeOrderMap["core-platform"] = count + 2
 	scopeOrderMap["intra-core"] = count + 3
 	scopeOrderMap["core-platform-plus-public"] = count + 4
+	scopeOrderMap["core-platform-legacy"] = count + 5
 }
 
 func (al *ApiLibrary) sortApiFilesByApiScope(ctx android.ModuleContext, srcFilesInfo []JavaApiImportInfo) []JavaApiImportInfo {

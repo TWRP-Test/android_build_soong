@@ -17,7 +17,6 @@ package fsgen
 import (
 	"android/soong/android"
 	"android/soong/filesystem"
-	"slices"
 	"strconv"
 
 	"github.com/google/blueprint/proptools"
@@ -63,7 +62,7 @@ var avbPartitions = []string{
 // like vbmeta_system might contain the avb metadata for just a few products. In cuttlefish
 // vbmeta_system contains metadata about product, system, and system_ext. Using chained partitions,
 // that group of partitions can be updated independently from the other signed partitions.
-func (f *filesystemCreator) createVbmetaPartitions(ctx android.LoadHookContext, generatedPartitionTypes []string) []vbmetaModuleInfo {
+func (f *filesystemCreator) createVbmetaPartitions(ctx android.LoadHookContext, partitions allGeneratedPartitionData) []vbmetaModuleInfo {
 	partitionVars := ctx.Config().ProductVariables().PartitionVarsForSoongMigrationOnlyDoNotUse
 	// Some products seem to have BuildingVbmetaImage as true even when BoardAvbEnable is false
 	if !partitionVars.BuildingVbmetaImage || !partitionVars.BoardAvbEnable {
@@ -114,11 +113,9 @@ func (f *filesystemCreator) createVbmetaPartitions(ctx android.LoadHookContext, 
 
 		var partitionModules []string
 		for _, partition := range props.Partitions {
-			if !slices.Contains(generatedPartitionTypes, partition) {
-				// The partition is probably unsupported.
-				continue
+			if modName := partitions.nameForType(partition); modName != "" {
+				partitionModules = append(partitionModules, modName)
 			}
-			partitionModules = append(partitionModules, generatedModuleNameForPartition(ctx.Config(), partition))
 		}
 
 		name := generatedModuleNameForPartition(ctx.Config(), chainedName)
@@ -218,7 +215,7 @@ func (f *filesystemCreator) createVbmetaPartitions(ctx android.LoadHookContext, 
 
 	var chainedPartitionModules []string
 	var includePartitionModules []string
-	allGeneratedPartitionTypes := append(generatedPartitionTypes,
+	allGeneratedPartitionTypes := append(partitions.types(),
 		chainedPartitionTypes...,
 	)
 	if len(f.properties.Boot_image) > 0 {

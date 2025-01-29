@@ -80,17 +80,25 @@ func (install *dexpreopterInstall) SubModuleName() string {
 // safe to use in `android.AndroidMkExtraEntriesFunc`.
 func (install dexpreopterInstall) ToMakeEntries() android.AndroidMkEntries {
 	return android.AndroidMkEntries{
-		Class:      "ETC",
-		OutputFile: android.OptionalPathForPath(install.outputPathOnHost),
+		OverrideName: install.FullModuleName(),
+		Class:        "ETC",
+		OutputFile:   android.OptionalPathForPath(install.outputPathOnHost),
 		ExtraEntries: []android.AndroidMkExtraEntriesFunc{
 			func(ctx android.AndroidMkExtraEntriesContext, entries *android.AndroidMkEntries) {
-				entries.SetString("LOCAL_MODULE", install.FullModuleName())
 				entries.SetString("LOCAL_MODULE_PATH", install.installDirOnDevice.String())
 				entries.SetString("LOCAL_INSTALLED_MODULE_STEM", install.installFileOnDevice)
 				entries.SetString("LOCAL_NOT_AVAILABLE_FOR_PLATFORM", "false")
 			},
 		},
 	}
+}
+
+func (install dexpreopterInstall) AddModuleInfoJSONForApex(ctx android.ModuleContext) {
+	moduleInfoJSON := ctx.ExtraModuleInfoJSON()
+	moduleInfoJSON.RegisterNameOverride = install.FullModuleName()
+	moduleInfoJSON.ModuleNameOverride = install.FullModuleName()
+	moduleInfoJSON.Class = []string{"ETC"}
+	moduleInfoJSON.SystemSharedLibs = []string{"none"}
 }
 
 type Dexpreopter struct {
@@ -658,6 +666,12 @@ func (d *dexpreopter) AndroidMkEntriesForApex() []android.AndroidMkEntries {
 		entries = append(entries, install.ToMakeEntries())
 	}
 	return entries
+}
+
+func (d *dexpreopter) ModuleInfoJSONForApex(ctx android.ModuleContext) {
+	for _, install := range d.builtInstalledForApex {
+		install.AddModuleInfoJSONForApex(ctx)
+	}
 }
 
 func (d *dexpreopter) OutputProfilePathOnHost() android.Path {

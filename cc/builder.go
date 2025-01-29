@@ -852,7 +852,7 @@ func genRustStaticlibSrcFile(crateNames []string) string {
 }
 
 func BuildRustStubs(ctx android.ModuleContext, outputFile android.ModuleOutPath,
-	crtBegin, crtEnd android.Paths, stubObjs Objects, ccFlags Flags) {
+	stubObjs Objects, ccFlags Flags) {
 
 	// Instantiate paths
 	sharedLibs := android.Paths{}
@@ -862,6 +862,8 @@ func BuildRustStubs(ctx android.ModuleContext, outputFile android.ModuleOutPath,
 	deps := android.Paths{}
 	implicitOutputs := android.WritablePaths{}
 	validations := android.Paths{}
+	crtBegin := android.Paths{}
+	crtEnd := android.Paths{}
 	groupLate := false
 
 	builderFlags := flagsToBuilderFlags(ccFlags)

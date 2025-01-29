@@ -838,7 +838,7 @@ func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module)
 				continue
 			}
 			if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
-				moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON)
+				moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON...)
 			}
 			if contribution := info.PrimaryInfo.getDistContributions(ctx, mod); contribution != nil {
 				allDistContributions = append(allDistContributions, *contribution)
@@ -866,7 +866,7 @@ func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module)
 					continue
 				}
 				if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
-					moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON)
+					moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON...)
 				}
 				if contribution := data.Entries.getDistContributions(mod); contribution != nil {
 					allDistContributions = append(allDistContributions, *contribution)
@@ -879,7 +879,7 @@ func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module)
 						continue
 					}
 					if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
-						moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON)
+						moduleInfoJSONs = append(moduleInfoJSONs, moduleInfoJSON...)
 					}
 					if contribution := entries.getDistContributions(mod); contribution != nil {
 						allDistContributions = append(allDistContributions, *contribution)
@@ -1077,7 +1077,7 @@ func translateAndroidModule(ctx SingletonContext, w io.Writer, moduleInfoJSONs *
 
 	if !data.Entries.disabled() {
 		if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
-			*moduleInfoJSONs = append(*moduleInfoJSONs, moduleInfoJSON)
+			*moduleInfoJSONs = append(*moduleInfoJSONs, moduleInfoJSON...)
 		}
 	}
 
@@ -1111,15 +1111,20 @@ func translateAndroidMkEntriesModule(ctx SingletonContext, w io.Writer, moduleIn
 	entriesList := provider.AndroidMkEntries()
 	aconfigUpdateAndroidMkEntries(ctx, mod.(Module), &entriesList)
 
+	moduleInfoJSON, providesModuleInfoJSON := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider)
+
 	// Any new or special cases here need review to verify correct propagation of license information.
 	for _, entries := range entriesList {
 		entries.fillInEntries(ctx, mod)
 		entries.write(w)
-	}
 
-	if len(entriesList) > 0 && !entriesList[0].disabled() {
-		if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
-			*moduleInfoJSONs = append(*moduleInfoJSONs, moduleInfoJSON)
+		if providesModuleInfoJSON && !entries.disabled() {
+			// append only the name matching moduleInfoJSON entry
+			for _, m := range moduleInfoJSON {
+				if m.RegisterNameOverride == entries.OverrideName && m.SubName == entries.SubName {
+					*moduleInfoJSONs = append(*moduleInfoJSONs, m)
+				}
+			}
 		}
 	}
 
@@ -1286,7 +1291,7 @@ func translateAndroidMkEntriesInfoModule(ctx SingletonContext, w io.Writer, modu
 
 	if !info.PrimaryInfo.disabled() {
 		if moduleInfoJSON, ok := OtherModuleProvider(ctx, mod, ModuleInfoJSONProvider); ok {
-			*moduleInfoJSONs = append(*moduleInfoJSONs, moduleInfoJSON)
+			*moduleInfoJSONs = append(*moduleInfoJSONs, moduleInfoJSON...)
 		}
 	}
 

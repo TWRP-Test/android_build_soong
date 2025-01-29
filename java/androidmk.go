@@ -23,13 +23,12 @@ import (
 	"github.com/google/blueprint/proptools"
 )
 
-func (library *Library) AndroidMkEntriesHostDex() android.AndroidMkEntries {
-	hostDexNeeded := Bool(library.deviceProperties.Hostdex) && !library.Host()
-	if library.hideApexVariantFromMake {
-		hostDexNeeded = false
-	}
+func (library *Library) hostDexNeeded() bool {
+	return Bool(library.deviceProperties.Hostdex) && !library.Host() && !library.hideApexVariantFromMake
+}
 
-	if hostDexNeeded {
+func (library *Library) AndroidMkEntriesHostDex() android.AndroidMkEntries {
+	if library.hostDexNeeded() {
 		var output android.Path
 		if library.dexJarFile.IsSet() {
 			output = library.dexJarFile.Path()

@@ -227,16 +227,18 @@ func licensesPropertyFlattener(ctx ModuleContext) {
 	}
 
 	var licenses []string
+	var texts NamedPaths
+	var conditions []string
+	var kinds []string
 	for _, module := range ctx.GetDirectDepsProxyWithTag(licensesTag) {
 		if l, ok := OtherModuleProvider(ctx, module, LicenseInfoProvider); ok {
 			licenses = append(licenses, ctx.OtherModuleName(module))
 			if m.base().commonProperties.Effective_package_name == nil && l.PackageName != nil {
 				m.base().commonProperties.Effective_package_name = l.PackageName
 			}
-			mergeStringProps(&m.base().commonProperties.Effective_licenses, l.EffectiveLicenses...)
-			mergeNamedPathProps(&m.base().commonProperties.Effective_license_text, l.EffectiveLicenseText...)
-			mergeStringProps(&m.base().commonProperties.Effective_license_kinds, l.EffectiveLicenseKinds...)
-			mergeStringProps(&m.base().commonProperties.Effective_license_conditions, l.EffectiveLicenseConditions...)
+			texts = append(texts, l.EffectiveLicenseText...)
+			kinds = append(kinds, l.EffectiveLicenseKinds...)
+			conditions = append(conditions, l.EffectiveLicenseConditions...)
 		} else {
 			propertyName := "licenses"
 			primaryProperty := m.base().primaryLicensesProperty
@@ -247,17 +249,15 @@ func licensesPropertyFlattener(ctx ModuleContext) {
 		}
 	}
 
+	m.base().commonProperties.Effective_license_text = SortedUniqueNamedPaths(texts)
+	m.base().commonProperties.Effective_license_kinds = SortedUniqueStrings(kinds)
+	m.base().commonProperties.Effective_license_conditions = SortedUniqueStrings(conditions)
+
 	// Make the license information available for other modules.
 	licenseInfo := LicensesInfo{
 		Licenses: licenses,
 	}
 	SetProvider(ctx, LicensesInfoProvider, licenseInfo)
-}
-
-// Update a property string array with a distinct union of its values and a list of new values.
-func mergeStringProps(prop *[]string, values ...string) {
-	*prop = append(*prop, values...)
-	*prop = SortedUniqueStrings(*prop)
 }
 
 // Update a property NamedPath array with a distinct union of its values and a list of new values.
@@ -271,12 +271,6 @@ func namePathProps(prop *NamedPaths, name *string, values ...Path) {
 			*prop = append(*prop, NamedPath{value, *name})
 		}
 	}
-	*prop = SortedUniqueNamedPaths(*prop)
-}
-
-// Update a property NamedPath array with a distinct union of its values and a list of new values.
-func mergeNamedPathProps(prop *NamedPaths, values ...NamedPath) {
-	*prop = append(*prop, values...)
 	*prop = SortedUniqueNamedPaths(*prop)
 }
 

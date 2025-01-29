@@ -203,6 +203,7 @@ func (test *testDecorator) compilerFlags(ctx ModuleContext, flags Flags) Flags {
 	flags = test.binaryDecorator.compilerFlags(ctx, flags)
 	if test.testHarness() {
 		flags.RustFlags = append(flags.RustFlags, "--test")
+		flags.RustFlags = append(flags.RustFlags, "-A missing-docs")
 	}
 	if ctx.Device() {
 		flags.RustFlags = append(flags.RustFlags, "-Z panic_abort_tests")

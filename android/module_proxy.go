@@ -164,10 +164,6 @@ func (m ModuleProxy) ExportedToMake() bool {
 	panic("method is not implemented on ModuleProxy")
 }
 
-func (m ModuleProxy) EffectiveLicenseKinds() []string {
-	panic("method is not implemented on ModuleProxy")
-}
-
 func (m ModuleProxy) EffectiveLicenseFiles() Paths {
 	panic("method is not implemented on ModuleProxy")
 }

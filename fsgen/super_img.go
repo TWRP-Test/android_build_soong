@@ -29,7 +29,7 @@ func buildingSuperImage(partitionVars android.PartitionVariables) bool {
 
 func createSuperImage(
 	ctx android.LoadHookContext,
-	partitions []string,
+	partitions allGeneratedPartitionData,
 	partitionVars android.PartitionVariables,
 	systemOtherImageName string,
 ) []string {
@@ -90,40 +90,40 @@ func createSuperImage(
 
 	var superImageSubpartitions []string
 	partitionNameProps := &filesystem.SuperImagePartitionNameProperties{}
-	if android.InList("system", partitions) {
-		partitionNameProps.System_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system"))
+	if modName := partitions.nameForType("system"); modName != "" {
+		partitionNameProps.System_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "system")
 	}
-	if android.InList("system_ext", partitions) {
-		partitionNameProps.System_ext_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system_ext"))
+	if modName := partitions.nameForType("system_ext"); modName != "" {
+		partitionNameProps.System_ext_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "system_ext")
 	}
-	if android.InList("system_dlkm", partitions) {
-		partitionNameProps.System_dlkm_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system_dlkm"))
+	if modName := partitions.nameForType("system_dlkm"); modName != "" {
+		partitionNameProps.System_dlkm_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "system_dlkm")
 	}
-	if android.InList("system_other", partitions) {
-		partitionNameProps.System_other_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "system_other"))
+	if modName := partitions.nameForType("system_other"); modName != "" {
+		partitionNameProps.System_other_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "system_other")
 	}
-	if android.InList("product", partitions) {
-		partitionNameProps.Product_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "product"))
+	if modName := partitions.nameForType("product"); modName != "" {
+		partitionNameProps.Product_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "product")
 	}
-	if android.InList("vendor", partitions) {
-		partitionNameProps.Vendor_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor"))
+	if modName := partitions.nameForType("vendor"); modName != "" {
+		partitionNameProps.Vendor_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "vendor")
 	}
-	if android.InList("vendor_dlkm", partitions) {
-		partitionNameProps.Vendor_dlkm_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "vendor_dlkm"))
+	if modName := partitions.nameForType("vendor_dlkm"); modName != "" {
+		partitionNameProps.Vendor_dlkm_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "vendor_dlkm")
 	}
-	if android.InList("odm", partitions) {
-		partitionNameProps.Odm_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "odm"))
+	if modName := partitions.nameForType("odm"); modName != "" {
+		partitionNameProps.Odm_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "odm")
 	}
-	if android.InList("odm_dlkm", partitions) {
-		partitionNameProps.Odm_dlkm_partition = proptools.StringPtr(generatedModuleNameForPartition(ctx.Config(), "odm_dlkm"))
+	if modName := partitions.nameForType("odm_dlkm"); modName != "" {
+		partitionNameProps.Odm_dlkm_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "odm_dlkm")
 	}
 

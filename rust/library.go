@@ -708,7 +708,7 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 	if library.stubs() {
 		ccFlags := library.getApiStubsCcFlags(ctx)
 		stubObjs := library.compileModuleLibApiStubs(ctx, ccFlags)
-		cc.BuildRustStubs(ctx, outputFile, deps.CrtBegin, deps.CrtEnd, stubObjs, ccFlags)
+		cc.BuildRustStubs(ctx, outputFile, stubObjs, ccFlags)
 	} else if library.rlib() {
 		ret.kytheFile = TransformSrctoRlib(ctx, crateRootPath, deps, flags, outputFile).kytheFile
 	} else if library.dylib() {

@@ -258,6 +258,15 @@ func (r *ravenwoodTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	// Install our JAR with all dependencies
 	ctx.InstallFile(installPath, ctx.ModuleName()+".jar", r.outputFile, installDeps...)
+
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	if _, ok := r.testConfig.(android.WritablePath); ok {
+		moduleInfoJSON.AutoTestConfig = []string{"true"}
+	}
+	if r.testConfig != nil {
+		moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, r.testConfig.String())
+	}
+	moduleInfoJSON.CompatibilitySuites = []string{"general-tests", "ravenwood-tests"}
 }
 
 func (r *ravenwoodTest) AndroidMkEntries() []android.AndroidMkEntries {

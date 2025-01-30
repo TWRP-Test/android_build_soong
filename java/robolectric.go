@@ -261,6 +261,19 @@ func (r *robolectricTest) GenerateAndroidBuildActions(ctx android.ModuleContext)
 		setExtraJavaInfo(ctx, r, javaInfo)
 		android.SetProvider(ctx, JavaInfoProvider, javaInfo)
 	}
+
+	moduleInfoJSON := r.javaLibraryModuleInfoJSON(ctx)
+	if _, ok := r.testConfig.(android.WritablePath); ok {
+		moduleInfoJSON.AutoTestConfig = []string{"true"}
+	}
+	if r.testConfig != nil {
+		moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, r.testConfig.String())
+	}
+	if len(r.testProperties.Test_suites) > 0 {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, r.testProperties.Test_suites...)
+	} else {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "null-suite")
+	}
 }
 
 func generateSameDirRoboTestConfigJar(ctx android.ModuleContext, outputFile android.ModuleOutPath) {

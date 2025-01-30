@@ -28,17 +28,27 @@ import (
 	"android/soong/remoteexec"
 )
 
-type StubsArtifactsInfo struct {
-	ApiVersionsXml android.WritablePath
+type StubsInfo struct {
+	ApiVersionsXml android.Path
+	AnnotationsZip android.Path
+	ApiFile        android.Path
+	RemovedApiFile android.Path
 }
 
 type DroidStubsInfo struct {
 	CurrentApiTimestamp android.Path
-	EverythingArtifacts StubsArtifactsInfo
-	ExportableArtifacts StubsArtifactsInfo
+	EverythingStubsInfo StubsInfo
+	ExportableStubsInfo StubsInfo
 }
 
 var DroidStubsInfoProvider = blueprint.NewProvider[DroidStubsInfo]()
+
+type StubsSrcInfo struct {
+	EverythingStubsSrcJar android.Path
+	ExportableStubsSrcJar android.Path
+}
+
+var StubsSrcInfoProvider = blueprint.NewProvider[StubsSrcInfo]()
 
 // The values allowed for Droidstubs' Api_levels_sdk_type
 var allowedApiLevelSdkTypes = []string{"public", "system", "module-lib", "system-server"}
@@ -541,9 +551,9 @@ func (d *Droidstubs) apiLevelsAnnotationsFlags(ctx android.ModuleContext, cmd *a
 		ctx.VisitDirectDepsProxyWithTag(metalavaAPILevelsModuleTag, func(m android.ModuleProxy) {
 			if s, ok := android.OtherModuleProvider(ctx, m, DroidStubsInfoProvider); ok {
 				if stubsType == Everything {
-					apiVersions = s.EverythingArtifacts.ApiVersionsXml
+					apiVersions = s.EverythingStubsInfo.ApiVersionsXml
 				} else if stubsType == Exportable {
-					apiVersions = s.ExportableArtifacts.ApiVersionsXml
+					apiVersions = s.ExportableStubsInfo.ApiVersionsXml
 				} else {
 					ctx.ModuleErrorf("%s stubs type does not generate api-versions.xml file", stubsType.String())
 				}
@@ -555,7 +565,9 @@ func (d *Droidstubs) apiLevelsAnnotationsFlags(ctx android.ModuleContext, cmd *a
 	}
 	if apiVersions != nil {
 		cmd.FlagWithArg("--current-version ", ctx.Config().PlatformSdkVersion().String())
-		cmd.FlagWithArg("--current-codename ", ctx.Config().PlatformSdkCodename())
+		if ctx.Config().PlatformSdkVersion().String() != "36" || ctx.Config().PlatformSdkCodename() != "Baklava" {
+			cmd.FlagWithArg("--current-codename ", ctx.Config().PlatformSdkCodename())
+		}
 		cmd.FlagWithInput("--apply-api-levels ", apiVersions)
 	}
 }
@@ -710,7 +722,8 @@ func metalavaUseRbe(ctx android.ModuleContext) bool {
 }
 
 func metalavaCmd(ctx android.ModuleContext, rule *android.RuleBuilder, srcs android.Paths,
-	srcJarList android.Path, homeDir android.WritablePath, params stubsCommandConfigParams, configFiles android.Paths) *android.RuleBuilderCommand {
+	srcJarList android.Path, homeDir android.WritablePath, params stubsCommandConfigParams,
+	configFiles android.Paths, apiSurface *string) *android.RuleBuilderCommand {
 	rule.Command().Text("rm -rf").Flag(homeDir.String())
 	rule.Command().Text("mkdir -p").Flag(homeDir.String())
 
@@ -756,6 +769,8 @@ func metalavaCmd(ctx android.ModuleContext, rule *android.RuleBuilder, srcs andr
 
 	addMetalavaConfigFilesToCmd(cmd, configFiles)
 
+	addOptionalApiSurfaceToCmd(cmd, apiSurface)
+
 	return cmd
 }
 
@@ -772,6 +787,14 @@ func getMetalavaConfigFilegroupReference() []string {
 // MetalavaConfigFilegroup filegroup.
 func addMetalavaConfigFilesToCmd(cmd *android.RuleBuilderCommand, configFiles android.Paths) {
 	cmd.FlagForEachInput("--config-file ", configFiles)
+}
+
+// addOptionalApiSurfaceToCmd adds --api-surface option is apiSurface is not `nil`.
+func addOptionalApiSurfaceToCmd(cmd *android.RuleBuilderCommand, apiSurface *string) {
+	if apiSurface != nil {
+		cmd.Flag("--api-surface")
+		cmd.Flag(*apiSurface)
+	}
 }
 
 // Pass flagged apis related flags to metalava. When aconfig_declarations property is not
@@ -848,7 +871,8 @@ func (d *Droidstubs) commonMetalavaStubCmd(ctx android.ModuleContext, rule *andr
 
 	configFiles := android.PathsForModuleSrc(ctx, d.properties.ConfigFiles)
 
-	cmd := metalavaCmd(ctx, rule, d.Javadoc.srcFiles, srcJarList, homeDir, params.stubConfig, configFiles)
+	cmd := metalavaCmd(ctx, rule, d.Javadoc.srcFiles, srcJarList, homeDir, params.stubConfig,
+		configFiles, d.properties.Api_surface)
 	cmd.Implicits(d.Javadoc.implicits)
 
 	d.stubsFlags(ctx, cmd, params.stubsDir, params.stubConfig.stubsType, params.stubConfig.checkApi)
@@ -1187,6 +1211,34 @@ func (d *Droidstubs) optionalStubCmd(ctx android.ModuleContext, params stubsComm
 	rule.Build(fmt.Sprintf("metalava_%s", params.stubConfig.stubsType.String()), "metalava merged")
 }
 
+func (d *Droidstubs) setPhonyRules(ctx android.ModuleContext) {
+	if d.apiFile != nil {
+		ctx.Phony(d.Name(), d.apiFile)
+		ctx.Phony(fmt.Sprintf("%s.txt", d.Name()), d.apiFile)
+	}
+	if d.removedApiFile != nil {
+		ctx.Phony(d.Name(), d.removedApiFile)
+		ctx.Phony(fmt.Sprintf("%s.txt", d.Name()), d.removedApiFile)
+	}
+	if d.checkCurrentApiTimestamp != nil {
+		ctx.Phony(fmt.Sprintf("%s-check-current-api", d.Name()), d.checkCurrentApiTimestamp)
+		ctx.Phony("checkapi", d.checkCurrentApiTimestamp)
+	}
+	if d.updateCurrentApiTimestamp != nil {
+		ctx.Phony(fmt.Sprintf("%s-update-current-api", d.Name()), d.updateCurrentApiTimestamp)
+		ctx.Phony("update-api", d.updateCurrentApiTimestamp)
+	}
+	if d.checkLastReleasedApiTimestamp != nil {
+		ctx.Phony(fmt.Sprintf("%s-check-last-released-api", d.Name()), d.checkLastReleasedApiTimestamp)
+	}
+	if d.apiLintTimestamp != nil {
+		ctx.Phony(fmt.Sprintf("%s-api-lint", d.Name()), d.apiLintTimestamp)
+	}
+	if d.checkNullabilityWarningsTimestamp != nil {
+		ctx.Phony(fmt.Sprintf("%s-check-nullability-warnings", d.Name()), d.checkNullabilityWarningsTimestamp)
+	}
+}
+
 func (d *Droidstubs) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	deps := d.Javadoc.collectDeps(ctx)
 
@@ -1229,6 +1281,41 @@ func (d *Droidstubs) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	// strips all flagged apis to generate the "exportable" stubs
 	stubCmdParams.stubsType = Exportable
 	d.exportableStubCmd(ctx, stubCmdParams)
+
+	if String(d.properties.Check_nullability_warnings) != "" {
+		if d.everythingArtifacts.nullabilityWarningsFile == nil {
+			ctx.PropertyErrorf("check_nullability_warnings",
+				"Cannot specify check_nullability_warnings unless validating nullability")
+		}
+
+		checkNullabilityWarningsPath := android.PathForModuleSrc(ctx, String(d.properties.Check_nullability_warnings))
+
+		d.checkNullabilityWarningsTimestamp = android.PathForModuleOut(ctx, Everything.String(), "check_nullability_warnings.timestamp")
+
+		msg := fmt.Sprintf(`\n******************************\n`+
+			`The warnings encountered during nullability annotation validation did\n`+
+			`not match the checked in file of expected warnings. The diffs are shown\n`+
+			`above. You have two options:\n`+
+			`   1. Resolve the differences by editing the nullability annotations.\n`+
+			`   2. Update the file of expected warnings by running:\n`+
+			`         cp %s %s\n`+
+			`       and submitting the updated file as part of your change.`,
+			d.everythingArtifacts.nullabilityWarningsFile, checkNullabilityWarningsPath)
+
+		rule := android.NewRuleBuilder(pctx, ctx)
+
+		rule.Command().
+			Text("(").
+			Text("diff").Input(checkNullabilityWarningsPath).Input(d.everythingArtifacts.nullabilityWarningsFile).
+			Text("&&").
+			Text("touch").Output(d.checkNullabilityWarningsTimestamp).
+			Text(") || (").
+			Text("echo").Flag("-e").Flag(`"` + msg + `"`).
+			Text("; exit 38").
+			Text(")")
+
+		rule.Build("nullabilityWarningsCheck", "nullability warnings check")
+	}
 
 	if apiCheckEnabled(ctx, d.properties.Check_api.Current, "current") {
 
@@ -1279,12 +1366,24 @@ func (d *Droidstubs) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 			`Note that DISABLE_STUB_VALIDATION=true does not bypass checkapi.\n`+
 			`******************************\n`, ctx.ModuleName())
 
-		rule.Command().
+		cmd := rule.Command().
 			Text("touch").Output(d.checkCurrentApiTimestamp).
 			Text(") || (").
 			Text("echo").Flag("-e").Flag(`"` + msg + `"`).
 			Text("; exit 38").
 			Text(")")
+
+		if d.apiLintTimestamp != nil {
+			cmd.Validation(d.apiLintTimestamp)
+		}
+
+		if d.checkLastReleasedApiTimestamp != nil {
+			cmd.Validation(d.checkLastReleasedApiTimestamp)
+		}
+
+		if d.checkNullabilityWarningsTimestamp != nil {
+			cmd.Validation(d.checkNullabilityWarningsTimestamp)
+		}
 
 		rule.Build("metalavaCurrentApiCheck", "check current API")
 
@@ -1315,52 +1414,39 @@ func (d *Droidstubs) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		rule.Build("metalavaCurrentApiUpdate", "update current API")
 	}
 
-	if String(d.properties.Check_nullability_warnings) != "" {
-		if d.everythingArtifacts.nullabilityWarningsFile == nil {
-			ctx.PropertyErrorf("check_nullability_warnings",
-				"Cannot specify check_nullability_warnings unless validating nullability")
-		}
-
-		checkNullabilityWarnings := android.PathForModuleSrc(ctx, String(d.properties.Check_nullability_warnings))
-
-		d.checkNullabilityWarningsTimestamp = android.PathForModuleOut(ctx, Everything.String(), "check_nullability_warnings.timestamp")
-
-		msg := fmt.Sprintf(`\n******************************\n`+
-			`The warnings encountered during nullability annotation validation did\n`+
-			`not match the checked in file of expected warnings. The diffs are shown\n`+
-			`above. You have two options:\n`+
-			`   1. Resolve the differences by editing the nullability annotations.\n`+
-			`   2. Update the file of expected warnings by running:\n`+
-			`         cp %s %s\n`+
-			`       and submitting the updated file as part of your change.`,
-			d.everythingArtifacts.nullabilityWarningsFile, checkNullabilityWarnings)
-
-		rule := android.NewRuleBuilder(pctx, ctx)
-
-		rule.Command().
-			Text("(").
-			Text("diff").Input(checkNullabilityWarnings).Input(d.everythingArtifacts.nullabilityWarningsFile).
-			Text("&&").
-			Text("touch").Output(d.checkNullabilityWarningsTimestamp).
-			Text(") || (").
-			Text("echo").Flag("-e").Flag(`"` + msg + `"`).
-			Text("; exit 38").
-			Text(")")
-
-		rule.Build("nullabilityWarningsCheck", "nullability warnings check")
-	}
-
-	android.SetProvider(ctx, DroidStubsInfoProvider, DroidStubsInfo{
+	droidInfo := DroidStubsInfo{
 		CurrentApiTimestamp: d.CurrentApiTimestamp(),
-		EverythingArtifacts: StubsArtifactsInfo{
-			ApiVersionsXml: d.everythingArtifacts.apiVersionsXml,
-		},
-		ExportableArtifacts: StubsArtifactsInfo{
-			ApiVersionsXml: d.exportableArtifacts.apiVersionsXml,
-		},
+		EverythingStubsInfo: StubsInfo{},
+		ExportableStubsInfo: StubsInfo{},
+	}
+	setDroidInfo(ctx, d, &droidInfo.EverythingStubsInfo, Everything)
+	setDroidInfo(ctx, d, &droidInfo.ExportableStubsInfo, Exportable)
+	android.SetProvider(ctx, DroidStubsInfoProvider, droidInfo)
+
+	android.SetProvider(ctx, StubsSrcInfoProvider, StubsSrcInfo{
+		EverythingStubsSrcJar: d.stubsSrcJar,
+		ExportableStubsSrcJar: d.exportableStubsSrcJar,
 	})
 
 	d.setOutputFiles(ctx)
+
+	d.setPhonyRules(ctx)
+}
+
+func setDroidInfo(ctx android.ModuleContext, d *Droidstubs, info *StubsInfo, typ StubsType) {
+	if typ == Everything {
+		info.ApiFile = d.apiFile
+		info.RemovedApiFile = d.removedApiFile
+		info.AnnotationsZip = d.everythingArtifacts.annotationsZip
+		info.ApiVersionsXml = d.everythingArtifacts.apiVersionsXml
+	} else if typ == Exportable {
+		info.ApiFile = d.exportableApiFile
+		info.RemovedApiFile = d.exportableRemovedApiFile
+		info.AnnotationsZip = d.exportableArtifacts.annotationsZip
+		info.ApiVersionsXml = d.exportableArtifacts.apiVersionsXml
+	} else {
+		ctx.ModuleErrorf("failed to set ApiVersionsXml, stubs type not supported: %d", typ)
+	}
 }
 
 // This method sets the outputFiles property, which is used to set the
@@ -1527,6 +1613,11 @@ func (p *PrebuiltStubsSources) GenerateAndroidBuildActions(ctx android.ModuleCon
 		rule.Build("zip src", "Create srcjar from prebuilt source")
 		p.stubsSrcJar = outPath
 	}
+
+	android.SetProvider(ctx, StubsSrcInfoProvider, StubsSrcInfo{
+		EverythingStubsSrcJar: p.stubsSrcJar,
+		ExportableStubsSrcJar: p.stubsSrcJar,
+	})
 
 	ctx.SetOutputFiles(android.Paths{p.stubsSrcJar}, "")
 	// prebuilt droidstubs does not output "exportable" stubs.

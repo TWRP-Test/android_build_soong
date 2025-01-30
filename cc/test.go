@@ -397,20 +397,24 @@ func (test *testBinary) install(ctx ModuleContext, file android.Path) {
 		test.Properties.Test_options.Unit_test = proptools.BoolPtr(true)
 	}
 
-	if ctx.PrimaryArch() && !ctx.Config().KatiEnabled() { // TODO(spandandas): Remove the special case for kati
+	if !ctx.Config().KatiEnabled() { // TODO(spandandas): Remove the special case for kati
 		// Install the test config in testcases/ directory for atest.
-		// Use PrimaryArch and SubName to prevent duplicate installation rules
 		c, ok := ctx.Module().(*Module)
 		if !ok {
 			ctx.ModuleErrorf("Not a cc_test module")
 		}
+		// Install configs in the root of $PRODUCT_OUT/testcases/$module
 		testCases := android.PathForModuleInPartitionInstall(ctx, "testcases", ctx.ModuleName()+c.SubName())
-		if test.testConfig != nil {
-			ctx.InstallFile(testCases, test.testConfig.Base(), test.testConfig)
+		if ctx.PrimaryArch() {
+			if test.testConfig != nil {
+				ctx.InstallFile(testCases, ctx.ModuleName()+".config", test.testConfig)
+			}
+			for _, extraTestConfig := range test.extraTestConfigs {
+				ctx.InstallFile(testCases, extraTestConfig.Base(), extraTestConfig)
+			}
 		}
-		for _, extraTestConfig := range test.extraTestConfigs {
-			ctx.InstallFile(testCases, extraTestConfig.Base(), extraTestConfig)
-		}
+		// Install tests and data in arch specific subdir $PRODUCT_OUT/testcases/$module/$arch
+		testCases = testCases.Join(ctx, ctx.Target().Arch.ArchType.String())
 		ctx.InstallTestData(testCases, test.data)
 		ctx.InstallFile(testCases, file.Base(), file)
 	}

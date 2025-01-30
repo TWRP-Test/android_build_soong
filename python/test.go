@@ -214,6 +214,46 @@ func (p *PythonTestModule) GenerateAndroidBuildActions(ctx android.ModuleContext
 	installDir := installDir(ctx, "nativetest", "nativetest64", ctx.ModuleName())
 	installedData := ctx.InstallTestData(installDir, p.data)
 	p.installedDest = ctx.InstallFile(installDir, p.installSource.Base(), p.installSource, installedData...)
+
+	// TODO: Remove the special case for kati
+	if !ctx.Config().KatiEnabled() {
+		// Install the test config in testcases/ directory for atest.
+		// Install configs in the root of $PRODUCT_OUT/testcases/$module
+		testCases := android.PathForModuleInPartitionInstall(ctx, "testcases", ctx.ModuleName())
+		if ctx.PrimaryArch() {
+			if p.testConfig != nil {
+				ctx.InstallFile(testCases, ctx.ModuleName()+".config", p.testConfig)
+			}
+		}
+		// Install tests and data in arch specific subdir $PRODUCT_OUT/testcases/$module/$arch
+		testCases = testCases.Join(ctx, ctx.Target().Arch.ArchType.String())
+		installedData := ctx.InstallTestData(testCases, p.data)
+		ctx.InstallFile(testCases, p.installSource.Base(), p.installSource, installedData...)
+	}
+
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	moduleInfoJSON.Class = []string{"NATIVE_TESTS"}
+	if len(p.binaryProperties.Test_suites) > 0 {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, p.binaryProperties.Test_suites...)
+	} else {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "null-suite")
+	}
+	if p.testConfig != nil {
+		moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, p.testConfig.String())
+	}
+	if _, ok := p.testConfig.(android.WritablePath); ok {
+		moduleInfoJSON.AutoTestConfig = []string{"true"}
+	}
+	moduleInfoJSON.TestOptionsTags = append(moduleInfoJSON.TestOptionsTags, p.testProperties.Test_options.Tags...)
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, p.androidMkSharedLibs...)
+	moduleInfoJSON.SharedLibs = append(moduleInfoJSON.Dependencies, p.androidMkSharedLibs...)
+	moduleInfoJSON.SystemSharedLibs = []string{"none"}
+	if proptools.Bool(p.testProperties.Test_options.Unit_test) {
+		moduleInfoJSON.IsUnitTest = "true"
+		if p.isTestHost() {
+			moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "host-unit-tests")
+		}
+	}
 }
 
 func (p *PythonTestModule) AndroidMkEntries() []android.AndroidMkEntries {

@@ -26,12 +26,12 @@ import (
 
 const testSuiteModuleType = "test_suite"
 
-type testSuiteTag struct{
+type testSuiteTag struct {
 	blueprint.BaseDependencyTag
 }
 
 type testSuiteManifest struct {
-	Name  string `json:"name"`
+	Name  string   `json:"name"`
 	Files []string `json:"files"`
 }
 
@@ -49,7 +49,7 @@ var PrepareForTestWithTestSuiteBuildComponents = android.GroupFixturePreparers(
 
 type testSuiteProperties struct {
 	Description string
-	Tests []string `android:"path,arch_variant"`
+	Tests       []string `android:"path,arch_variant"`
 }
 
 type testSuiteModule struct {
@@ -109,7 +109,7 @@ func (t *testSuiteModule) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	}
 
 	manifestPath := android.PathForSuiteInstall(ctx, suiteName, suiteName+".json")
-	b, err := json.Marshal(testSuiteManifest{Name: suiteName, Files: files})
+	b, err := json.Marshal(testSuiteManifest{Name: suiteName, Files: android.SortedUniqueStrings(files)})
 	if err != nil {
 		ctx.ModuleErrorf("Failed to marshal manifest: %v", err)
 		return
@@ -160,7 +160,7 @@ func packageModuleFiles(ctx android.ModuleContext, suiteName string, module andr
 	// Install config file.
 	if tp.TestConfig != nil {
 		moduleRoot := suiteRoot.Join(ctx, hostOrTarget, "testcases", module.Name())
-		installed = append(installed, ctx.InstallFile(moduleRoot, module.Name() + ".config", tp.TestConfig))
+		installed = append(installed, ctx.InstallFile(moduleRoot, module.Name()+".config", tp.TestConfig))
 	}
 
 	// Add to phony and manifest, manifestpaths are relative to suiteRoot.

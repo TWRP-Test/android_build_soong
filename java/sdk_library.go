@@ -693,9 +693,9 @@ func (paths *scopePaths) extractStubsLibraryInfoFromDependency(ctx android.Modul
 		paths.stubsHeaderPath = lib.HeaderJars
 		paths.stubsImplPath = lib.ImplementationJars
 
-		libDep := dep.(UsesLibraryDependency)
-		paths.stubsDexJarPath = libDep.DexJarBuildPath(ctx)
-		paths.exportableStubsDexJarPath = libDep.DexJarBuildPath(ctx)
+		libDep := android.OtherModuleProviderOrDefault(ctx, dep, JavaInfoProvider).UsesLibraryDependencyInfo
+		paths.stubsDexJarPath = libDep.DexJarBuildPath
+		paths.exportableStubsDexJarPath = libDep.DexJarBuildPath
 		return nil
 	} else {
 		return fmt.Errorf("expected module that has JavaInfoProvider, e.g. java_library")
@@ -709,8 +709,8 @@ func (paths *scopePaths) extractEverythingStubsLibraryInfoFromDependency(ctx and
 			paths.stubsImplPath = lib.ImplementationJars
 		}
 
-		libDep := dep.(UsesLibraryDependency)
-		paths.stubsDexJarPath = libDep.DexJarBuildPath(ctx)
+		libDep := android.OtherModuleProviderOrDefault(ctx, dep, JavaInfoProvider).UsesLibraryDependencyInfo
+		paths.stubsDexJarPath = libDep.DexJarBuildPath
 		return nil
 	} else {
 		return fmt.Errorf("expected module that has JavaInfoProvider, e.g. java_library")
@@ -723,58 +723,67 @@ func (paths *scopePaths) extractExportableStubsLibraryInfoFromDependency(ctx and
 			paths.stubsImplPath = lib.ImplementationJars
 		}
 
-		libDep := dep.(UsesLibraryDependency)
-		paths.exportableStubsDexJarPath = libDep.DexJarBuildPath(ctx)
+		libDep := android.OtherModuleProviderOrDefault(ctx, dep, JavaInfoProvider).UsesLibraryDependencyInfo
+		paths.exportableStubsDexJarPath = libDep.DexJarBuildPath
 		return nil
 	} else {
 		return fmt.Errorf("expected module that has JavaInfoProvider, e.g. java_library")
 	}
 }
 
-func (paths *scopePaths) treatDepAsApiStubsProvider(dep android.Module, action func(provider ApiStubsProvider) error) error {
-	if apiStubsProvider, ok := dep.(ApiStubsProvider); ok {
-		err := action(apiStubsProvider)
+func (paths *scopePaths) treatDepAsApiStubsProvider(ctx android.ModuleContext, dep android.Module,
+	action func(*DroidStubsInfo, *StubsSrcInfo) error) error {
+	apiStubsProvider, ok := android.OtherModuleProvider(ctx, dep, DroidStubsInfoProvider)
+	if !ok {
+		return fmt.Errorf("expected module that provides DroidStubsInfo, e.g. droidstubs")
+	}
+
+	apiStubsSrcProvider, ok := android.OtherModuleProvider(ctx, dep, StubsSrcInfoProvider)
+	if !ok {
+		return fmt.Errorf("expected module that provides StubsSrcInfo, e.g. droidstubs")
+	}
+	return action(&apiStubsProvider, &apiStubsSrcProvider)
+}
+
+func (paths *scopePaths) treatDepAsApiStubsSrcProvider(
+	ctx android.ModuleContext, dep android.Module, action func(provider *StubsSrcInfo) error) error {
+	if apiStubsProvider, ok := android.OtherModuleProvider(ctx, dep, StubsSrcInfoProvider); ok {
+		err := action(&apiStubsProvider)
 		if err != nil {
 			return err
 		}
 		return nil
 	} else {
-		return fmt.Errorf("expected module that implements ExportableApiStubsSrcProvider, e.g. droidstubs")
+		return fmt.Errorf("expected module that provides DroidStubsInfo, e.g. droidstubs")
 	}
 }
 
-func (paths *scopePaths) treatDepAsApiStubsSrcProvider(dep android.Module, action func(provider ApiStubsSrcProvider) error) error {
-	if apiStubsProvider, ok := dep.(ApiStubsSrcProvider); ok {
-		err := action(apiStubsProvider)
-		if err != nil {
-			return err
-		}
-		return nil
-	} else {
-		return fmt.Errorf("expected module that implements ApiStubsSrcProvider, e.g. droidstubs")
+func (paths *scopePaths) extractApiInfoFromApiStubsProvider(provider *DroidStubsInfo, stubsType StubsType) error {
+	var currentApiFilePathErr, removedApiFilePathErr error
+	info, err := getStubsInfoForType(provider, stubsType)
+	if err != nil {
+		return err
 	}
-}
-
-func (paths *scopePaths) extractApiInfoFromApiStubsProvider(provider ApiStubsProvider, stubsType StubsType) error {
-	var annotationsZip, currentApiFilePath, removedApiFilePath android.Path
-	annotationsZip, annotationsZipErr := provider.AnnotationsZip(stubsType)
-	currentApiFilePath, currentApiFilePathErr := provider.ApiFilePath(stubsType)
-	removedApiFilePath, removedApiFilePathErr := provider.RemovedApiFilePath(stubsType)
-
-	combinedError := errors.Join(annotationsZipErr, currentApiFilePathErr, removedApiFilePathErr)
+	if info.ApiFile == nil {
+		currentApiFilePathErr = fmt.Errorf("expected module that provides ApiFile")
+	}
+	if info.RemovedApiFile == nil {
+		removedApiFilePathErr = fmt.Errorf("expected module that provides RemovedApiFile")
+	}
+	combinedError := errors.Join(currentApiFilePathErr, removedApiFilePathErr)
 
 	if combinedError == nil {
-		paths.annotationsZip = android.OptionalPathForPath(annotationsZip)
-		paths.currentApiFilePath = android.OptionalPathForPath(currentApiFilePath)
-		paths.removedApiFilePath = android.OptionalPathForPath(removedApiFilePath)
+		paths.annotationsZip = android.OptionalPathForPath(info.AnnotationsZip)
+		paths.currentApiFilePath = android.OptionalPathForPath(info.ApiFile)
+		paths.removedApiFilePath = android.OptionalPathForPath(info.RemovedApiFile)
 	}
 	return combinedError
 }
 
-func (paths *scopePaths) extractStubsSourceInfoFromApiStubsProviders(provider ApiStubsSrcProvider, stubsType StubsType) error {
-	stubsSrcJar, err := provider.StubsSrcJar(stubsType)
+func (paths *scopePaths) extractStubsSourceInfoFromApiStubsProviders(provider *StubsSrcInfo, stubsType StubsType) error {
+	path, err := getStubsSrcInfoForType(provider, stubsType)
 	if err == nil {
-		paths.stubsSrcJar = android.OptionalPathForPath(stubsSrcJar)
+		paths.stubsSrcJar = android.OptionalPathForPath(path)
 	}
 	return err
 }
@@ -784,7 +793,7 @@ func (paths *scopePaths) extractStubsSourceInfoFromDep(ctx android.ModuleContext
 	if ctx.Config().ReleaseHiddenApiExportableStubs() {
 		stubsType = Exportable
 	}
-	return paths.treatDepAsApiStubsSrcProvider(dep, func(provider ApiStubsSrcProvider) error {
+	return paths.treatDepAsApiStubsSrcProvider(ctx, dep, func(provider *StubsSrcInfo) error {
 		return paths.extractStubsSourceInfoFromApiStubsProviders(provider, stubsType)
 	})
 }
@@ -794,17 +803,17 @@ func (paths *scopePaths) extractStubsSourceAndApiInfoFromApiStubsProvider(ctx an
 	if ctx.Config().ReleaseHiddenApiExportableStubs() {
 		stubsType = Exportable
 	}
-	return paths.treatDepAsApiStubsProvider(dep, func(provider ApiStubsProvider) error {
-		extractApiInfoErr := paths.extractApiInfoFromApiStubsProvider(provider, stubsType)
-		extractStubsSourceInfoErr := paths.extractStubsSourceInfoFromApiStubsProviders(provider, stubsType)
+	return paths.treatDepAsApiStubsProvider(ctx, dep, func(apiStubsProvider *DroidStubsInfo, apiStubsSrcProvider *StubsSrcInfo) error {
+		extractApiInfoErr := paths.extractApiInfoFromApiStubsProvider(apiStubsProvider, stubsType)
+		extractStubsSourceInfoErr := paths.extractStubsSourceInfoFromApiStubsProviders(apiStubsSrcProvider, stubsType)
 		return errors.Join(extractApiInfoErr, extractStubsSourceInfoErr)
 	})
 }
 
-func extractOutputPaths(dep android.Module) (android.Paths, error) {
+func extractOutputPaths(ctx android.ModuleContext, dep android.Module) (android.Paths, error) {
 	var paths android.Paths
-	if sourceFileProducer, ok := dep.(android.SourceFileProducer); ok {
-		paths = sourceFileProducer.Srcs()
+	if sourceFileProducer, ok := android.OtherModuleProvider(ctx, dep, android.SourceFilesInfoProvider); ok {
+		paths = sourceFileProducer.Srcs
 		return paths, nil
 	} else {
 		return nil, fmt.Errorf("module %q does not produce source files", dep)
@@ -812,15 +821,45 @@ func extractOutputPaths(dep android.Module) (android.Paths, error) {
 }
 
 func (paths *scopePaths) extractLatestApiPath(ctx android.ModuleContext, dep android.Module) error {
-	outputPaths, err := extractOutputPaths(dep)
+	outputPaths, err := extractOutputPaths(ctx, dep)
 	paths.latestApiPaths = outputPaths
 	return err
 }
 
 func (paths *scopePaths) extractLatestRemovedApiPath(ctx android.ModuleContext, dep android.Module) error {
-	outputPaths, err := extractOutputPaths(dep)
+	outputPaths, err := extractOutputPaths(ctx, dep)
 	paths.latestRemovedApiPaths = outputPaths
 	return err
+}
+
+func getStubsInfoForType(info *DroidStubsInfo, stubsType StubsType) (ret *StubsInfo, err error) {
+	switch stubsType {
+	case Everything:
+		ret, err = &info.EverythingStubsInfo, nil
+	case Exportable:
+		ret, err = &info.ExportableStubsInfo, nil
+	default:
+		ret, err = nil, fmt.Errorf("stubs info not supported for the stub type %s", stubsType.String())
+	}
+	if ret == nil && err == nil {
+		err = fmt.Errorf("stubs info is null for the stub type %s", stubsType.String())
+	}
+	return ret, err
+}
+
+func getStubsSrcInfoForType(info *StubsSrcInfo, stubsType StubsType) (ret android.Path, err error) {
+	switch stubsType {
+	case Everything:
+		ret, err = info.EverythingStubsSrcJar, nil
+	case Exportable:
+		ret, err = info.ExportableStubsSrcJar, nil
+	default:
+		ret, err = nil, fmt.Errorf("stubs src info not supported for the stub type %s", stubsType.String())
+	}
+	if ret == nil && err == nil {
+		err = fmt.Errorf("stubs src info is null for the stub type %s", stubsType.String())
+	}
+	return ret, err
 }
 
 type commonToSdkLibraryAndImportProperties struct {
@@ -911,9 +950,9 @@ type commonToSdkLibraryAndImport struct {
 	// This is non-empty only when api_only is false.
 	implLibraryHeaderJars android.Paths
 
-	// The reference to the implementation library created by the source module.
-	// Is nil if the source module does not exist.
-	implLibraryModule *Library
+	// The reference to the JavaInfo provided by implementation library created by
+	// the source module. Is nil if the source module does not exist.
+	implLibraryInfo *JavaInfo
 }
 
 func (c *commonToSdkLibraryAndImport) initCommon(module commonSdkLibraryAndImportModule) {
@@ -1218,16 +1257,16 @@ var _ UsesLibraryDependency = (*SdkLibrary)(nil)
 
 // To satisfy the UsesLibraryDependency interface
 func (module *SdkLibrary) DexJarBuildPath(ctx android.ModuleErrorfContext) OptionalDexJarPath {
-	if module.implLibraryModule != nil {
-		return module.implLibraryModule.DexJarBuildPath(ctx)
+	if module.implLibraryInfo != nil {
+		return module.implLibraryInfo.DexJarFile
 	}
 	return makeUnsetDexJarPath()
 }
 
 // To satisfy the UsesLibraryDependency interface
 func (module *SdkLibrary) DexJarInstallPath() android.Path {
-	if module.implLibraryModule != nil {
-		return module.implLibraryModule.DexJarInstallPath()
+	if module.implLibraryInfo != nil {
+		return module.implLibraryInfo.InstallFile
 	}
 	return nil
 }
@@ -1414,11 +1453,11 @@ func (module *SdkLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext)
 	// Collate the components exported by this module. All scope specific modules are exported but
 	// the impl and xml component modules are not.
 	exportedComponents := map[string]struct{}{}
-
+	var implLib android.ModuleProxy
 	// Record the paths to the header jars of the library (stubs and impl).
 	// When this java_sdk_library is depended upon from others via "libs" property,
 	// the recorded paths will be returned depending on the link type of the caller.
-	ctx.VisitDirectDeps(func(to android.Module) {
+	ctx.VisitDirectDepsProxy(func(to android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(to)
 
 		// Extract information from any of the scope specific dependencies.
@@ -1438,7 +1477,8 @@ func (module *SdkLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext)
 		if tag == implLibraryTag {
 			if dep, ok := android.OtherModuleProvider(ctx, to, JavaInfoProvider); ok {
 				module.implLibraryHeaderJars = append(module.implLibraryHeaderJars, dep.HeaderJars...)
-				module.implLibraryModule = to.(*Library)
+				module.implLibraryInfo = dep
+				implLib = to
 			}
 		}
 	})
@@ -1449,39 +1489,39 @@ func (module *SdkLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext)
 		module.hideApexVariantFromMake = true
 	}
 
-	if module.implLibraryModule != nil {
+	if module.implLibraryInfo != nil {
 		if ctx.Device() {
-			module.classesJarPaths = android.Paths{module.implLibraryModule.implementationJarFile}
-			module.bootDexJarPath = module.implLibraryModule.bootDexJarPath
-			module.uncompressDexState = module.implLibraryModule.uncompressDexState
-			module.active = module.implLibraryModule.active
+			module.classesJarPaths = module.implLibraryInfo.ImplementationJars
+			module.bootDexJarPath = module.implLibraryInfo.BootDexJarPath
+			module.uncompressDexState = module.implLibraryInfo.UncompressDexState
+			module.active = module.implLibraryInfo.Active
 		}
 
-		module.outputFile = module.implLibraryModule.outputFile
-		module.dexJarFile = makeDexJarPathFromPath(module.implLibraryModule.dexJarFile.Path())
-		module.headerJarFile = module.implLibraryModule.headerJarFile
-		module.implementationAndResourcesJar = module.implLibraryModule.implementationAndResourcesJar
-		module.builtInstalledForApex = module.implLibraryModule.builtInstalledForApex
-		module.dexpreopter.configPath = module.implLibraryModule.dexpreopter.configPath
-		module.dexpreopter.outputProfilePathOnHost = module.implLibraryModule.dexpreopter.outputProfilePathOnHost
+		module.outputFile = module.implLibraryInfo.OutputFile
+		module.dexJarFile = makeDexJarPathFromPath(module.implLibraryInfo.DexJarFile.Path())
+		module.headerJarFile = module.implLibraryInfo.HeaderJars[0]
+		module.implementationAndResourcesJar = module.implLibraryInfo.ImplementationAndResourcesJars[0]
+		module.builtInstalledForApex = module.implLibraryInfo.BuiltInstalledForApex
+		module.dexpreopter.configPath = module.implLibraryInfo.ConfigPath
+		module.dexpreopter.outputProfilePathOnHost = module.implLibraryInfo.OutputProfilePathOnHost
 
 		// Properties required for Library.AndroidMkEntries
-		module.logtagsSrcs = module.implLibraryModule.logtagsSrcs
-		module.dexpreopter.builtInstalled = module.implLibraryModule.dexpreopter.builtInstalled
-		module.jacocoReportClassesFile = module.implLibraryModule.jacocoReportClassesFile
-		module.dexer.proguardDictionary = module.implLibraryModule.dexer.proguardDictionary
-		module.dexer.proguardUsageZip = module.implLibraryModule.dexer.proguardUsageZip
-		module.linter.reports = module.implLibraryModule.linter.reports
+		module.logtagsSrcs = module.implLibraryInfo.LogtagsSrcs
+		module.dexpreopter.builtInstalled = module.implLibraryInfo.BuiltInstalled
+		module.jacocoReportClassesFile = module.implLibraryInfo.JacocoReportClassesFile
+		module.dexer.proguardDictionary = module.implLibraryInfo.ProguardDictionary
+		module.dexer.proguardUsageZip = module.implLibraryInfo.ProguardUsageZip
+		module.linter.reports = module.implLibraryInfo.LinterReports
 
-		if lintInfo, ok := android.OtherModuleProvider(ctx, module.implLibraryModule, LintProvider); ok {
+		if lintInfo, ok := android.OtherModuleProvider(ctx, implLib, LintProvider); ok {
 			android.SetProvider(ctx, LintProvider, lintInfo)
 		}
 
 		if !module.Host() {
-			module.hostdexInstallFile = module.implLibraryModule.hostdexInstallFile
+			module.hostdexInstallFile = module.implLibraryInfo.HostdexInstallFile
 		}
 
-		if installFilesInfo, ok := android.OtherModuleProvider(ctx, module.implLibraryModule, android.InstallFilesProvider); ok {
+		if installFilesInfo, ok := android.OtherModuleProvider(ctx, implLib, android.InstallFilesProvider); ok {
 			if installFilesInfo.CheckbuildTarget != nil {
 				ctx.CheckbuildFile(installFilesInfo.CheckbuildTarget)
 			}
@@ -1524,13 +1564,24 @@ func (module *SdkLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext)
 		}
 	}
 
-	if module.requiresRuntimeImplementationLibrary() && module.implLibraryModule != nil {
+	if module.requiresRuntimeImplementationLibrary() && module.implLibraryInfo != nil {
 		generatingLibs = append(generatingLibs, module.implLibraryModuleName())
-		setOutputFiles(ctx, module.implLibraryModule.Module)
+		setOutputFilesFromJavaInfo(ctx, module.implLibraryInfo)
 	}
 
 	sdkLibInfo.GeneratingLibs = generatingLibs
 	android.SetProvider(ctx, SdkLibraryInfoProvider, sdkLibInfo)
+}
+
+func setOutputFilesFromJavaInfo(ctx android.ModuleContext, info *JavaInfo) {
+	ctx.SetOutputFiles(append(android.PathsIfNonNil(info.OutputFile), info.ExtraOutputFiles...), "")
+	ctx.SetOutputFiles(android.PathsIfNonNil(info.OutputFile), android.DefaultDistTag)
+	ctx.SetOutputFiles(info.ImplementationAndResourcesJars, ".jar")
+	ctx.SetOutputFiles(info.HeaderJars, ".hjar")
+	if info.ProguardDictionary.Valid() {
+		ctx.SetOutputFiles(android.Paths{info.ProguardDictionary.Path()}, ".proguard_map")
+	}
+	ctx.SetOutputFiles(info.GeneratedSrcjars, ".generated_srcjars")
 }
 
 func (module *SdkLibrary) BuiltInstalledForApex() []dexpreopterInstall {
@@ -1906,10 +1957,6 @@ type SdkLibraryImport struct {
 
 	commonToSdkLibraryAndImport
 
-	// The reference to the xml permissions module created by the source module.
-	// Is nil if the source module does not exist.
-	xmlPermissionsFileModule *sdkLibraryXml
-
 	// Build path to the dex implementation jar obtained from the prebuilt_apex, if any.
 	dexJarFile    OptionalDexJarPath
 	dexJarFileErr error
@@ -2098,7 +2145,7 @@ func (module *SdkLibraryImport) GenerateAndroidBuildActions(ctx android.ModuleCo
 	module.installFile = android.PathForModuleInstall(ctx, "framework", module.Stem()+".jar")
 
 	// Record the paths to the prebuilt stubs library and stubs source.
-	ctx.VisitDirectDeps(func(to android.Module) {
+	ctx.VisitDirectDepsProxy(func(to android.ModuleProxy) {
 		tag := ctx.OtherModuleDependencyTag(to)
 
 		// Extract information from any of the scope specific dependencies.
@@ -2110,16 +2157,10 @@ func (module *SdkLibraryImport) GenerateAndroidBuildActions(ctx android.ModuleCo
 			// is determined by the nature of the dependency which is determined by the tag.
 			scopeTag.extractDepInfo(ctx, to, scopePaths)
 		} else if tag == implLibraryTag {
-			if implLibrary, ok := to.(*Library); ok {
-				module.implLibraryModule = implLibrary
+			if implInfo, ok := android.OtherModuleProvider(ctx, to, JavaInfoProvider); ok {
+				module.implLibraryInfo = implInfo
 			} else {
 				ctx.ModuleErrorf("implementation library must be of type *java.Library but was %T", to)
-			}
-		} else if tag == xmlPermissionsFileTag {
-			if xmlPermissionsFileModule, ok := to.(*sdkLibraryXml); ok {
-				module.xmlPermissionsFileModule = xmlPermissionsFileModule
-			} else {
-				ctx.ModuleErrorf("xml permissions file module must be of type *sdkLibraryXml but was %T", to)
 			}
 		}
 	})
@@ -2160,9 +2201,9 @@ func (module *SdkLibraryImport) GenerateAndroidBuildActions(ctx android.ModuleCo
 	}
 
 	module.setOutputFiles(ctx)
-	if module.implLibraryModule != nil {
+	if module.implLibraryInfo != nil {
 		generatingLibs = append(generatingLibs, module.implLibraryModuleName())
-		setOutputFiles(ctx, module.implLibraryModule.Module)
+		setOutputFilesFromJavaInfo(ctx, module.implLibraryInfo)
 	}
 
 	sdkLibInfo.GeneratingLibs = generatingLibs
@@ -2181,10 +2222,10 @@ func (module *SdkLibraryImport) DexJarBuildPath(ctx android.ModuleErrorfContext)
 	if module.dexJarFile.IsSet() {
 		return module.dexJarFile
 	}
-	if module.implLibraryModule == nil {
+	if module.implLibraryInfo == nil {
 		return makeUnsetDexJarPath()
 	} else {
-		return module.implLibraryModule.DexJarBuildPath(ctx)
+		return module.implLibraryInfo.DexJarFile
 	}
 }
 
@@ -2200,10 +2241,10 @@ func (module *SdkLibraryImport) ClassLoaderContexts() dexpreopt.ClassLoaderConte
 
 // to satisfy apex.javaDependency interface
 func (module *SdkLibraryImport) JacocoReportClassesFile() android.Path {
-	if module.implLibraryModule == nil {
+	if module.implLibraryInfo == nil {
 		return nil
 	} else {
-		return module.implLibraryModule.JacocoReportClassesFile()
+		return module.implLibraryInfo.JacocoReportClassesFile
 	}
 }
 
@@ -2216,19 +2257,19 @@ var _ ApexDependency = (*SdkLibraryImport)(nil)
 
 // to satisfy java.ApexDependency interface
 func (module *SdkLibraryImport) HeaderJars() android.Paths {
-	if module.implLibraryModule == nil {
+	if module.implLibraryInfo == nil {
 		return nil
 	} else {
-		return module.implLibraryModule.HeaderJars()
+		return module.implLibraryInfo.HeaderJars
 	}
 }
 
 // to satisfy java.ApexDependency interface
 func (module *SdkLibraryImport) ImplementationAndResourcesJars() android.Paths {
-	if module.implLibraryModule == nil {
+	if module.implLibraryInfo == nil {
 		return nil
 	} else {
-		return module.implLibraryModule.ImplementationAndResourcesJars()
+		return module.implLibraryInfo.ImplementationAndResourcesJars
 	}
 }
 
@@ -2393,8 +2434,7 @@ func (s *sdkLibrarySdkMemberProperties) PopulateFromVariant(ctx android.SdkMembe
 	s.Min_device_sdk = sdk.commonSdkLibraryProperties.Min_device_sdk
 	s.Max_device_sdk = sdk.commonSdkLibraryProperties.Max_device_sdk
 
-	implLibrary := sdk.implLibraryModule
-	if implLibrary != nil && implLibrary.dexpreopter.dexpreoptProperties.Dex_preopt_result.Profile_guided {
+	if sdk.implLibraryInfo != nil && sdk.implLibraryInfo.ProfileGuided {
 		s.DexPreoptProfileGuided = proptools.BoolPtr(true)
 	}
 }

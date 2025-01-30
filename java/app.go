@@ -1616,6 +1616,19 @@ func (a *AndroidTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	a.data = append(a.data, android.PathsForModuleSrc(ctx, a.testProperties.Device_first_data)...)
 	a.data = append(a.data, android.PathsForModuleSrc(ctx, a.testProperties.Device_first_prefer32_data)...)
 
+	// Install test deps
+	if !ctx.Config().KatiEnabled() {
+		pathInTestCases := android.PathForModuleInstall(ctx, ctx.Module().Name())
+		if a.testConfig != nil {
+			ctx.InstallFile(pathInTestCases, ctx.Module().Name()+".config", a.testConfig)
+		}
+		testDeps := append(a.data, a.extraTestConfigs...)
+		for _, data := range android.SortedUniquePaths(testDeps) {
+			dataPath := android.DataPath{SrcPath: data}
+			ctx.InstallTestData(pathInTestCases, []android.DataPath{dataPath})
+		}
+	}
+
 	android.SetProvider(ctx, tradefed.BaseTestProviderKey, tradefed.BaseTestProviderData{
 		TestcaseRelDataFiles:    testcaseRel(a.data),
 		OutputFile:              a.OutputFile(),

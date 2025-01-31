@@ -100,3 +100,9 @@ func (procMacro *procMacroDecorator) everInstallable() bool {
 	// Proc_macros are never installed
 	return false
 }
+
+func (library *procMacroDecorator) moduleInfoJSON(ctx ModuleContext, moduleInfoJSON *android.ModuleInfoJSON) {
+	library.baseCompiler.moduleInfoJSON(ctx, moduleInfoJSON)
+
+	moduleInfoJSON.Class = []string{"PROC_MACRO_LIBRARIES"}
+}

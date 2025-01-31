@@ -1916,7 +1916,7 @@ func TestDataDeviceBinsBuildsDeviceBinary(t *testing.T) {
 			}
 
 			actualData := entries.EntryMap["LOCAL_COMPATIBILITY_SUPPORT_FILES"]
-			android.AssertStringPathsRelativeToTopEquals(t, "LOCAL_TEST_DATA", ctx.Config, expectedData, actualData)
+			android.AssertStringPathsRelativeToTopEquals(t, "LOCAL_TEST_DATA", ctx.Config, android.SortedUniqueStrings(expectedData), android.SortedUniqueStrings(actualData))
 		})
 	}
 }

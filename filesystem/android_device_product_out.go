@@ -16,6 +16,7 @@ package filesystem
 
 import (
 	"android/soong/android"
+	"fmt"
 
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
@@ -72,10 +73,13 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 			},
 		})
 
-		// Make it so doing `m <moduleName>` or `m <partitionType>` will copy the files to
+		// Make it so doing `m <moduleName>` or `m <partitionType>image` will copy the files to
 		// PRODUCT_OUT
 		ctx.Phony(info.ModuleName, dirStamp, imgInstallPath)
-		ctx.Phony(partition, dirStamp, imgInstallPath)
+		if partition == "system_ext" {
+			partition = "systemext"
+		}
+		ctx.Phony(fmt.Sprintf("%simage", partition), dirStamp, imgInstallPath)
 
 		deps = append(deps, imgInstallPath, dirStamp)
 	}

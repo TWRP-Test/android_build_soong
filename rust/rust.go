@@ -1183,6 +1183,11 @@ func (mod *Module) GenerateAndroidBuildActions(actx android.ModuleContext) {
 	mod.setOutputFiles(ctx)
 
 	buildComplianceMetadataInfo(ctx, mod, deps)
+
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	if mod.compiler != nil {
+		mod.compiler.moduleInfoJSON(ctx, moduleInfoJSON)
+	}
 }
 
 func (mod *Module) setOutputFiles(ctx ModuleContext) {

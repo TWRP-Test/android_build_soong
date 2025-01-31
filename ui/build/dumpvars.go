@@ -172,7 +172,7 @@ var BannerVars = []string{
 	"SOONG_SDK_SNAPSHOT_TARGET_BUILD_RELEASE",
 }
 
-func Banner(make_vars map[string]string) string {
+func Banner(config Config, make_vars map[string]string) string {
 	b := &bytes.Buffer{}
 
 	fmt.Fprintln(b, "============================================")
@@ -181,6 +181,7 @@ func Banner(make_vars map[string]string) string {
 			fmt.Fprintf(b, "%s=%s\n", name, make_vars[name])
 		}
 	}
+	fmt.Fprintf(b, "SOONG_ONLY=%t\n", config.soongOnlyRequested)
 	fmt.Fprint(b, "============================================")
 
 	return b.String()
@@ -289,13 +290,8 @@ func runMakeProductConfig(ctx Context, config Config) {
 		ctx.Fatalln("Error dumping make vars:", err)
 	}
 
-	env := config.Environment()
-	// Print the banner like make does
-	if !env.IsEnvTrue("ANDROID_QUIET_BUILD") {
-		fmt.Fprintln(ctx.Writer, Banner(makeVars))
-	}
-
 	// Populate the environment
+	env := config.Environment()
 	for _, name := range exportEnvVars {
 		if makeVars[name] == "" {
 			env.Unset(name)
@@ -319,8 +315,14 @@ func runMakeProductConfig(ctx Context, config Config) {
 
 	if !config.skipKatiControlledByFlags {
 		if makeVars["PRODUCT_SOONG_ONLY"] == "true" {
+			config.soongOnlyRequested = true
 			config.skipKati = true
 			config.skipKatiNinja = true
 		}
+	}
+
+	// Print the banner like make did
+	if !env.IsEnvTrue("ANDROID_QUIET_BUILD") {
+		fmt.Fprintln(ctx.Writer, Banner(config, makeVars))
 	}
 }

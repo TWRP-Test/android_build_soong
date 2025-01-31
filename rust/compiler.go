@@ -78,6 +78,8 @@ type compiler interface {
 	checkedCrateRootPath() (android.Path, error)
 
 	Aliases() map[string]string
+
+	moduleInfoJSON(ctx ModuleContext, moduleInfoJSON *android.ModuleInfoJSON)
 }
 
 func (compiler *baseCompiler) edition() string {
@@ -324,6 +326,31 @@ func (compiler *baseCompiler) stdLinkage(device bool) RustLinkage {
 		return DylibLinkage
 	} else {
 		return RlibLinkage
+	}
+}
+
+func (compiler *baseCompiler) moduleInfoJSON(ctx ModuleContext, moduleInfoJSON *android.ModuleInfoJSON) {
+	moduleInfoJSON.Class = []string{"ETC"}
+
+	mod := ctx.Module().(*Module)
+
+	moduleInfoJSON.SharedLibs = mod.transitiveAndroidMkSharedLibs.ToList()
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, mod.transitiveAndroidMkSharedLibs.ToList()...)
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, mod.Properties.AndroidMkDylibs...)
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, mod.Properties.AndroidMkHeaderLibs...)
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, mod.Properties.AndroidMkProcMacroLibs...)
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, mod.Properties.AndroidMkRlibs...)
+	moduleInfoJSON.Dependencies = append(moduleInfoJSON.Dependencies, mod.Properties.AndroidMkStaticLibs...)
+	moduleInfoJSON.SystemSharedLibs = []string{"none"}
+	moduleInfoJSON.StaticLibs = mod.Properties.AndroidMkStaticLibs
+
+	if mod.sourceProvider != nil {
+		moduleInfoJSON.SubName += mod.sourceProvider.getSubName()
+	}
+	moduleInfoJSON.SubName += mod.AndroidMkSuffix()
+
+	if mod.Properties.IsSdkVariant {
+		moduleInfoJSON.Uninstallable = true
 	}
 }
 

@@ -338,7 +338,7 @@ func dumpVar(ctx build.Context, config build.Config, args []string) {
 			ctx.Fatal(err)
 		}
 
-		fmt.Println(build.Banner(varData))
+		fmt.Println(build.Banner(config, varData))
 	} else {
 		varData, err := build.DumpMakeVars(ctx, config, nil, []string{varName})
 		if err != nil {
@@ -414,7 +414,7 @@ func dumpVars(ctx build.Context, config build.Config, args []string) {
 
 	for _, name := range vars {
 		if name == "report_config" {
-			fmt.Printf("%sreport_config='%s'\n", *varPrefix, build.Banner(varData))
+			fmt.Printf("%sreport_config='%s'\n", *varPrefix, build.Banner(config, varData))
 		} else {
 			fmt.Printf("%s%s='%s'\n", *varPrefix, name, varData[name])
 		}

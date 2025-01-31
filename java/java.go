@@ -1845,6 +1845,22 @@ func (j *Test) generateAndroidBuildActionsWithConfig(ctx android.ModuleContext, 
 		}
 	}
 	moduleInfoJSON.TestMainlineModules = append(moduleInfoJSON.TestMainlineModules, j.testProperties.Test_mainline_modules...)
+
+	// Install test deps
+	if !ctx.Config().KatiEnabled() {
+		pathInTestCases := android.PathForModuleInstall(ctx, "testcases", ctx.ModuleName())
+		if j.testConfig != nil {
+			ctx.InstallFile(pathInTestCases, ctx.ModuleName()+".config", j.testConfig)
+		}
+		testDeps := append(j.data, j.extraTestConfigs...)
+		for _, data := range android.SortedUniquePaths(testDeps) {
+			dataPath := android.DataPath{SrcPath: data}
+			ctx.InstallTestData(pathInTestCases, []android.DataPath{dataPath})
+		}
+		if j.installFile != nil {
+			ctx.InstallFile(pathInTestCases, ctx.ModuleName()+".jar", j.installFile)
+		}
+	}
 }
 
 func (j *TestHelperLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) {

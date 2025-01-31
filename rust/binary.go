@@ -183,3 +183,8 @@ func (binary *binaryDecorator) staticallyLinked() bool {
 func (binary *binaryDecorator) testBinary() bool {
 	return false
 }
+
+func (binary *binaryDecorator) moduleInfoJSON(ctx ModuleContext, moduleInfoJSON *android.ModuleInfoJSON) {
+	binary.baseCompiler.moduleInfoJSON(ctx, moduleInfoJSON)
+	moduleInfoJSON.Class = []string{"EXECUTABLES"}
+}

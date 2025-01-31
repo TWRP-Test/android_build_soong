@@ -15,6 +15,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"strings"
 	"sync/atomic"
 
@@ -150,7 +151,7 @@ func (a *androidDevice) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		}
 	}
 
-	a.buildTargetFilesZip(ctx)
+	//a.buildTargetFilesZip(ctx) TODO(b/393203512): re-enable target_files.zip
 	var deps []android.Path
 	if proptools.String(a.partitionProps.Super_partition_name) != "" {
 		superImage := ctx.GetDirectDepProxyWithTag(*a.partitionProps.Super_partition_name, superPartitionDepTag)
@@ -221,6 +222,8 @@ func (a *androidDevice) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	// Checkbuilding it causes soong to make a phony, so you can say `m <module name>`
 	ctx.CheckbuildFile(allImagesStamp)
+
+	a.setVbmetaPhonyTargets(ctx)
 }
 
 // Helper structs for target_files.zip creation
@@ -405,4 +408,21 @@ func (a *androidDevice) getFilesystemInfo(ctx android.ModuleContext, depName str
 		ctx.ModuleErrorf("Expected dependency %s to be a filesystem", depName)
 	}
 	return fsInfo
+}
+
+func (a *androidDevice) setVbmetaPhonyTargets(ctx android.ModuleContext) {
+	if !proptools.Bool(a.deviceProps.Main_device) {
+		return
+	}
+
+	if !ctx.Config().KatiEnabled() {
+		for _, vbmetaPartitionName := range a.partitionProps.Vbmeta_partitions {
+			img := ctx.GetDirectDepProxyWithTag(vbmetaPartitionName, filesystemDepTag)
+			if provider, ok := android.OtherModuleProvider(ctx, img, vbmetaPartitionProvider); ok {
+				// make generates `vbmetasystemimage` phony target instead of `vbmeta_systemimage` phony target.
+				partitionName := strings.ReplaceAll(provider.Name, "_", "")
+				ctx.Phony(fmt.Sprintf("%simage", partitionName), provider.Output)
+			}
+		}
+	}
 }

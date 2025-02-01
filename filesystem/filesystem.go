@@ -79,7 +79,7 @@ type filesystem struct {
 }
 
 type filesystemBuilder interface {
-	BuildLinkerConfigFile(ctx android.ModuleContext, builder *android.RuleBuilder, rebasedDir android.OutputPath)
+	BuildLinkerConfigFile(ctx android.ModuleContext, builder *android.RuleBuilder, rebasedDir android.OutputPath, fullInstallPaths *[]FullInstallPathInfo)
 	// Function that filters PackagingSpec in PackagingBase.GatherPackagingSpecs()
 	FilterPackagingSpec(spec android.PackagingSpec) bool
 	// Function that modifies PackagingSpec in PackagingBase.GatherPackagingSpecs() to customize.
@@ -389,6 +389,34 @@ type FilesystemInfo struct {
 	BuildImagePropFileDeps android.Paths
 	// Packaging specs to be installed on the system_other image, for the initial boot's dexpreopt.
 	SpecsForSystemOther map[string]android.PackagingSpec
+
+	FullInstallPaths []FullInstallPathInfo
+}
+
+// FullInstallPathInfo contains information about the "full install" paths of all the files
+// inside this partition. The full install paths are the files installed in
+// out/target/product/<device>/<partition>. This is essentially legacy behavior, maintained for
+// tools like adb sync and adevice, but we should update them to query the build system for the
+// installed files no matter where they are.
+type FullInstallPathInfo struct {
+	// RequiresFullInstall tells us if the origional module did the install to FullInstallPath
+	// already. If it's false, the android_device module needs to emit the install rule.
+	RequiresFullInstall bool
+	// The "full install" paths for the files in this filesystem. This is the paths in the
+	// out/target/product/<device>/<partition> folder. They're not used by this filesystem,
+	// but can be depended on by the top-level android_device module to cause the staging
+	// directories to be built.
+	FullInstallPath android.InstallPath
+
+	// The file that's copied to FullInstallPath. May be nil if SymlinkTarget is set or IsDir is
+	// true.
+	SourcePath android.Path
+
+	// The target of the symlink, if this file is a symlink.
+	SymlinkTarget string
+
+	// If this file is a directory. Only used for empty directories, which are mostly mount points.
+	IsDir bool
 }
 
 var FilesystemProvider = blueprint.NewProvider[FilesystemInfo]()
@@ -485,13 +513,23 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	// Wipe the root dir to get rid of leftover files from prior builds
 	builder.Command().Textf("rm -rf %s && mkdir -p %s", rootDir, rootDir)
 	specs := f.gatherFilteredPackagingSpecs(ctx)
-	f.entries = f.copyPackagingSpecs(ctx, builder, specs, rootDir, rebasedDir)
 
-	f.buildNonDepsFiles(ctx, builder, rootDir)
-	f.buildFsverityMetadataFiles(ctx, builder, specs, rootDir, rebasedDir)
-	f.buildEventLogtagsFile(ctx, builder, rebasedDir)
-	f.buildAconfigFlagsFiles(ctx, builder, specs, rebasedDir)
-	f.filesystemBuilder.BuildLinkerConfigFile(ctx, builder, rebasedDir)
+	var fullInstallPaths []FullInstallPathInfo
+	for _, spec := range specs {
+		fullInstallPaths = append(fullInstallPaths, FullInstallPathInfo{
+			FullInstallPath:     spec.FullInstallPath(),
+			RequiresFullInstall: spec.RequiresFullInstall(),
+			SourcePath:          spec.SrcPath(),
+			SymlinkTarget:       spec.ToGob().SymlinkTarget,
+		})
+	}
+
+	f.entries = f.copyPackagingSpecs(ctx, builder, specs, rootDir, rebasedDir)
+	f.buildNonDepsFiles(ctx, builder, rootDir, rebasedDir, &fullInstallPaths)
+	f.buildFsverityMetadataFiles(ctx, builder, specs, rootDir, rebasedDir, &fullInstallPaths)
+	f.buildEventLogtagsFile(ctx, builder, rebasedDir, &fullInstallPaths)
+	f.buildAconfigFlagsFiles(ctx, builder, specs, rebasedDir, &fullInstallPaths)
+	f.filesystemBuilder.BuildLinkerConfigFile(ctx, builder, rebasedDir, &fullInstallPaths)
 
 	var mapFile android.Path
 	var outputHermetic android.Path
@@ -531,6 +569,7 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		BuildImagePropFile:     buildImagePropFile,
 		BuildImagePropFileDeps: buildImagePropFileDeps,
 		SpecsForSystemOther:    f.systemOtherFiles(ctx),
+		FullInstallPaths:       fullInstallPaths,
 	}
 
 	android.SetProvider(ctx, FilesystemProvider, fsInfo)
@@ -645,11 +684,36 @@ func validatePartitionType(ctx android.ModuleContext, p partition) {
 
 // Copy extra files/dirs that are not from the `deps` property to `rootDir`, checking for conflicts with files
 // already in `rootDir`.
-func (f *filesystem) buildNonDepsFiles(ctx android.ModuleContext, builder *android.RuleBuilder, rootDir android.OutputPath) {
+func (f *filesystem) buildNonDepsFiles(
+	ctx android.ModuleContext,
+	builder *android.RuleBuilder,
+	rootDir android.OutputPath,
+	rebasedDir android.OutputPath,
+	fullInstallPaths *[]FullInstallPathInfo,
+) {
+	rebasedPrefix, err := filepath.Rel(rootDir.String(), rebasedDir.String())
+	if err != nil || strings.HasPrefix(rebasedPrefix, "../") {
+		panic("rebasedDir could not be made relative to rootDir")
+	}
+	if !strings.HasSuffix(rebasedPrefix, "/") {
+		rebasedPrefix += "/"
+	}
+	if rebasedPrefix == "./" {
+		rebasedPrefix = ""
+	}
+
 	// create dirs and symlinks
 	for _, dir := range f.properties.Dirs.GetOrDefault(ctx, nil) {
 		// OutputPath.Join verifies dir
 		builder.Command().Text("mkdir -p").Text(rootDir.Join(ctx, dir).String())
+		// Only add the fullInstallPath logic for files in the rebased dir. The root dir
+		// is harder to install to.
+		if strings.HasPrefix(dir, rebasedPrefix) {
+			*fullInstallPaths = append(*fullInstallPaths, FullInstallPathInfo{
+				FullInstallPath: android.PathForModuleInPartitionInstall(ctx, f.PartitionType(), strings.TrimPrefix(dir, rebasedPrefix)),
+				IsDir:           true,
+			})
+		}
 	}
 
 	for _, symlink := range f.properties.Symlinks {
@@ -672,6 +736,14 @@ func (f *filesystem) buildNonDepsFiles(ctx android.ModuleContext, builder *andro
 		builder.Command().Text("mkdir -p").Text(filepath.Dir(dst.String()))
 		builder.Command().Text("ln -sf").Text(proptools.ShellEscape(target)).Text(dst.String())
 		f.appendToEntry(ctx, dst)
+		// Only add the fullInstallPath logic for files in the rebased dir. The root dir
+		// is harder to install to.
+		if strings.HasPrefix(name, rebasedPrefix) {
+			*fullInstallPaths = append(*fullInstallPaths, FullInstallPathInfo{
+				FullInstallPath: android.PathForModuleInPartitionInstall(ctx, f.PartitionType(), strings.TrimPrefix(name, rebasedPrefix)),
+				SymlinkTarget:   target,
+			})
+		}
 	}
 
 	// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/Makefile;l=2835;drc=b186569ef00ff2f2a1fab28aedc75ebc32bcd67b
@@ -1019,7 +1091,12 @@ var validPartitions = []string{
 	"recovery",
 }
 
-func (f *filesystem) buildEventLogtagsFile(ctx android.ModuleContext, builder *android.RuleBuilder, rebasedDir android.OutputPath) {
+func (f *filesystem) buildEventLogtagsFile(
+	ctx android.ModuleContext,
+	builder *android.RuleBuilder,
+	rebasedDir android.OutputPath,
+	fullInstallPaths *[]FullInstallPathInfo,
+) {
 	if !proptools.Bool(f.properties.Build_logtags) {
 		return
 	}
@@ -1029,10 +1106,20 @@ func (f *filesystem) buildEventLogtagsFile(ctx android.ModuleContext, builder *a
 	builder.Command().Text("mkdir").Flag("-p").Text(etcPath.String())
 	builder.Command().Text("cp").Input(android.MergedLogtagsPath(ctx)).Text(eventLogtagsPath.String())
 
+	*fullInstallPaths = append(*fullInstallPaths, FullInstallPathInfo{
+		FullInstallPath: android.PathForModuleInPartitionInstall(ctx, f.PartitionType(), "etc", "event-log-tags"),
+		SourcePath:      android.MergedLogtagsPath(ctx),
+	})
+
 	f.appendToEntry(ctx, eventLogtagsPath)
 }
 
-func (f *filesystem) BuildLinkerConfigFile(ctx android.ModuleContext, builder *android.RuleBuilder, rebasedDir android.OutputPath) {
+func (f *filesystem) BuildLinkerConfigFile(
+	ctx android.ModuleContext,
+	builder *android.RuleBuilder,
+	rebasedDir android.OutputPath,
+	fullInstallPaths *[]FullInstallPathInfo,
+) {
 	if !proptools.Bool(f.properties.Linker_config.Gen_linker_config) {
 		return
 	}
@@ -1042,6 +1129,11 @@ func (f *filesystem) BuildLinkerConfigFile(ctx android.ModuleContext, builder *a
 	linkerconfig.BuildLinkerConfig(ctx, android.PathsForModuleSrc(ctx, f.properties.Linker_config.Linker_config_srcs), provideModules, nil, intermediateOutput)
 	output := rebasedDir.Join(ctx, "etc", "linker.config.pb")
 	builder.Command().Text("cp").Input(intermediateOutput).Output(output)
+
+	*fullInstallPaths = append(*fullInstallPaths, FullInstallPathInfo{
+		FullInstallPath: android.PathForModuleInPartitionInstall(ctx, f.PartitionType(), "etc", "linker.config.pb"),
+		SourcePath:      intermediateOutput,
+	})
 
 	f.appendToEntry(ctx, output)
 }

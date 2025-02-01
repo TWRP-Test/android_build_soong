@@ -1063,6 +1063,8 @@ func (a *AndroidLibrary) GenerateAndroidBuildActions(ctx android.ModuleContext) 
 	}
 
 	a.setOutputFiles(ctx)
+
+	buildComplianceMetadata(ctx)
 }
 
 func (a *AndroidLibrary) setOutputFiles(ctx android.ModuleContext) {
@@ -1594,6 +1596,8 @@ func (a *AARImport) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 
 	ctx.SetOutputFiles([]android.Path{a.implementationAndResourcesJarFile}, "")
 	ctx.SetOutputFiles([]android.Path{a.aarPath}, ".aar")
+
+	buildComplianceMetadata(ctx)
 }
 
 func (a *AARImport) HeaderJars() android.Paths {

@@ -206,6 +206,8 @@ func (r *RuntimeResourceOverlay) GenerateAndroidBuildActions(ctx android.ModuleC
 	android.SetProvider(ctx, FlagsPackagesProvider, FlagsPackages{
 		AconfigTextFiles: aconfigTextFilePaths,
 	})
+
+	buildComplianceMetadata(ctx)
 }
 
 func (r *RuntimeResourceOverlay) SdkVersion(ctx android.EarlyModuleContext) android.SdkSpec {

@@ -44,7 +44,12 @@ func (s systemImage) FsProps() FilesystemProperties {
 	return s.filesystem.properties
 }
 
-func (s *systemImage) BuildLinkerConfigFile(ctx android.ModuleContext, builder *android.RuleBuilder, rebasedDir android.OutputPath) {
+func (s *systemImage) BuildLinkerConfigFile(
+	ctx android.ModuleContext,
+	builder *android.RuleBuilder,
+	rebasedDir android.OutputPath,
+	fullInstallPaths *[]FullInstallPathInfo,
+) {
 	if !proptools.Bool(s.filesystem.properties.Linker_config.Gen_linker_config) {
 		return
 	}
@@ -55,6 +60,11 @@ func (s *systemImage) BuildLinkerConfigFile(ctx android.ModuleContext, builder *
 		intermediateOutput := android.PathForModuleOut(ctx, "linker.config.pb")
 		linkerconfig.BuildLinkerConfig(ctx, android.PathsForModuleSrc(ctx, s.filesystem.properties.Linker_config.Linker_config_srcs), provideModules, requireModules, intermediateOutput)
 		builder.Command().Text("cp").Input(intermediateOutput).Output(output)
+
+		*fullInstallPaths = append(*fullInstallPaths, FullInstallPathInfo{
+			FullInstallPath: android.PathForModuleInPartitionInstall(ctx, s.PartitionType(), "etc", "linker.config.pb"),
+			SourcePath:      intermediateOutput,
+		})
 	} else {
 		// TODO: This branch is the logic that make uses for the linker config file, which is
 		// different than linkerconfig.BuildLinkerConfig used above. Keeping both branches for now
@@ -87,6 +97,11 @@ func (s *systemImage) BuildLinkerConfigFile(ctx android.ModuleContext, builder *
 			Implicit(llndkMovedToApexLibraries)
 		// TODO: Make also supports adding an extra append command with PRODUCT_EXTRA_STUB_LIBRARIES,
 		// but that variable appears to have no usages.
+
+		*fullInstallPaths = append(*fullInstallPaths, FullInstallPathInfo{
+			FullInstallPath: android.PathForModuleInPartitionInstall(ctx, s.PartitionType(), "etc", "linker.config.pb"),
+			SourcePath:      output,
+		})
 	}
 
 	s.appendToEntry(ctx, output)

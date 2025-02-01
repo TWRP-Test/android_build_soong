@@ -1103,6 +1103,8 @@ func (a *AndroidApp) generateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 
 	a.setOutputFiles(ctx)
+
+	buildComplianceMetadata(ctx)
 }
 
 func (a *AndroidApp) setOutputFiles(ctx android.ModuleContext) {

@@ -183,6 +183,10 @@ message BuildConfig {
 
   // Values of some build-affecting environment variables.
   optional SoongEnvVars soong_env_vars = 9;
+
+  // Whether this build uses soong-only (no kati) mode (either via environment variable,
+  // command line flag or product config.
+  optional bool soong_only = 10;
 }
 
 message SoongEnvVars {

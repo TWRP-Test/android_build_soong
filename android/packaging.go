@@ -63,6 +63,15 @@ type PackagingSpec struct {
 
 	// Name of the module where this packaging spec is output of
 	owner string
+
+	// If the ninja rule creating the FullInstallPath has already been emitted or not. Do not use,
+	// for the soong-only migration.
+	requiresFullInstall bool
+
+	// The path to the installed file in out/target/product. This is for legacy purposes, with
+	// tools that want to interact with these files outside of the build. You should not use it
+	// inside of the build. Will be nil if this module doesn't require a "full install".
+	fullInstallPath InstallPath
 }
 
 type packagingSpecGob struct {
@@ -173,6 +182,24 @@ func (p *PackagingSpec) SkipInstall() bool {
 // Paths of aconfig files for the built artifact
 func (p *PackagingSpec) GetAconfigPaths() Paths {
 	return p.aconfigPaths.ToSlice()
+}
+
+// The path to the installed file in out/target/product. This is for legacy purposes, with
+// tools that want to interact with these files outside of the build. You should not use it
+// inside of the build. Will be nil if this module doesn't require a "full install".
+func (p *PackagingSpec) FullInstallPath() InstallPath {
+	return p.fullInstallPath
+}
+
+// If the ninja rule creating the FullInstallPath has already been emitted or not. Do not use,
+// for the soong-only migration.
+func (p *PackagingSpec) RequiresFullInstall() bool {
+	return p.requiresFullInstall
+}
+
+// The source file to be copied to the FullInstallPath. Do not use, for the soong-only migration.
+func (p *PackagingSpec) SrcPath() Path {
+	return p.srcPath
 }
 
 type PackageModule interface {

@@ -16,7 +16,6 @@ package filesystem
 
 import (
 	"android/soong/android"
-	"fmt"
 
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
@@ -36,18 +35,6 @@ func (a *androidDevice) copyToProductOut(ctx android.ModuleContext, builder *and
 func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleContext) android.Path {
 	filesystemInfos := a.getFsInfos(ctx)
 
-	// The current logic to copy the staging directories to PRODUCT_OUT isn't very sound.
-	// We only track dependencies on the image file, so if the image file wasn't changed, the
-	// staging directory won't be re-copied. If you do an installclean, it would remove the copied
-	// staging directories but not affect the intermediates path image file, so the next build
-	// wouldn't re-copy them. As a hack, create a presence detector that would be deleted on
-	// an installclean to use as a dep for the staging dir copies.
-	productOutPresenceDetector := android.PathForModuleInPartitionInstall(ctx, "", "product_out_presence_detector.txt")
-	ctx.Build(pctx, android.BuildParams{
-		Rule:   android.Touch,
-		Output: productOutPresenceDetector,
-	})
-
 	var deps android.Paths
 
 	for _, partition := range android.SortedKeys(filesystemInfos) {
@@ -58,30 +45,53 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 			Input:  info.Output,
 			Output: imgInstallPath,
 		})
-		dirStamp := android.PathForModuleOut(ctx, partition+"_staging_dir_copy_stamp.txt")
-		dirInstallPath := android.PathForModuleInPartitionInstall(ctx, "", partition)
-		ctx.Build(pctx, android.BuildParams{
-			Rule:   copyStagingDirRule,
-			Output: dirStamp,
-			Implicits: []android.Path{
-				info.Output,
-				productOutPresenceDetector,
-			},
-			Args: map[string]string{
-				"dir":  info.RebasedDir.String(),
-				"dest": dirInstallPath.String(),
-			},
-		})
 
 		// Make it so doing `m <moduleName>` or `m <partitionType>image` will copy the files to
 		// PRODUCT_OUT
-		ctx.Phony(info.ModuleName, dirStamp, imgInstallPath)
 		if partition == "system_ext" {
 			partition = "systemext"
 		}
-		ctx.Phony(fmt.Sprintf("%simage", partition), dirStamp, imgInstallPath)
+		partition = partition + "imgage"
+		ctx.Phony(info.ModuleName, imgInstallPath)
+		ctx.Phony(partition, imgInstallPath)
+		for _, fip := range info.FullInstallPaths {
+			// TODO: Directories. But maybe they're not necessary? Adevice doesn't care
+			// about empty directories, still need to check if adb sync does.
+			if !fip.IsDir {
+				if !fip.RequiresFullInstall {
+					// Some modules set requires_full_install: false, which causes their staging
+					// directory file to not be installed. This is usually because the file appears
+					// in both PRODUCT_COPY_FILES and a soong module for the handwritten soong system
+					// image. In this case, that module's installed files would conflict with the
+					// PRODUCT_COPY_FILES. However, in soong-only builds, we don't automatically
+					// create rules for PRODUCT_COPY_FILES unless they're needed in the partition.
+					// So in that case, nothing is creating the installed path. Create them now
+					// if that's the case.
+					if fip.SymlinkTarget == "" {
+						ctx.Build(pctx, android.BuildParams{
+							Rule:   android.Cp,
+							Input:  fip.SourcePath,
+							Output: fip.FullInstallPath,
+						})
+					} else {
+						ctx.Build(pctx, android.BuildParams{
+							Rule:   android.SymlinkWithBash,
+							Output: fip.FullInstallPath,
+							Args: map[string]string{
+								"fromPath": fip.SymlinkTarget,
+							},
+						})
+					}
+				}
+				ctx.Phony(info.ModuleName, fip.FullInstallPath)
+				ctx.Phony(partition, fip.FullInstallPath)
+				deps = append(deps, fip.FullInstallPath)
+				ctx.Phony("sync_"+partition, fip.FullInstallPath)
+				ctx.Phony("sync", fip.FullInstallPath)
+			}
+		}
 
-		deps = append(deps, imgInstallPath, dirStamp)
+		deps = append(deps, imgInstallPath)
 	}
 
 	// List all individual files to be copied to PRODUCT_OUT here

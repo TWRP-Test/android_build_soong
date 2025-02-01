@@ -210,7 +210,7 @@ func (a *androidDevice) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		// https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/main.mk;l=1396;drc=6595459cdd8164a6008335f6372c9f97b9094060
 		ctx.Phony("droidcore-unbundled", allImagesStamp)
 
-		validations = append(validations, a.copyFilesToProductOutForSoongOnly(ctx))
+		deps = append(deps, a.copyFilesToProductOutForSoongOnly(ctx))
 	}
 
 	ctx.Build(pctx, android.BuildParams{

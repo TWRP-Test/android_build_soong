@@ -591,7 +591,7 @@ func (m *moduleContext) InstallFileWithExtraFilesZip(installPath InstallPath, na
 
 func (m *moduleContext) PackageFile(installPath InstallPath, name string, srcPath Path) PackagingSpec {
 	fullInstallPath := installPath.Join(m, name)
-	return m.packageFile(fullInstallPath, srcPath, false)
+	return m.packageFile(fullInstallPath, srcPath, false, false)
 }
 
 func (m *moduleContext) getAconfigPaths() Paths {
@@ -615,7 +615,7 @@ func (m *moduleContext) getOwnerAndOverrides() (string, []string) {
 	return owner, overrides
 }
 
-func (m *moduleContext) packageFile(fullInstallPath InstallPath, srcPath Path, executable bool) PackagingSpec {
+func (m *moduleContext) packageFile(fullInstallPath InstallPath, srcPath Path, executable bool, requiresFullInstall bool) PackagingSpec {
 	licenseFiles := m.Module().EffectiveLicenseFiles()
 	owner, overrides := m.getOwnerAndOverrides()
 	spec := PackagingSpec{
@@ -630,6 +630,8 @@ func (m *moduleContext) packageFile(fullInstallPath InstallPath, srcPath Path, e
 		archType:              m.target.Arch.ArchType,
 		overrides:             uniquelist.Make(overrides),
 		owner:                 owner,
+		requiresFullInstall:   requiresFullInstall,
+		fullInstallPath:       fullInstallPath,
 	}
 	m.packagingSpecs = append(m.packagingSpecs, spec)
 	return spec
@@ -705,7 +707,7 @@ func (m *moduleContext) installFile(installPath InstallPath, name string, srcPat
 		m.installFiles = append(m.installFiles, fullInstallPath)
 	}
 
-	m.packageFile(fullInstallPath, srcPath, executable)
+	m.packageFile(fullInstallPath, srcPath, executable, m.requiresFullInstall())
 
 	if checkbuild {
 		m.checkbuildFiles = append(m.checkbuildFiles, srcPath)
@@ -755,16 +757,18 @@ func (m *moduleContext) InstallSymlink(installPath InstallPath, name string, src
 
 	owner, overrides := m.getOwnerAndOverrides()
 	m.packagingSpecs = append(m.packagingSpecs, PackagingSpec{
-		relPathInPackage: Rel(m, fullInstallPath.PartitionDir(), fullInstallPath.String()),
-		srcPath:          nil,
-		symlinkTarget:    relPath,
-		executable:       false,
-		partition:        fullInstallPath.partition,
-		skipInstall:      m.skipInstall(),
-		aconfigPaths:     uniquelist.Make(m.getAconfigPaths()),
-		archType:         m.target.Arch.ArchType,
-		overrides:        uniquelist.Make(overrides),
-		owner:            owner,
+		relPathInPackage:    Rel(m, fullInstallPath.PartitionDir(), fullInstallPath.String()),
+		srcPath:             nil,
+		symlinkTarget:       relPath,
+		executable:          false,
+		partition:           fullInstallPath.partition,
+		skipInstall:         m.skipInstall(),
+		aconfigPaths:        uniquelist.Make(m.getAconfigPaths()),
+		archType:            m.target.Arch.ArchType,
+		overrides:           uniquelist.Make(overrides),
+		owner:               owner,
+		requiresFullInstall: m.requiresFullInstall(),
+		fullInstallPath:     fullInstallPath,
 	})
 
 	return fullInstallPath
@@ -803,16 +807,18 @@ func (m *moduleContext) InstallAbsoluteSymlink(installPath InstallPath, name str
 
 	owner, overrides := m.getOwnerAndOverrides()
 	m.packagingSpecs = append(m.packagingSpecs, PackagingSpec{
-		relPathInPackage: Rel(m, fullInstallPath.PartitionDir(), fullInstallPath.String()),
-		srcPath:          nil,
-		symlinkTarget:    absPath,
-		executable:       false,
-		partition:        fullInstallPath.partition,
-		skipInstall:      m.skipInstall(),
-		aconfigPaths:     uniquelist.Make(m.getAconfigPaths()),
-		archType:         m.target.Arch.ArchType,
-		overrides:        uniquelist.Make(overrides),
-		owner:            owner,
+		relPathInPackage:    Rel(m, fullInstallPath.PartitionDir(), fullInstallPath.String()),
+		srcPath:             nil,
+		symlinkTarget:       absPath,
+		executable:          false,
+		partition:           fullInstallPath.partition,
+		skipInstall:         m.skipInstall(),
+		aconfigPaths:        uniquelist.Make(m.getAconfigPaths()),
+		archType:            m.target.Arch.ArchType,
+		overrides:           uniquelist.Make(overrides),
+		owner:               owner,
+		requiresFullInstall: m.requiresFullInstall(),
+		fullInstallPath:     fullInstallPath,
 	})
 
 	return fullInstallPath

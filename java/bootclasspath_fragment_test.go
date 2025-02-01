@@ -31,6 +31,7 @@ var prepareForTestWithBootclasspathFragment = android.GroupFixturePreparers(
 )
 
 func TestBootclasspathFragment_UnknownImageName(t *testing.T) {
+	t.Parallel()
 	prepareForTestWithBootclasspathFragment.
 		ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(
 			`\Qimage_name: unknown image name "unknown", expected "art"\E`)).
@@ -50,6 +51,7 @@ func TestBootclasspathFragment_UnknownImageName(t *testing.T) {
 }
 
 func TestPrebuiltBootclasspathFragment_UnknownImageName(t *testing.T) {
+	t.Parallel()
 	prepareForTestWithBootclasspathFragment.
 		ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(
 			`\Qimage_name: unknown image name "unknown", expected "art"\E`)).
@@ -68,6 +70,7 @@ func TestPrebuiltBootclasspathFragment_UnknownImageName(t *testing.T) {
 }
 
 func TestBootclasspathFragmentInconsistentArtConfiguration_Platform(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForTestWithBootclasspathFragment,
 		dexpreopt.FixtureSetArtBootJars("platform:foo", "apex:bar"),
@@ -99,6 +102,7 @@ func TestBootclasspathFragmentInconsistentArtConfiguration_Platform(t *testing.T
 }
 
 func TestBootclasspathFragmentInconsistentArtConfiguration_ApexMixture(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForTestWithBootclasspathFragment,
 		dexpreopt.FixtureSetArtBootJars("apex1:foo", "apex2:bar"),
@@ -131,6 +135,7 @@ func TestBootclasspathFragmentInconsistentArtConfiguration_ApexMixture(t *testin
 }
 
 func TestBootclasspathFragment_Coverage(t *testing.T) {
+	t.Parallel()
 	prepareWithBp := android.FixtureWithRootAndroidBp(`
 		bootclasspath_fragment {
 			name: "myfragment",
@@ -204,11 +209,13 @@ func TestBootclasspathFragment_Coverage(t *testing.T) {
 	)
 
 	t.Run("without coverage", func(t *testing.T) {
+		t.Parallel()
 		result := preparer.RunTest(t)
 		checkContents(t, result, "mybootlib")
 	})
 
 	t.Run("with coverage", func(t *testing.T) {
+		t.Parallel()
 		result := android.GroupFixturePreparers(
 			prepareForTestWithFrameworkJacocoInstrumentation,
 			preparer,

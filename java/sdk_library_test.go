@@ -25,6 +25,7 @@ import (
 )
 
 func TestJavaSdkLibrary(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -187,6 +188,7 @@ func TestJavaSdkLibrary(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_UpdatableLibrary(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -236,6 +238,7 @@ func TestJavaSdkLibrary_UpdatableLibrary(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_UpdatableLibrary_Validation_ValidVersion(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -263,6 +266,7 @@ func TestJavaSdkLibrary_UpdatableLibrary_Validation_ValidVersion(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_UpdatableLibrary_Validation_AtLeastTAttributes(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -292,6 +296,7 @@ func TestJavaSdkLibrary_UpdatableLibrary_Validation_AtLeastTAttributes(t *testin
 }
 
 func TestJavaSdkLibrary_UpdatableLibrary_Validation_MinAndMaxDeviceSdk(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -319,6 +324,7 @@ func TestJavaSdkLibrary_UpdatableLibrary_Validation_MinAndMaxDeviceSdk(t *testin
 }
 
 func TestJavaSdkLibrary_UpdatableLibrary_Validation_MinAndMaxDeviceSdkAndModuleMinSdk(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -347,6 +353,7 @@ func TestJavaSdkLibrary_UpdatableLibrary_Validation_MinAndMaxDeviceSdkAndModuleM
 }
 
 func TestJavaSdkLibrary_UpdatableLibrary_usesNewTag(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -370,6 +377,7 @@ func TestJavaSdkLibrary_UpdatableLibrary_usesNewTag(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_StubOrImplOnlyLibs(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -426,6 +434,7 @@ func TestJavaSdkLibrary_StubOrImplOnlyLibs(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_DoNotAccessImplWhenItIsNotBuilt(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -455,6 +464,7 @@ func TestJavaSdkLibrary_DoNotAccessImplWhenItIsNotBuilt(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_AccessOutputFiles(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -478,6 +488,7 @@ func TestJavaSdkLibrary_AccessOutputFiles(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_AccessOutputFiles_NoAnnotations(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -503,6 +514,7 @@ func TestJavaSdkLibrary_AccessOutputFiles_NoAnnotations(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_AccessOutputFiles_MissingScope(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -527,6 +539,7 @@ func TestJavaSdkLibrary_AccessOutputFiles_MissingScope(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_Deps(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -557,6 +570,7 @@ func TestJavaSdkLibrary_Deps(t *testing.T) {
 }
 
 func TestJavaSdkLibraryImport_AccessOutputFiles(t *testing.T) {
+	t.Parallel()
 	prepareForJavaTest.RunTestWithBp(t, `
 		java_sdk_library_import {
 			name: "foo",
@@ -582,6 +596,7 @@ func TestJavaSdkLibraryImport_AccessOutputFiles(t *testing.T) {
 }
 
 func TestJavaSdkLibraryImport_AccessOutputFiles_Invalid(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_sdk_library_import {
 			name: "foo",
@@ -592,6 +607,7 @@ func TestJavaSdkLibraryImport_AccessOutputFiles_Invalid(t *testing.T) {
 		`
 
 	t.Run("stubs.source", func(t *testing.T) {
+		t.Parallel()
 		prepareForJavaTest.
 			ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(`module "foo" is not a SourceFileProducer or having valid output file for tag ".public.stubs.source"`)).
 			RunTestWithBp(t, bp+`
@@ -607,6 +623,7 @@ func TestJavaSdkLibraryImport_AccessOutputFiles_Invalid(t *testing.T) {
 	})
 
 	t.Run("api.txt", func(t *testing.T) {
+		t.Parallel()
 		prepareForJavaTest.
 			ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(`module "foo" is not a SourceFileProducer or having valid output file for tag ".public.api.txt"`)).
 			RunTestWithBp(t, bp+`
@@ -621,6 +638,7 @@ func TestJavaSdkLibraryImport_AccessOutputFiles_Invalid(t *testing.T) {
 	})
 
 	t.Run("removed-api.txt", func(t *testing.T) {
+		t.Parallel()
 		prepareForJavaTest.
 			ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(`module "foo" is not a SourceFileProducer or having valid output file for tag ".public.removed-api.txt"`)).
 			RunTestWithBp(t, bp+`
@@ -636,6 +654,7 @@ func TestJavaSdkLibraryImport_AccessOutputFiles_Invalid(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_InvalidScopes(t *testing.T) {
+	t.Parallel()
 	prepareForJavaTest.
 		ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(`module "foo": enabled api scope "system" depends on disabled scope "public"`)).
 		RunTestWithBp(t, `
@@ -656,6 +675,7 @@ func TestJavaSdkLibrary_InvalidScopes(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_SdkVersion_ForScope(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -674,6 +694,7 @@ func TestJavaSdkLibrary_SdkVersion_ForScope(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_ModuleLib(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -694,6 +715,7 @@ func TestJavaSdkLibrary_ModuleLib(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_SystemServer(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -714,6 +736,7 @@ func TestJavaSdkLibrary_SystemServer(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_SystemServer_AccessToStubScopeLibs(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -788,6 +811,7 @@ func TestJavaSdkLibrary_SystemServer_AccessToStubScopeLibs(t *testing.T) {
 }
 
 func TestJavaSdkLibraryImport(t *testing.T) {
+	t.Parallel()
 	result := prepareForJavaTest.RunTestWithBp(t, `
 		java_library {
 			name: "foo",
@@ -844,6 +868,7 @@ func TestJavaSdkLibraryImport(t *testing.T) {
 }
 
 func TestJavaSdkLibraryImport_WithSource(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -986,7 +1011,9 @@ func testJavaSdkLibraryImport_Preferred(t *testing.T, prefer string, preparer an
 }
 
 func TestJavaSdkLibraryImport_Preferred(t *testing.T) {
+	t.Parallel()
 	t.Run("prefer", func(t *testing.T) {
+		t.Parallel()
 		testJavaSdkLibraryImport_Preferred(t, "prefer: true,", android.NullFixturePreparer)
 	})
 }
@@ -994,6 +1021,7 @@ func TestJavaSdkLibraryImport_Preferred(t *testing.T) {
 // If a module is listed in `mainline_module_contributions, it should be used
 // It will supersede any other source vs prebuilt selection mechanism like `prefer` attribute
 func TestSdkLibraryImport_MetadataModuleSupersedesPreferred(t *testing.T) {
+	t.Parallel()
 	bp := `
 		apex_contributions {
 			name: "my_mainline_module_contributions",
@@ -1113,6 +1141,7 @@ func TestSdkLibraryImport_MetadataModuleSupersedesPreferred(t *testing.T) {
 }
 
 func TestJavaSdkLibraryDist(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaBuildComponents,
 		PrepareForTestWithJavaDefaultModules,
@@ -1179,6 +1208,7 @@ func TestJavaSdkLibraryDist(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.module, func(t *testing.T) {
+			t.Parallel()
 			m := result.ModuleForTests(apiScopePublic.exportableStubsLibraryModuleName(tt.module), "android_common").Module().(*Library)
 			dists := m.Dists()
 			if len(dists) != 1 {
@@ -1195,6 +1225,7 @@ func TestJavaSdkLibraryDist(t *testing.T) {
 }
 
 func TestSdkLibrary_CheckMinSdkVersion(t *testing.T) {
+	t.Parallel()
 	preparer := android.GroupFixturePreparers(
 		PrepareForTestWithJavaBuildComponents,
 		PrepareForTestWithJavaDefaultModules,
@@ -1279,6 +1310,7 @@ func TestSdkLibrary_CheckMinSdkVersion(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_StubOnlyLibs_PassedToDroidstubs(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1306,6 +1338,7 @@ func TestJavaSdkLibrary_StubOnlyLibs_PassedToDroidstubs(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_Scope_Libs_PassedToDroidstubs(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1333,6 +1366,7 @@ func TestJavaSdkLibrary_Scope_Libs_PassedToDroidstubs(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_ApiLibrary(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1383,6 +1417,7 @@ func TestJavaSdkLibrary_ApiLibrary(t *testing.T) {
 }
 
 func TestStaticDepStubLibrariesVisibility(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1412,6 +1447,7 @@ func TestStaticDepStubLibrariesVisibility(t *testing.T) {
 }
 
 func TestSdkLibraryDependency(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1444,6 +1480,7 @@ func TestSdkLibraryDependency(t *testing.T) {
 }
 
 func TestSdkLibraryExportableStubsLibrary(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1494,6 +1531,7 @@ func TestSdkLibraryExportableStubsLibrary(t *testing.T) {
 // For java libraries depending on java_sdk_library(_import) via libs, assert that
 // rdep gets stubs of source if source is listed in apex_contributions and prebuilt has prefer (legacy mechanism)
 func TestStubResolutionOfJavaSdkLibraryInLibs(t *testing.T) {
+	t.Parallel()
 	bp := `
 		apex_contributions {
 			name: "my_mainline_module_contributions",
@@ -1547,6 +1585,7 @@ func TestStubResolutionOfJavaSdkLibraryInLibs(t *testing.T) {
 
 // test that rdep gets resolved to the correct version of a java_sdk_library (source or a specific prebuilt)
 func TestMultipleSdkLibraryPrebuilts(t *testing.T) {
+	t.Parallel()
 	bp := `
 		apex_contributions {
 			name: "my_mainline_module_contributions",
@@ -1632,6 +1671,7 @@ func TestMultipleSdkLibraryPrebuilts(t *testing.T) {
 }
 
 func TestStubLinkType(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1668,6 +1708,7 @@ func TestStubLinkType(t *testing.T) {
 }
 
 func TestSdkLibDirectDependency(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -1732,6 +1773,7 @@ func TestSdkLibDirectDependency(t *testing.T) {
 }
 
 func TestSdkLibDirectDependencyWithPrebuiltSdk(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,

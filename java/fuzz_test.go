@@ -30,6 +30,7 @@ var prepForJavaFuzzTest = android.GroupFixturePreparers(
 )
 
 func TestJavaFuzz(t *testing.T) {
+	t.Parallel()
 	result := prepForJavaFuzzTest.RunTestWithBp(t, `
 		java_fuzz {
 			name: "foo",

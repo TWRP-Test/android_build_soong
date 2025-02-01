@@ -21,6 +21,7 @@ import (
 )
 
 func TestManifestMerger(t *testing.T) {
+	t.Parallel()
 	bp := `
 		android_app {
 			name: "app",
@@ -100,6 +101,7 @@ func TestManifestMerger(t *testing.T) {
 }
 
 func TestManifestValuesApplicationIdSetsPackageName(t *testing.T) {
+	t.Parallel()
 	bp := `
 		android_test {
 			name: "test",

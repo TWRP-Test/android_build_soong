@@ -21,6 +21,7 @@ import (
 )
 
 func TestAarImportProducesJniPackages(t *testing.T) {
+	t.Parallel()
 	ctx := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 	).RunTestWithBp(t, `
@@ -50,6 +51,7 @@ func TestAarImportProducesJniPackages(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			appMod := ctx.Module(tc.name, "android_common")
 			appTestMod := ctx.ModuleForTests(tc.name, "android_common")
 
@@ -84,6 +86,7 @@ func TestAarImportProducesJniPackages(t *testing.T) {
 }
 
 func TestLibraryFlagsPackages(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 	).RunTestWithBp(t, `
@@ -133,6 +136,7 @@ func TestLibraryFlagsPackages(t *testing.T) {
 }
 
 func TestAndroidLibraryOutputFilesRel(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 	).RunTestWithBp(t, `

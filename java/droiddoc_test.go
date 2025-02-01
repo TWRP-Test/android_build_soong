@@ -23,6 +23,7 @@ import (
 )
 
 func TestDroiddoc(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
 		droiddoc_exported_dir {
 		    name: "droiddoc-templates-sdk",
@@ -97,6 +98,7 @@ func TestDroiddoc(t *testing.T) {
 }
 
 func TestDroiddocArgsAndFlagsCausesError(t *testing.T) {
+	t.Parallel()
 	testJavaError(t, "flags is set. Cannot set args", `
 		droiddoc_exported_dir {
 		    name: "droiddoc-templates-sdk",

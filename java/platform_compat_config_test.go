@@ -21,6 +21,7 @@ import (
 )
 
 func TestPlatformCompatConfig(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithPlatformCompatConfig,
 		android.FixtureWithRootAndroidBp(`

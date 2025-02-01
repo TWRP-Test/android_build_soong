@@ -213,7 +213,7 @@ type BottomUpMutatorContext interface {
 	// dependency (some entries may be nil).
 	//
 	// This method will pause until the new dependencies have had the current mutator called on them.
-	AddDependency(module blueprint.Module, tag blueprint.DependencyTag, name ...string) []blueprint.Module
+	AddDependency(module blueprint.Module, tag blueprint.DependencyTag, name ...string) []Module
 
 	// AddReverseDependency adds a dependency from the destination to the given module.
 	// Does not affect the ordering of the current mutator pass, but will be ordered
@@ -229,7 +229,7 @@ type BottomUpMutatorContext interface {
 	// all the non-local variations of the current module, plus the variations argument.
 	//
 	// This method will pause until the new dependencies have had the current mutator called on them.
-	AddVariationDependencies(variations []blueprint.Variation, tag blueprint.DependencyTag, names ...string) []blueprint.Module
+	AddVariationDependencies(variations []blueprint.Variation, tag blueprint.DependencyTag, names ...string) []Module
 
 	// AddReverseVariationDependency adds a dependency from the named module to the current
 	// module. The given variations will be added to the current module's varations, and then the
@@ -252,7 +252,7 @@ type BottomUpMutatorContext interface {
 	// dependency only needs to match the supplied variations.
 	//
 	// This method will pause until the new dependencies have had the current mutator called on them.
-	AddFarVariationDependencies([]blueprint.Variation, blueprint.DependencyTag, ...string) []blueprint.Module
+	AddFarVariationDependencies([]blueprint.Variation, blueprint.DependencyTag, ...string) []Module
 
 	// ReplaceDependencies finds all the variants of the module with the specified name, then
 	// replaces all dependencies onto those variants with the current variant of this module.
@@ -524,11 +524,11 @@ func (b *bottomUpMutatorContext) Rename(name string) {
 	b.Module().base().commonProperties.DebugName = name
 }
 
-func (b *bottomUpMutatorContext) createModule(factory blueprint.ModuleFactory, name string, props ...interface{}) blueprint.Module {
-	return b.bp.CreateModule(factory, name, props...)
+func (b *bottomUpMutatorContext) createModule(factory blueprint.ModuleFactory, name string, props ...interface{}) Module {
+	return bpModuleToModule(b.bp.CreateModule(factory, name, props...))
 }
 
-func (b *bottomUpMutatorContext) createModuleInDirectory(factory blueprint.ModuleFactory, name string, _ string, props ...interface{}) blueprint.Module {
+func (b *bottomUpMutatorContext) createModuleInDirectory(factory blueprint.ModuleFactory, name string, _ string, props ...interface{}) Module {
 	panic("createModuleInDirectory is not implemented for bottomUpMutatorContext")
 }
 
@@ -536,11 +536,11 @@ func (b *bottomUpMutatorContext) CreateModule(factory ModuleFactory, props ...in
 	return createModule(b, factory, "_bottomUpMutatorModule", doesNotSpecifyDirectory(), props...)
 }
 
-func (b *bottomUpMutatorContext) AddDependency(module blueprint.Module, tag blueprint.DependencyTag, name ...string) []blueprint.Module {
+func (b *bottomUpMutatorContext) AddDependency(module blueprint.Module, tag blueprint.DependencyTag, name ...string) []Module {
 	if b.baseModuleContext.checkedMissingDeps() {
 		panic("Adding deps not allowed after checking for missing deps")
 	}
-	return b.bp.AddDependency(module, tag, name...)
+	return bpModulesToModules(b.bp.AddDependency(module, tag, name...))
 }
 
 func (b *bottomUpMutatorContext) AddReverseDependency(module blueprint.Module, tag blueprint.DependencyTag, name string) {
@@ -558,20 +558,20 @@ func (b *bottomUpMutatorContext) AddReverseVariationDependency(variations []blue
 }
 
 func (b *bottomUpMutatorContext) AddVariationDependencies(variations []blueprint.Variation, tag blueprint.DependencyTag,
-	names ...string) []blueprint.Module {
+	names ...string) []Module {
 	if b.baseModuleContext.checkedMissingDeps() {
 		panic("Adding deps not allowed after checking for missing deps")
 	}
-	return b.bp.AddVariationDependencies(variations, tag, names...)
+	return bpModulesToModules(b.bp.AddVariationDependencies(variations, tag, names...))
 }
 
 func (b *bottomUpMutatorContext) AddFarVariationDependencies(variations []blueprint.Variation,
-	tag blueprint.DependencyTag, names ...string) []blueprint.Module {
+	tag blueprint.DependencyTag, names ...string) []Module {
 	if b.baseModuleContext.checkedMissingDeps() {
 		panic("Adding deps not allowed after checking for missing deps")
 	}
 
-	return b.bp.AddFarVariationDependencies(variations, tag, names...)
+	return bpModulesToModules(b.bp.AddFarVariationDependencies(variations, tag, names...))
 }
 
 func (b *bottomUpMutatorContext) ReplaceDependencies(name string) {
@@ -586,4 +586,19 @@ func (b *bottomUpMutatorContext) ReplaceDependenciesIf(name string, predicate bl
 		panic("Adding deps not allowed after checking for missing deps")
 	}
 	b.bp.ReplaceDependenciesIf(name, predicate)
+}
+
+func bpModulesToModules(bpModules []blueprint.Module) []Module {
+	modules := make([]Module, len(bpModules))
+	for i, bpModule := range bpModules {
+		modules[i] = bpModuleToModule(bpModule)
+	}
+	return modules
+}
+
+func bpModuleToModule(bpModule blueprint.Module) Module {
+	if bpModule != nil {
+		return bpModule.(Module)
+	}
+	return nil
 }

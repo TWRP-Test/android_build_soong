@@ -24,6 +24,7 @@ import (
 )
 
 func TestR8(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, `
 		android_app {
 			name: "app",
@@ -91,6 +92,7 @@ func TestR8(t *testing.T) {
 }
 
 func TestR8TransitiveDeps(t *testing.T) {
+	t.Parallel()
 	bp := `
 		override_android_app {
 			name: "override_app",
@@ -192,6 +194,7 @@ func TestR8TransitiveDeps(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fixturePreparer := PrepareForTestWithJavaDefaultModules
 			if tc.unbundled {
 				fixturePreparer = android.GroupFixturePreparers(
@@ -259,6 +262,7 @@ func TestR8TransitiveDeps(t *testing.T) {
 }
 
 func TestR8Flags(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, `
 		android_app {
 			name: "app",
@@ -288,6 +292,7 @@ func TestR8Flags(t *testing.T) {
 }
 
 func TestD8(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, `
 		java_library {
 			name: "foo",
@@ -329,6 +334,7 @@ func TestD8(t *testing.T) {
 }
 
 func TestProguardFlagsInheritanceStatic(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, `
 		android_app {
 			name: "app",
@@ -383,6 +389,7 @@ func TestProguardFlagsInheritanceStatic(t *testing.T) {
 }
 
 func TestProguardFlagsInheritance(t *testing.T) {
+	t.Parallel()
 	directDepFlagsFileName := "direct_dep.flags"
 	transitiveDepFlagsFileName := "transitive_dep.flags"
 
@@ -601,6 +608,7 @@ func TestProguardFlagsInheritance(t *testing.T) {
 	for _, topLevelModuleDef := range topLevelModules {
 		for _, tc := range testcases {
 			t.Run(topLevelModuleDef.name+"-"+tc.name, func(t *testing.T) {
+				t.Parallel()
 				result := android.GroupFixturePreparers(
 					PrepareForTestWithJavaDefaultModules,
 					android.FixtureMergeMockFs(android.MockFS{
@@ -642,6 +650,7 @@ func TestProguardFlagsInheritance(t *testing.T) {
 }
 
 func TestProguardFlagsInheritanceAppImport(t *testing.T) {
+	t.Parallel()
 	bp := `
 		android_app {
 			name: "app",
@@ -664,6 +673,7 @@ func TestProguardFlagsInheritanceAppImport(t *testing.T) {
 }
 
 func TestR8FlagsArtProfile(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, `
 		android_app {
 			name: "app",
@@ -696,6 +706,7 @@ func TestR8FlagsArtProfile(t *testing.T) {
 //
 // The rewritten profile should be used since the dex signatures in the checked-in profile will not match the optimized binary.
 func TestEnableProfileRewritingIsRequiredForOptimizedApps(t *testing.T) {
+	t.Parallel()
 	testJavaError(t,
 		"Enable_profile_rewriting must be true when profile_guided dexpreopt and R8 optimization/obfuscation is turned on",
 		`
@@ -715,6 +726,7 @@ android_app {
 }
 
 func TestDebugReleaseFlags(t *testing.T) {
+	t.Parallel()
 	bp := `
 		android_app {
 			name: "app",
@@ -771,6 +783,7 @@ func TestDebugReleaseFlags(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			fixturePreparer := PrepareForTestWithJavaDefaultModules
 			fixturePreparer = android.GroupFixturePreparers(
 				fixturePreparer,

@@ -1217,6 +1217,7 @@ func checkBootImageConfig(t *testing.T, result *android.TestResult, imageConfig 
 	}
 
 	t.Run(imageConfig.name, func(t *testing.T) {
+		t.Parallel()
 		nestedCheckBootImageConfig(t, result, imageConfig, mutated, expected)
 	})
 }
@@ -1246,6 +1247,7 @@ func nestedCheckBootImageConfig(t *testing.T, result *android.TestResult, imageC
 	for i, variant := range imageConfig.variants {
 		expectedVariant := expected.variants[i]
 		t.Run(variant.target.Arch.ArchType.String(), func(t *testing.T) {
+			t.Parallel()
 			android.AssertDeepEquals(t, "archType", expectedVariant.archType, variant.target.Arch.ArchType)
 			android.AssertDeepEquals(t, "dexLocations", expectedVariant.dexLocations, variant.dexLocations)
 			android.AssertDeepEquals(t, "dexLocationsDeps", expectedVariant.dexLocationsDeps, variant.dexLocationsDeps)

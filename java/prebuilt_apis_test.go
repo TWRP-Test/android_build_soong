@@ -29,6 +29,7 @@ func intPtr(v int) *int {
 }
 
 func TestPrebuiltApis_SystemModulesCreation(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		FixtureWithPrebuiltApis(map[string][]string{
@@ -61,6 +62,7 @@ func TestPrebuiltApis_SystemModulesCreation(t *testing.T) {
 }
 
 func TestPrebuiltApis_WithExtensions(t *testing.T) {
+	t.Parallel()
 	runTestWithBaseExtensionLevel := func(v int) (foo_input, bar_input, baz_input string) {
 		result := android.GroupFixturePreparers(
 			prepareForJavaTest,
@@ -101,6 +103,7 @@ func TestPrebuiltApis_WithExtensions(t *testing.T) {
 }
 
 func TestPrebuiltApis_WithIncrementalApi(t *testing.T) {
+	t.Parallel()
 	runTestWithIncrementalApi := func() (foo_input, bar_input, baz_input string) {
 		result := android.GroupFixturePreparers(
 			prepareForJavaTest,

@@ -51,6 +51,7 @@ var addSourceSystemModules = android.FixtureAddTextFile("source/Android.bp", `
 `)
 
 func TestJavaSystemModules(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(prepareForJavaTest, addSourceSystemModules).RunTest(t)
 
 	// check the existence of the source module
@@ -78,6 +79,7 @@ var addPrebuiltSystemModules = android.FixtureAddTextFile("prebuilts/Android.bp"
 `)
 
 func TestJavaSystemModulesImport(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(prepareForJavaTest, addPrebuiltSystemModules).RunTest(t)
 
 	// check the existence of the renamed prebuilt module
@@ -90,6 +92,7 @@ func TestJavaSystemModulesImport(t *testing.T) {
 }
 
 func TestJavaSystemModulesMixSourceAndPrebuilt(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		addSourceSystemModules,
@@ -114,6 +117,7 @@ func TestJavaSystemModulesMixSourceAndPrebuilt(t *testing.T) {
 }
 
 func TestMultipleSystemModulesPrebuilts(t *testing.T) {
+	t.Parallel()
 	bp := `
 		// an rdep
 		java_library {

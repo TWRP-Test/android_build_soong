@@ -23,6 +23,7 @@ import (
 )
 
 func TestRequired(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -42,6 +43,7 @@ func TestRequired(t *testing.T) {
 }
 
 func TestHostdex(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -72,6 +74,7 @@ func TestHostdex(t *testing.T) {
 }
 
 func TestHostdexRequired(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -103,6 +106,7 @@ func TestHostdexRequired(t *testing.T) {
 }
 
 func TestHostdexSpecificRequired(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -136,6 +140,7 @@ func TestHostdexSpecificRequired(t *testing.T) {
 }
 
 func TestJavaSdkLibrary_RequireXmlPermissionFile(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -173,6 +178,7 @@ func TestJavaSdkLibrary_RequireXmlPermissionFile(t *testing.T) {
 }
 
 func TestImportSoongDexJar(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaDefaultModules.RunTestWithBp(t, `
 		java_import {
 			name: "my-java-import",
@@ -191,6 +197,7 @@ func TestImportSoongDexJar(t *testing.T) {
 }
 
 func TestAndroidTestHelperApp_LocalDisableTestConfig(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_test_helper_app {
 			name: "foo",
@@ -209,6 +216,7 @@ func TestAndroidTestHelperApp_LocalDisableTestConfig(t *testing.T) {
 }
 
 func TestGetOverriddenPackages(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(
 		t, `
 		android_app {
@@ -255,6 +263,7 @@ func TestGetOverriddenPackages(t *testing.T) {
 }
 
 func TestJniAsRequiredDeps(t *testing.T) {
+	t.Parallel()
 	ctx := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		cc.PrepareForTestWithCcDefaultModules,

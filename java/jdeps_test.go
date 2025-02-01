@@ -22,6 +22,7 @@ import (
 )
 
 func TestCollectJavaLibraryPropertiesAddLibsDeps(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t,
 		`
 		java_library {name: "Foo"}
@@ -42,6 +43,7 @@ func TestCollectJavaLibraryPropertiesAddLibsDeps(t *testing.T) {
 }
 
 func TestCollectJavaLibraryPropertiesAddStaticLibsDeps(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t,
 		`
 		java_library {name: "Foo"}
@@ -62,6 +64,7 @@ func TestCollectJavaLibraryPropertiesAddStaticLibsDeps(t *testing.T) {
 }
 
 func TestCollectJavaLibraryPropertiesAddScrs(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t,
 		`
 		java_library {
@@ -79,6 +82,7 @@ func TestCollectJavaLibraryPropertiesAddScrs(t *testing.T) {
 }
 
 func TestCollectJavaLibraryPropertiesAddAidlIncludeDirs(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t,
 		`
 		java_library {
@@ -98,6 +102,7 @@ func TestCollectJavaLibraryPropertiesAddAidlIncludeDirs(t *testing.T) {
 }
 
 func TestCollectJavaLibraryWithJarJarRules(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t,
 		`
 		java_library {
@@ -117,6 +122,7 @@ func TestCollectJavaLibraryWithJarJarRules(t *testing.T) {
 }
 
 func TestCollectJavaLibraryLinkingAgainstVersionedSdk(t *testing.T) {
+	t.Parallel()
 	ctx := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		FixtureWithPrebuiltApis(map[string][]string{

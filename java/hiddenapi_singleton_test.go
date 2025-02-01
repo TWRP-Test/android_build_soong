@@ -44,6 +44,7 @@ var hiddenApiFixtureFactory = android.GroupFixturePreparers(
 )
 
 func TestHiddenAPISingleton(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		hiddenApiFixtureFactory,
 		FixtureConfigureBootJars("platform:foo"),
@@ -63,6 +64,7 @@ func TestHiddenAPISingleton(t *testing.T) {
 }
 
 func TestHiddenAPISingletonWithSourceAndPrebuiltPreferredButNoDex(t *testing.T) {
+	t.Parallel()
 	expectedErrorMessage := "module prebuilt_foo{os:android,arch:common} does not provide a dex jar"
 
 	android.GroupFixturePreparers(
@@ -86,6 +88,7 @@ func TestHiddenAPISingletonWithSourceAndPrebuiltPreferredButNoDex(t *testing.T) 
 }
 
 func TestHiddenAPISingletonWithPrebuilt(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		hiddenApiFixtureFactory,
 		FixtureConfigureBootJars("platform:foo"),
@@ -105,6 +108,7 @@ func TestHiddenAPISingletonWithPrebuilt(t *testing.T) {
 }
 
 func TestHiddenAPISingletonWithPrebuiltUseSource(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		hiddenApiFixtureFactory,
 		FixtureConfigureBootJars("platform:foo"),
@@ -134,6 +138,7 @@ func TestHiddenAPISingletonWithPrebuiltUseSource(t *testing.T) {
 }
 
 func TestHiddenAPISingletonWithPrebuiltOverrideSource(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		hiddenApiFixtureFactory,
 		FixtureConfigureBootJars("platform:foo"),
@@ -163,6 +168,7 @@ func TestHiddenAPISingletonWithPrebuiltOverrideSource(t *testing.T) {
 }
 
 func TestHiddenAPISingletonSdks(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name             string
 		unbundledBuild   bool
@@ -246,6 +252,7 @@ func generateSdkDexPath(module string, unbundled bool) string {
 }
 
 func TestHiddenAPISingletonWithPrebuiltCsvFile(t *testing.T) {
+	t.Parallel()
 
 	// The idea behind this test is to ensure that when the build is
 	// confugured with a PrebuiltHiddenApiDir that the rules for the
@@ -289,6 +296,7 @@ func TestHiddenAPISingletonWithPrebuiltCsvFile(t *testing.T) {
 }
 
 func TestHiddenAPIEncoding_JavaSdkLibrary(t *testing.T) {
+	t.Parallel()
 
 	result := android.GroupFixturePreparers(
 		hiddenApiFixtureFactory,
@@ -324,10 +332,7 @@ func TestHiddenAPIEncoding_JavaSdkLibrary(t *testing.T) {
 		android.AssertPathRelativeToTopEquals(t, "encode embedded java_library", encodedDexJar, exportedDexJar)
 	}
 
-	// The java_library embedded with the java_sdk_library must be dex encoded.
-	t.Run("foo", func(t *testing.T) {
-		expectedUnencodedDexJar := "out/soong/.intermediates/foo.impl/android_common/aligned/foo.jar"
-		expectedEncodedDexJar := "out/soong/.intermediates/foo.impl/android_common/hiddenapi/foo.jar"
-		checkDexEncoded(t, "foo", expectedUnencodedDexJar, expectedEncodedDexJar)
-	})
+	expectedUnencodedDexJar := "out/soong/.intermediates/foo.impl/android_common/aligned/foo.jar"
+	expectedEncodedDexJar := "out/soong/.intermediates/foo.impl/android_common/hiddenapi/foo.jar"
+	checkDexEncoded(t, "foo", expectedUnencodedDexJar, expectedEncodedDexJar)
 }

@@ -24,6 +24,7 @@ import (
 )
 
 func TestRuntimeResourceOverlay(t *testing.T) {
+	t.Parallel()
 	fs := android.MockFS{
 		"baz/res/res/values/strings.xml": nil,
 		"bar/res/res/values/strings.xml": nil,
@@ -129,6 +130,7 @@ func TestRuntimeResourceOverlay(t *testing.T) {
 }
 
 func TestRuntimeResourceOverlay_JavaDefaults(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		android.FixtureModifyConfig(android.SetKatiEnabledForTests),

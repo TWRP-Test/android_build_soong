@@ -117,6 +117,7 @@ func defaultModuleToPath(name string) string {
 // Test that the PrepareForTestWithJavaDefaultModules provides all the files that it uses by
 // running it in a fixture that requires all source files to exist.
 func TestPrepareForTestWithJavaDefaultModules(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		android.PrepareForTestDisallowNonExistentPaths,
@@ -124,6 +125,7 @@ func TestPrepareForTestWithJavaDefaultModules(t *testing.T) {
 }
 
 func TestJavaLinkType(t *testing.T) {
+	t.Parallel()
 	testJava(t, `
 		java_library {
 			name: "foo",
@@ -212,6 +214,7 @@ func TestJavaLinkType(t *testing.T) {
 }
 
 func TestSimple(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "foo",
@@ -341,6 +344,7 @@ func TestSimple(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := android.GroupFixturePreparers(
 				PrepareForTestWithJavaDefaultModules,
 				tt.preparer,
@@ -378,6 +382,7 @@ func TestSimple(t *testing.T) {
 }
 
 func TestExportedPlugins(t *testing.T) {
+	t.Parallel()
 	type Result struct {
 		library        string
 		processors     string
@@ -456,6 +461,7 @@ func TestExportedPlugins(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			ctx, _ := testJava(t, `
 				java_plugin {
 					name: "plugin",
@@ -484,6 +490,7 @@ func TestExportedPlugins(t *testing.T) {
 }
 
 func TestSdkVersionByPartition(t *testing.T) {
+	t.Parallel()
 	testJavaError(t, "sdk_version must have a value when the module is located at vendor or product", `
 		java_library {
 			name: "foo",
@@ -525,6 +532,7 @@ func TestSdkVersionByPartition(t *testing.T) {
 }
 
 func TestArchSpecific(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -544,6 +552,7 @@ func TestArchSpecific(t *testing.T) {
 }
 
 func TestBinary(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library_host {
 			name: "foo",
@@ -586,6 +595,7 @@ func TestBinary(t *testing.T) {
 }
 
 func TestTest(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_test_host {
 			name: "foo",
@@ -618,6 +628,7 @@ func TestTest(t *testing.T) {
 }
 
 func TestHostBinaryNoJavaDebugInfoOverride(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "target_library",
@@ -665,6 +676,7 @@ func (ctx moduleErrorfTestCtx) ModuleErrorf(format string, args ...interface{}) 
 var _ android.ModuleErrorfContext = (*moduleErrorfTestCtx)(nil)
 
 func TestPrebuilts(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -765,6 +777,7 @@ func assertDeepEquals(t *testing.T, message string, expected interface{}, actual
 }
 
 func TestPrebuiltStubsSources(t *testing.T) {
+	t.Parallel()
 	test := func(t *testing.T, sourcesPath string, expectedInputs []string) {
 		ctx, _ := testJavaWithFS(t, fmt.Sprintf(`
 prebuilt_stubs_sources {
@@ -782,10 +795,12 @@ prebuilt_stubs_sources {
 	}
 
 	t.Run("empty/missing directory", func(t *testing.T) {
+		t.Parallel()
 		test(t, "empty-directory", nil)
 	})
 
 	t.Run("non-empty set of sources", func(t *testing.T) {
+		t.Parallel()
 		test(t, "stubs/sources", []string{
 			"stubs/sources/pkg/A.java",
 			"stubs/sources/pkg/B.java",
@@ -794,6 +809,7 @@ prebuilt_stubs_sources {
 }
 
 func TestDefaults(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_defaults {
 			name: "defaults",
@@ -869,6 +885,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestResources(t *testing.T) {
+	t.Parallel()
 	var table = []struct {
 		name  string
 		prop  string
@@ -940,6 +957,7 @@ func TestResources(t *testing.T) {
 
 	for _, test := range table {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			ctx, _ := testJavaWithFS(t, `
 				java_library {
 					name: "foo",
@@ -975,6 +993,7 @@ func TestResources(t *testing.T) {
 }
 
 func TestIncludeSrcs(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
 		java_library {
 			name: "foo",
@@ -1042,6 +1061,7 @@ func TestIncludeSrcs(t *testing.T) {
 }
 
 func TestGeneratedSources(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
 		java_library {
 			name: "foo",
@@ -1078,6 +1098,7 @@ func TestGeneratedSources(t *testing.T) {
 }
 
 func TestTurbine(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest, FixtureWithPrebuiltApis(map[string][]string{"14": {"foo"}})).
 		RunTestWithBp(t, `
@@ -1119,6 +1140,7 @@ func TestTurbine(t *testing.T) {
 }
 
 func TestSharding(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "bar",
@@ -1137,6 +1159,7 @@ func TestSharding(t *testing.T) {
 }
 
 func TestExcludeFileGroupInSrcs(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -1163,6 +1186,7 @@ func TestExcludeFileGroupInSrcs(t *testing.T) {
 }
 
 func TestJavaLibraryOutputFiles(t *testing.T) {
+	t.Parallel()
 	testJavaWithFS(t, "", map[string][]byte{
 		"libcore/Android.bp": []byte(`
 				java_library {
@@ -1180,6 +1204,7 @@ func TestJavaLibraryOutputFiles(t *testing.T) {
 }
 
 func TestJavaImportOutputFiles(t *testing.T) {
+	t.Parallel()
 	testJavaWithFS(t, "", map[string][]byte{
 		"libcore/Android.bp": []byte(`
 				java_import {
@@ -1196,6 +1221,7 @@ func TestJavaImportOutputFiles(t *testing.T) {
 }
 
 func TestJavaImport(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "source_library",
@@ -1323,6 +1349,7 @@ func (ctx *mockContext) PropertyErrorf(property, format string, args ...interfac
 }
 
 func TestCompilerFlags(t *testing.T) {
+	t.Parallel()
 	for _, testCase := range compilerFlagsTestCases {
 		ctx := &mockContext{result: true}
 		CheckKotlincFlags(ctx, []string{testCase.in})
@@ -1353,7 +1380,9 @@ func checkPatchModuleFlag(t *testing.T, ctx *android.TestContext, moduleName str
 }
 
 func TestPatchModule(t *testing.T) {
+	t.Parallel()
 	t.Run("Java language level 8", func(t *testing.T) {
+		t.Parallel()
 		// Test with legacy javac -source 1.8 -target 1.8
 		bp := `
 			java_library {
@@ -1386,6 +1415,7 @@ func TestPatchModule(t *testing.T) {
 	})
 
 	t.Run("Java language level 9", func(t *testing.T) {
+		t.Parallel()
 		// Test with default javac -source 9 -target 9
 		bp := `
 			java_library {
@@ -1426,6 +1456,7 @@ func TestPatchModule(t *testing.T) {
 }
 
 func TestJavaLibraryWithSystemModules(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 		    name: "lib-with-source-system-modules",
@@ -1482,6 +1513,7 @@ func checkBootClasspathForLibWithSystemModule(t *testing.T, ctx *android.TestCon
 }
 
 func TestAidlExportIncludeDirsFromImports(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -1506,6 +1538,7 @@ func TestAidlExportIncludeDirsFromImports(t *testing.T) {
 }
 
 func TestAidlFlagsArePassedToTheAidlCompiler(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -1522,6 +1555,7 @@ func TestAidlFlagsArePassedToTheAidlCompiler(t *testing.T) {
 }
 
 func TestAidlFlagsWithMinSdkVersion(t *testing.T) {
+	t.Parallel()
 	fixture := android.GroupFixturePreparers(
 		prepareForJavaTest, FixtureWithPrebuiltApis(map[string][]string{"14": {"foo"}}))
 
@@ -1535,6 +1569,7 @@ func TestAidlFlagsWithMinSdkVersion(t *testing.T) {
 		{"system_current", `sdk_version: "system_current"`, "current"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := fixture.RunTestWithBp(t, `
 				java_library {
 					name: "foo",
@@ -1552,6 +1587,7 @@ func TestAidlFlagsWithMinSdkVersion(t *testing.T) {
 }
 
 func TestAidlFlagsMinSdkVersionDroidstubs(t *testing.T) {
+	t.Parallel()
 	bpTemplate := `
 	droidstubs {
 		name: "foo-stubs",
@@ -1585,6 +1621,7 @@ func TestAidlFlagsMinSdkVersionDroidstubs(t *testing.T) {
 }
 
 func TestAidlEnforcePermissions(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -1601,6 +1638,7 @@ func TestAidlEnforcePermissions(t *testing.T) {
 }
 
 func TestAidlEnforcePermissionsException(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -1621,6 +1659,7 @@ func TestAidlEnforcePermissionsException(t *testing.T) {
 }
 
 func TestDataNativeBinaries(t *testing.T) {
+	t.Parallel()
 	ctx := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		android.PrepareForTestWithAllowMissingDependencies).RunTestWithBp(t, `
@@ -1646,6 +1685,7 @@ func TestDataNativeBinaries(t *testing.T) {
 }
 
 func TestDefaultInstallable(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_test_host {
 			name: "foo"
@@ -1659,6 +1699,7 @@ func TestDefaultInstallable(t *testing.T) {
 }
 
 func TestErrorproneEnabled(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -1687,6 +1728,7 @@ func TestErrorproneEnabled(t *testing.T) {
 }
 
 func TestErrorproneDisabled(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "foo",
@@ -1721,6 +1763,7 @@ func TestErrorproneDisabled(t *testing.T) {
 }
 
 func TestErrorproneEnabledOnlyByEnvironmentVariable(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "foo",
@@ -1751,6 +1794,7 @@ func TestErrorproneEnabledOnlyByEnvironmentVariable(t *testing.T) {
 }
 
 func TestDataDeviceBinsBuildsDeviceBinary(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		dataDeviceBinType  string
 		depCompileMultilib string
@@ -1887,6 +1931,7 @@ func TestDataDeviceBinsBuildsDeviceBinary(t *testing.T) {
 
 		testName := fmt.Sprintf(`data_device_bins_%s with compile_multilib:"%s"`, tc.dataDeviceBinType, tc.depCompileMultilib)
 		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 			ctx := android.GroupFixturePreparers(PrepareForIntegrationTestWithJava).
 				ExtendWithErrorHandler(errorHandler).
 				RunTestWithBp(t, bp)
@@ -1922,6 +1967,7 @@ func TestDataDeviceBinsBuildsDeviceBinary(t *testing.T) {
 }
 
 func TestDeviceBinaryWrapperGeneration(t *testing.T) {
+	t.Parallel()
 	// Scenario 1: java_binary has main_class property in its bp
 	ctx, _ := testJava(t, `
 		java_binary {
@@ -1945,6 +1991,7 @@ func TestDeviceBinaryWrapperGeneration(t *testing.T) {
 }
 
 func TestJavaApiContributionEmptyApiFile(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		prepareForJavaTest,
 		android.FixtureMergeEnv(
@@ -1968,6 +2015,7 @@ func TestJavaApiContributionEmptyApiFile(t *testing.T) {
 }
 
 func TestJavaApiLibraryAndProviderLink(t *testing.T) {
+	t.Parallel()
 	provider_bp_a := `
 	java_api_contribution {
 		name: "foo1",
@@ -2034,6 +2082,7 @@ func TestJavaApiLibraryAndProviderLink(t *testing.T) {
 }
 
 func TestJavaApiLibraryAndDefaultsLink(t *testing.T) {
+	t.Parallel()
 	provider_bp_a := `
 	java_api_contribution {
 		name: "foo1",
@@ -2142,6 +2191,7 @@ func TestJavaApiLibraryAndDefaultsLink(t *testing.T) {
 }
 
 func TestJavaApiLibraryJarGeneration(t *testing.T) {
+	t.Parallel()
 	provider_bp_a := `
 	java_api_contribution {
 		name: "foo1",
@@ -2208,6 +2258,7 @@ func TestJavaApiLibraryJarGeneration(t *testing.T) {
 }
 
 func TestJavaApiLibraryLibsLink(t *testing.T) {
+	t.Parallel()
 	provider_bp_a := `
 	java_api_contribution {
 		name: "foo1",
@@ -2296,6 +2347,7 @@ func TestJavaApiLibraryLibsLink(t *testing.T) {
 }
 
 func TestJavaApiLibraryStaticLibsLink(t *testing.T) {
+	t.Parallel()
 	provider_bp_a := `
 	java_api_contribution {
 		name: "foo1",
@@ -2383,6 +2435,7 @@ func TestJavaApiLibraryStaticLibsLink(t *testing.T) {
 }
 
 func TestTransitiveSrcFiles(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "a",
@@ -2406,6 +2459,7 @@ func TestTransitiveSrcFiles(t *testing.T) {
 }
 
 func TestTradefedOptions(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaBuildComponents.RunTestWithBp(t, `
 java_test_host {
 	name: "foo",
@@ -2430,6 +2484,7 @@ java_test_host {
 }
 
 func TestTestRunnerOptions(t *testing.T) {
+	t.Parallel()
 	result := PrepareForTestWithJavaBuildComponents.RunTestWithBp(t, `
 java_test_host {
 	name: "foo",
@@ -2454,6 +2509,7 @@ java_test_host {
 }
 
 func TestJavaLibraryWithResourcesStem(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
     java_library {
         name: "foo",
@@ -2473,6 +2529,7 @@ func TestJavaLibraryWithResourcesStem(t *testing.T) {
 }
 
 func TestHeadersOnly(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -2491,6 +2548,7 @@ func TestHeadersOnly(t *testing.T) {
 }
 
 func TestJavaApiContributionImport(t *testing.T) {
+	t.Parallel()
 	ctx := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		android.FixtureMergeEnv(
@@ -2519,6 +2577,7 @@ func TestJavaApiContributionImport(t *testing.T) {
 }
 
 func TestJavaApiLibraryApiFilesSorting(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_api_library {
 			name: "foo",
@@ -2547,6 +2606,7 @@ func TestJavaApiLibraryApiFilesSorting(t *testing.T) {
 }
 
 func TestSdkLibraryProvidesSystemModulesToApiLibrary(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -2576,6 +2636,7 @@ func TestSdkLibraryProvidesSystemModulesToApiLibrary(t *testing.T) {
 }
 
 func TestApiLibraryDroidstubsDependency(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -2622,6 +2683,7 @@ func TestApiLibraryDroidstubsDependency(t *testing.T) {
 }
 
 func TestDisableFromTextStubForCoverageBuild(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		PrepareForTestWithJavaSdkLibraryFiles,
@@ -2651,6 +2713,7 @@ func TestDisableFromTextStubForCoverageBuild(t *testing.T) {
 }
 
 func TestMultiplePrebuilts(t *testing.T) {
+	t.Parallel()
 	bp := `
 		// an rdep
 		java_library {
@@ -2749,6 +2812,7 @@ func TestMultiplePrebuilts(t *testing.T) {
 }
 
 func TestMultiplePlatformCompatConfigPrebuilts(t *testing.T) {
+	t.Parallel()
 	bp := `
 		// multiple variations of platform_compat_config
 		// source
@@ -2809,6 +2873,7 @@ func TestMultiplePlatformCompatConfigPrebuilts(t *testing.T) {
 }
 
 func TestApiLibraryAconfigDeclarations(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 		android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
@@ -2919,6 +2984,7 @@ func TestTestOnly(t *testing.T) {
 
 // Don't allow setting test-only on things that are always tests or never tests.
 func TestInvalidTestOnlyTargets(t *testing.T) {
+	t.Parallel()
 	testCases := []string{
 		` java_test {  name: "java-test", test_only: true, srcs: ["foo.java"],  } `,
 		` java_test_host {  name: "java-test-host", test_only: true, srcs: ["foo.java"],  } `,
@@ -2954,6 +3020,7 @@ func expectOneError(expected string, msg string) android.FixtureErrorHandler {
 }
 
 func TestJavaLibHostWithStem(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library_host {
 			name: "foo",
@@ -2972,6 +3039,7 @@ func TestJavaLibHostWithStem(t *testing.T) {
 }
 
 func TestJavaLibWithStem(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",
@@ -2989,6 +3057,7 @@ func TestJavaLibWithStem(t *testing.T) {
 }
 
 func TestJavaLibraryOutputFilesRel(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 	).RunTestWithBp(t, `
@@ -3034,6 +3103,7 @@ func TestJavaLibraryOutputFilesRel(t *testing.T) {
 }
 
 func TestCoverage(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		prepareForTestWithFrameworkJacocoInstrumentation,
@@ -3104,6 +3174,7 @@ func assertTestOnlyAndTopLevel(t *testing.T, ctx *android.TestResult, expectedTe
 
 // Test that a dependency edge is created to the matching variant of a native library listed in `jni_libs` of java_binary
 func TestNativeRequiredDepOfJavaBinary(t *testing.T) {
+	t.Parallel()
 	findDepsOfModule := func(ctx *android.TestContext, module android.Module, depName string) []blueprint.Module {
 		var ret []blueprint.Module
 		ctx.VisitDirectDeps(module, func(dep blueprint.Module) {

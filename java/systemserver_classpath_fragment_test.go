@@ -25,6 +25,7 @@ var prepareForTestWithSystemServerClasspath = android.GroupFixturePreparers(
 )
 
 func TestPlatformSystemServerClasspathVariant(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForTestWithSystemServerClasspath,
 		android.FixtureWithRootAndroidBp(`
@@ -39,6 +40,7 @@ func TestPlatformSystemServerClasspathVariant(t *testing.T) {
 }
 
 func TestPlatformSystemServerClasspath_ClasspathFragmentPaths(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForTestWithSystemServerClasspath,
 		android.FixtureWithRootAndroidBp(`
@@ -54,6 +56,7 @@ func TestPlatformSystemServerClasspath_ClasspathFragmentPaths(t *testing.T) {
 }
 
 func TestPlatformSystemServerClasspathModule_AndroidMkEntries(t *testing.T) {
+	t.Parallel()
 	preparer := android.GroupFixturePreparers(
 		prepareForTestWithSystemServerClasspath,
 		android.FixtureWithRootAndroidBp(`
@@ -97,6 +100,7 @@ func TestPlatformSystemServerClasspathModule_AndroidMkEntries(t *testing.T) {
 }
 
 func TestSystemServerClasspathFragmentWithoutContents(t *testing.T) {
+	t.Parallel()
 	prepareForTestWithSystemServerClasspath.
 		ExtendWithErrorHandler(android.FixtureExpectsAtLeastOneErrorMatchingPattern(
 			`\QEither contents or standalone_contents needs to be non-empty\E`)).

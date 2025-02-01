@@ -31,6 +31,7 @@ func testGenruleContext(config android.Config) *android.TestContext {
 }
 
 func TestGenruleCmd(t *testing.T) {
+	t.Parallel()
 	fs := map[string][]byte{
 		"tool": nil,
 		"foo":  nil,
@@ -64,6 +65,7 @@ func TestGenruleCmd(t *testing.T) {
 }
 
 func TestJarGenrules(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		java_library {
 			name: "foo",

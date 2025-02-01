@@ -71,6 +71,7 @@ var prepareRobolectricRuntime = android.GroupFixturePreparers(
 )
 
 func TestRobolectricJniTest(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("requires linux")
 	}

@@ -27,6 +27,7 @@ import (
 )
 
 func TestDroidstubs(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
 		droiddoc_exported_dir {
 			name: "droiddoc-templates-sdk",
@@ -139,6 +140,7 @@ func getAndroidJarPatternsForDroidstubs(t *testing.T, sdkType string) []string {
 }
 
 func TestPublicDroidstubs(t *testing.T) {
+	t.Parallel()
 	patterns := getAndroidJarPatternsForDroidstubs(t, "public")
 
 	android.AssertArrayString(t, "order of patterns", []string{
@@ -148,6 +150,7 @@ func TestPublicDroidstubs(t *testing.T) {
 }
 
 func TestSystemDroidstubs(t *testing.T) {
+	t.Parallel()
 	patterns := getAndroidJarPatternsForDroidstubs(t, "system")
 
 	android.AssertArrayString(t, "order of patterns", []string{
@@ -159,6 +162,7 @@ func TestSystemDroidstubs(t *testing.T) {
 }
 
 func TestModuleLibDroidstubs(t *testing.T) {
+	t.Parallel()
 	patterns := getAndroidJarPatternsForDroidstubs(t, "module-lib")
 
 	android.AssertArrayString(t, "order of patterns", []string{

@@ -103,6 +103,7 @@ var prepareRavenwoodRuntime = android.GroupFixturePreparers(
 var installPathPrefix = "out/host/linux-x86/testcases"
 
 func TestRavenwoodRuntime(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("requires linux")
 	}
@@ -133,6 +134,7 @@ func TestRavenwoodRuntime(t *testing.T) {
 }
 
 func TestRavenwoodTest(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("requires linux")
 	}

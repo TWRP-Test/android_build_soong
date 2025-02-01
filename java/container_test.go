@@ -26,6 +26,7 @@ var checkContainerMatch = func(t *testing.T, name string, container string, expe
 }
 
 func TestJavaContainersModuleProperties(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		prepareForJavaTest,
 	).RunTestWithBp(t, `

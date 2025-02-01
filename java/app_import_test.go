@@ -26,6 +26,7 @@ import (
 )
 
 func TestAndroidAppImport(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -60,6 +61,7 @@ func TestAndroidAppImport(t *testing.T) {
 }
 
 func TestAndroidAppImportWithDefaults(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -99,6 +101,7 @@ func TestAndroidAppImportWithDefaults(t *testing.T) {
 }
 
 func TestAndroidAppImport_NoDexPreopt(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -126,6 +129,7 @@ func TestAndroidAppImport_NoDexPreopt(t *testing.T) {
 }
 
 func TestAndroidAppImport_Presigned(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -160,6 +164,7 @@ func TestAndroidAppImport_Presigned(t *testing.T) {
 }
 
 func TestAndroidAppImport_SigningLineage(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 	  android_app_import {
 			name: "foo",
@@ -203,6 +208,7 @@ func TestAndroidAppImport_SigningLineage(t *testing.T) {
 }
 
 func TestAndroidAppImport_SigningLineageFilegroup(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 	  android_app_import {
 			name: "foo",
@@ -235,6 +241,7 @@ func TestAndroidAppImport_SigningLineageFilegroup(t *testing.T) {
 }
 
 func TestAndroidAppImport_DefaultDevCert(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -270,6 +277,7 @@ func TestAndroidAppImport_DefaultDevCert(t *testing.T) {
 }
 
 func TestAndroidAppImport_DpiVariants(t *testing.T) {
+	t.Parallel()
 	bp := `
 		android_app_import {
 			name: "foo",
@@ -356,6 +364,7 @@ func TestAndroidAppImport_DpiVariants(t *testing.T) {
 }
 
 func TestAndroidAppImport_Filename(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -448,6 +457,7 @@ func TestAndroidAppImport_Filename(t *testing.T) {
 }
 
 func TestAndroidAppImport_ArchVariants(t *testing.T) {
+	t.Parallel()
 	// The test config's target arch is ARM64.
 	testCases := []struct {
 		name         string
@@ -573,6 +583,7 @@ func TestAndroidAppImport_ArchVariants(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			ctx, _ := testJava(t, test.bp)
 
 			variant := ctx.ModuleForTests("foo", "android_common")
@@ -598,6 +609,7 @@ func TestAndroidAppImport_ArchVariants(t *testing.T) {
 }
 
 func TestAndroidAppImport_SoongConfigVariables(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		bp           string
@@ -640,6 +652,7 @@ func TestAndroidAppImport_SoongConfigVariables(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := android.GroupFixturePreparers(
 				prepareForJavaTest,
 				android.PrepareForTestWithSoongConfigModuleBuildComponents,
@@ -675,6 +688,7 @@ func TestAndroidAppImport_SoongConfigVariables(t *testing.T) {
 }
 
 func TestAndroidAppImport_overridesDisabledAndroidApp(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app {
 			name: "foo",
@@ -703,6 +717,7 @@ func TestAndroidAppImport_overridesDisabledAndroidApp(t *testing.T) {
 }
 
 func TestAndroidAppImport_relativeInstallPath(t *testing.T) {
+	t.Parallel()
 	bp := `
 		android_app_import {
 			name: "no_relative_install_path",
@@ -747,13 +762,17 @@ func TestAndroidAppImport_relativeInstallPath(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		ctx, _ := testJava(t, bp)
-		mod := ctx.ModuleForTests(testCase.name, "android_common").Module().(*AndroidAppImport)
-		android.AssertPathRelativeToTopEquals(t, testCase.errorMessage, testCase.expectedInstallPath, mod.installPath)
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, _ := testJava(t, bp)
+			mod := ctx.ModuleForTests(testCase.name, "android_common").Module().(*AndroidAppImport)
+			android.AssertPathRelativeToTopEquals(t, testCase.errorMessage, testCase.expectedInstallPath, mod.installPath)
+		})
 	}
 }
 
 func TestAndroidAppImport_ExtractApk(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_app_import {
 			name: "foo",
@@ -770,6 +789,7 @@ func TestAndroidAppImport_ExtractApk(t *testing.T) {
 	}
 }
 func TestAndroidTestImport(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_test_import {
 			name: "foo",
@@ -798,6 +818,7 @@ func TestAndroidTestImport(t *testing.T) {
 }
 
 func TestAndroidTestImport_NoJinUncompressForPresigned(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_test_import {
 			name: "foo",
@@ -835,6 +856,7 @@ func TestAndroidTestImport_NoJinUncompressForPresigned(t *testing.T) {
 }
 
 func TestAndroidTestImport_Preprocessed(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJava(t, `
 		android_test_import {
 			name: "foo",
@@ -861,9 +883,11 @@ func TestAndroidTestImport_Preprocessed(t *testing.T) {
 }
 
 func TestAndroidAppImport_Preprocessed(t *testing.T) {
+	t.Parallel()
 	for _, dontUncompressPrivAppDexs := range []bool{false, true} {
 		name := fmt.Sprintf("dontUncompressPrivAppDexs:%t", dontUncompressPrivAppDexs)
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			result := android.GroupFixturePreparers(
 				PrepareForTestWithJavaDefaultModules,
 				android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {
@@ -938,6 +962,7 @@ func TestAndroidAppImport_Preprocessed(t *testing.T) {
 }
 
 func TestAndroidTestImport_UncompressDex(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
 		bp   string
@@ -1001,6 +1026,7 @@ func TestAndroidTestImport_UncompressDex(t *testing.T) {
 				name := fmt.Sprintf("%s,unbundled:%t,dontUncompressPrivAppDexs:%t",
 					tt.name, unbundled, dontUncompressPrivAppDexs)
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 					test(t, tt.bp, unbundled, dontUncompressPrivAppDexs)
 				})
 			}
@@ -1009,6 +1035,7 @@ func TestAndroidTestImport_UncompressDex(t *testing.T) {
 }
 
 func TestAppImportMissingCertificateAllowMissingDependencies(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		android.PrepareForTestWithAllowMissingDependencies,

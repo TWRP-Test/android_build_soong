@@ -25,6 +25,7 @@ func stringPtr(v string) *string {
 }
 
 func TestSystemSdkFromVendor(t *testing.T) {
+	t.Parallel()
 	fixtures := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		android.FixtureModifyProductVariables(func(variables android.FixtureProductVariables) {

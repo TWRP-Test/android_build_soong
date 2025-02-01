@@ -28,6 +28,7 @@ java_library_static {
 `
 
 func TestProtoStream(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "java-stream-protos",

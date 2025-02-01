@@ -22,6 +22,7 @@ import (
 )
 
 func TestJavaLintDoesntUseBaselineImplicitly(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
 		java_library {
 			name: "foo",
@@ -46,6 +47,7 @@ func TestJavaLintDoesntUseBaselineImplicitly(t *testing.T) {
 }
 
 func TestJavaLintRequiresCustomLintFileToExist(t *testing.T) {
+	t.Parallel()
 	android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 		android.PrepareForTestDisallowNonExistentPaths,
@@ -65,6 +67,7 @@ func TestJavaLintRequiresCustomLintFileToExist(t *testing.T) {
 }
 
 func TestJavaLintUsesCorrectBpConfig(t *testing.T) {
+	t.Parallel()
 	ctx, _ := testJavaWithFS(t, `
 		java_library {
 			name: "foo",
@@ -101,6 +104,7 @@ func TestJavaLintUsesCorrectBpConfig(t *testing.T) {
 }
 
 func TestJavaLintBypassUpdatableChecks(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name  string
 		bp    string
@@ -144,6 +148,7 @@ func TestJavaLintBypassUpdatableChecks(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 			errorHandler := android.FixtureExpectsAtLeastOneErrorMatchingPattern(testCase.error)
 			android.GroupFixturePreparers(PrepareForTestWithJavaDefaultModules).
 				ExtendWithErrorHandler(errorHandler).
@@ -153,6 +158,7 @@ func TestJavaLintBypassUpdatableChecks(t *testing.T) {
 }
 
 func TestJavaLintStrictUpdatabilityLinting(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "foo",

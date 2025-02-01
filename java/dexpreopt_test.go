@@ -30,6 +30,7 @@ func init() {
 }
 
 func TestDexpreoptEnabled(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		bp          string
@@ -219,6 +220,7 @@ func TestDexpreoptEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			preparers := android.GroupFixturePreparers(
 				PrepareForTestWithDexpreopt,
 				PrepareForTestWithFakeApexMutator,
@@ -258,6 +260,7 @@ func enabledString(enabled bool) string {
 }
 
 func TestDex2oatToolDeps(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		// The host binary paths checked below are build OS dependent.
 		t.Skipf("Unsupported build OS %s", runtime.GOOS)
@@ -273,6 +276,7 @@ func TestDex2oatToolDeps(t *testing.T) {
 		name := fmt.Sprintf("sourceEnabled:%t,prebuiltEnabled:%t,prebuiltPreferred:%t",
 			sourceEnabled, prebuiltEnabled, prebuiltPreferred)
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			result := preparers.RunTestWithBp(t, fmt.Sprintf(`
 					cc_binary {
 						name: "dex2oatd",

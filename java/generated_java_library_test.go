@@ -52,6 +52,7 @@ func testGenLib(t *testing.T, errorHandler android.FixtureErrorHandler, bp strin
 }
 
 func TestGenLib(t *testing.T) {
+	t.Parallel()
 	bp := `
 				test_java_gen_lib {
 					name: "javagenlibtest",

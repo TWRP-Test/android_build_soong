@@ -24,6 +24,7 @@ import (
 )
 
 func TestKotlin(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "foo",
@@ -234,6 +235,7 @@ func TestKotlin(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := android.GroupFixturePreparers(
 				PrepareForTestWithJavaDefaultModules,
 				tt.preparer,
@@ -275,6 +277,7 @@ func TestKotlin(t *testing.T) {
 }
 
 func TestKapt(t *testing.T) {
+	t.Parallel()
 	bp := `
 		java_library {
 			name: "foo",
@@ -303,6 +306,7 @@ func TestKapt(t *testing.T) {
 		}
 	`
 	t.Run("", func(t *testing.T) {
+		t.Parallel()
 		ctx, _ := testJava(t, bp)
 
 		buildOS := ctx.Config().BuildOS.String()
@@ -384,6 +388,7 @@ func TestKapt(t *testing.T) {
 	})
 
 	t.Run("errorprone", func(t *testing.T) {
+		t.Parallel()
 		env := map[string]string{
 			"RUN_ERROR_PRONE": "true",
 		}
@@ -434,6 +439,7 @@ func TestKapt(t *testing.T) {
 }
 
 func TestKaptEncodeFlags(t *testing.T) {
+	t.Parallel()
 	// Compares the kaptEncodeFlags against the results of the example implementation at
 	// https://kotlinlang.org/docs/reference/kapt.html#apjavac-options-encoding
 	tests := []struct {
@@ -484,6 +490,7 @@ func TestKaptEncodeFlags(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
 			got := kaptEncodeFlags(test.in)
 			if got != test.out {
 				t.Errorf("\nwant %q\n got %q", test.out, got)
@@ -493,6 +500,7 @@ func TestKaptEncodeFlags(t *testing.T) {
 }
 
 func TestKotlinCompose(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 	).RunTestWithBp(t, `
@@ -544,6 +552,7 @@ func TestKotlinCompose(t *testing.T) {
 }
 
 func TestKotlinPlugin(t *testing.T) {
+	t.Parallel()
 	result := android.GroupFixturePreparers(
 		PrepareForTestWithJavaDefaultModules,
 	).RunTestWithBp(t, `

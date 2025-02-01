@@ -53,6 +53,7 @@ type classpathTestCase struct {
 }
 
 func TestClasspath(t *testing.T) {
+	t.Parallel()
 	const frameworkAidl = "-I" + defaultJavaDir + "/framework/aidl"
 	var classpathTestcases = []classpathTestCase{
 		{
@@ -388,17 +389,18 @@ func TestClasspath(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	t.Run("basic", func(t *testing.T) {
 		t.Parallel()
 		testClasspathTestCases(t, classpathTestcases, false, false)
 	})
 
 	t.Run("Always_use_prebuilt_sdks=true", func(t *testing.T) {
+		t.Parallel()
 		testClasspathTestCases(t, classpathTestcases, true, false)
 	})
 
 	t.Run("UseTransitiveJarsInClasspath", func(t *testing.T) {
+		t.Parallel()
 		testClasspathTestCases(t, classpathTestcases, false, true)
 	})
 }
@@ -571,6 +573,7 @@ func testClasspathTestCases(t *testing.T, classpathTestcases []classpathTestCase
 
 			// Test with legacy javac -source 1.8 -target 1.8
 			t.Run("Java language level 8", func(t *testing.T) {
+				t.Parallel()
 				result := fixtureFactory.RunTestWithBp(t, bpJava8)
 
 				checkClasspath(t, result, true /* isJava8 */)
@@ -584,6 +587,7 @@ func testClasspathTestCases(t *testing.T, classpathTestcases []classpathTestCase
 
 			// Test with default javac -source 9 -target 9
 			t.Run("Java language level 9", func(t *testing.T) {
+				t.Parallel()
 				result := fixtureFactory.RunTestWithBp(t, bp)
 
 				checkClasspath(t, result, false /* isJava8 */)
@@ -602,6 +606,7 @@ func testClasspathTestCases(t *testing.T, classpathTestcases []classpathTestCase
 
 			// Test again with PLATFORM_VERSION_CODENAME=REL, javac -source 8 -target 8
 			t.Run("REL + Java language level 8", func(t *testing.T) {
+				t.Parallel()
 				result := android.GroupFixturePreparers(
 					fixtureFactory, prepareWithPlatformVersionRel).RunTestWithBp(t, bpJava8)
 
@@ -610,6 +615,7 @@ func testClasspathTestCases(t *testing.T, classpathTestcases []classpathTestCase
 
 			// Test again with PLATFORM_VERSION_CODENAME=REL, javac -source 9 -target 9
 			t.Run("REL + Java language level 9", func(t *testing.T) {
+				t.Parallel()
 				result := android.GroupFixturePreparers(
 					fixtureFactory, prepareWithPlatformVersionRel).RunTestWithBp(t, bp)
 

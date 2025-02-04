@@ -46,7 +46,7 @@ type avbProp struct {
 
 type avbAddHashFooterProperties struct {
 	// Source file of this image. Can reference a genrule type module with the ":module" syntax.
-	Src *string `android:"path,arch_variant"`
+	Src proptools.Configurable[string] `android:"path,arch_variant,replace_instead_of_append"`
 
 	// Set the name of the output. Defaults to <module_name>.img.
 	Filename *string
@@ -91,12 +91,13 @@ func (a *avbAddHashFooter) installFileName() string {
 
 func (a *avbAddHashFooter) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	builder := android.NewRuleBuilder(pctx, ctx)
+	src := a.properties.Src.GetOrDefault(ctx, "")
 
-	if a.properties.Src == nil {
+	if src == "" {
 		ctx.PropertyErrorf("src", "missing source file")
 		return
 	}
-	input := android.PathForModuleSrc(ctx, proptools.String(a.properties.Src))
+	input := android.PathForModuleSrc(ctx, src)
 	output := android.PathForModuleOut(ctx, a.installFileName())
 	builder.Command().Text("cp").Input(input).Output(output)
 

@@ -297,19 +297,31 @@ func createLimitDirgroupRule() []Rule {
 			WithoutMatcher("visibility", InAllowedList([]string{"//trusty/vendor/google/aosp/scripts", "//trusty/vendor/google/proprietary/scripts"})).Because(reason),
 		NeverAllow().
 			ModuleType("genrule").
+			// TODO: remove the 4 below targets once new targets are submitted
 			Without("name", "trusty-arm64.lk.elf.gen").
 			Without("name", "trusty-arm64-virt-test-debug.lk.elf.gen").
 			Without("name", "trusty-x86_64.lk.elf.gen").
 			Without("name", "trusty-x86_64-test.lk.elf.gen").
+			// trusty vm target names moving forward
+			Without("name", "trusty-test_vm-arm64.elf.gen").
+			Without("name", "trusty-test_vm-x86.elf.gen").
+			Without("name", "trusty-security_vm-arm64.elf.gen").
+			Without("name", "trusty-security_vm-x86.elf.gen").
 			Without("name", "trusty-widevine_vm-arm64.elf.gen").
 			Without("name", "trusty-widevine_vm-x86.elf.gen").
 			WithMatcher("dir_srcs", isSetMatcherInstance).Because(reason),
 		NeverAllow().
 			ModuleType("genrule").
+			// TODO: remove the 4 below targets once new targets are submitted
 			Without("name", "trusty-arm64.lk.elf.gen").
 			Without("name", "trusty-arm64-virt-test-debug.lk.elf.gen").
 			Without("name", "trusty-x86_64.lk.elf.gen").
 			Without("name", "trusty-x86_64-test.lk.elf.gen").
+			// trusty vm target names moving forward
+			Without("name", "trusty-test_vm-arm64.elf.gen").
+			Without("name", "trusty-test_vm-x86.elf.gen").
+			Without("name", "trusty-security_vm-arm64.elf.gen").
+			Without("name", "trusty-security_vm-x86.elf.gen").
 			Without("name", "trusty-widevine_vm-arm64.elf.gen").
 			Without("name", "trusty-widevine_vm-x86.elf.gen").
 			With("keep_gendir", "true").Because(reason),

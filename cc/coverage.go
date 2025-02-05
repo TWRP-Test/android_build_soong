@@ -273,8 +273,6 @@ type Coverage interface {
 
 type coverageTransitionMutator struct{}
 
-var _ android.TransitionMutator = (*coverageTransitionMutator)(nil)
-
 func (c coverageTransitionMutator) Split(ctx android.BaseModuleContext) []string {
 	if c, ok := ctx.Module().(*Module); ok && c.coverage != nil {
 		if c.coverage.Properties.NeedCoverageVariant {

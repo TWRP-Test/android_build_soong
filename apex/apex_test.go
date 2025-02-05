@@ -10823,15 +10823,6 @@ func TestAconfigFilesRustDeps(t *testing.T) {
 		}
 
 		rust_library {
-			name: "libflags_rust", // test mock
-			crate_name: "flags_rust",
-			srcs: ["lib.rs"],
-			apex_available: [
-				"myapex",
-			],
-		}
-
-		rust_library {
 			name: "liblazy_static", // test mock
 			crate_name: "lazy_static",
 			srcs: ["src/lib.rs"],
@@ -10951,8 +10942,8 @@ func TestAconfigFilesRustDeps(t *testing.T) {
 	mod := ctx.ModuleForTests("myapex", "android_common_myapex")
 	s := mod.Rule("apexRule").Args["copy_commands"]
 	copyCmds := regexp.MustCompile(" *&& *").Split(s, -1)
-	if len(copyCmds) != 34 {
-		t.Fatalf("Expected 34 commands, got %d in:\n%s", len(copyCmds), s)
+	if len(copyCmds) != 32 {
+		t.Fatalf("Expected 32 commands, got %d in:\n%s", len(copyCmds), s)
 	}
 
 	ensureListContainsMatch(t, copyCmds, "^cp -f .*/aconfig_flags.pb .*/image.apex/etc/aconfig_flags.pb")

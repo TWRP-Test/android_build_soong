@@ -119,7 +119,7 @@ type FilesystemProperties struct {
 	Avb_algorithm *string
 
 	// Hash algorithm used for avbtool (for descriptors). This is passed as hash_algorithm to
-	// avbtool. Default used by avbtool is sha1.
+	// avbtool. Default is sha256.
 	Avb_hash_algorithm *string
 
 	// The security patch passed to as the com.android.build.<type>.security_patch avb property.
@@ -903,9 +903,8 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 		if !proptools.BoolDefault(f.properties.Use_fec, true) {
 			avb_add_hashtree_footer_args += " --do_not_generate_fec"
 		}
-		if hashAlgorithm := proptools.String(f.properties.Avb_hash_algorithm); hashAlgorithm != "" {
-			avb_add_hashtree_footer_args += " --hash_algorithm " + hashAlgorithm
-		}
+		hashAlgorithm := proptools.StringDefault(f.properties.Avb_hash_algorithm, "sha256")
+		avb_add_hashtree_footer_args += " --hash_algorithm " + hashAlgorithm
 		if f.properties.Rollback_index != nil {
 			rollbackIndex := proptools.Int(f.properties.Rollback_index)
 			if rollbackIndex < 0 {

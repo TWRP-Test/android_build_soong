@@ -255,12 +255,12 @@ func TestForceReadOnly(t *testing.T) {
 		`))
 
 	module := result.ModuleForTests("my_cc_aconfig_library", "android_arm64_armv8-a_shared").Module()
-	dependOnBaseLib := false
+	dependOnReadLib := false
 	result.VisitDirectDeps(module, func(dep blueprint.Module) {
-		if dep.Name() == baseLibDep {
-			dependOnBaseLib = true
+		if dep.Name() == libAconfigStorageReadApiCcDep {
+			dependOnReadLib = true
 		}
 	})
-	android.AssertBoolEquals(t, "should not have dependency on server_configuriable_flags",
-		dependOnBaseLib, false)
+	android.AssertBoolEquals(t, "should not have dependency on libaconfig_storage_read_api_cc",
+		dependOnReadLib, false)
 }

@@ -70,7 +70,8 @@ type RegisterMutatorsContext interface {
 	TopDown(name string, m TopDownMutator) MutatorHandle
 	BottomUp(name string, m BottomUpMutator) MutatorHandle
 	BottomUpBlueprint(name string, m blueprint.BottomUpMutator) MutatorHandle
-	Transition(name string, m TransitionMutator) TransitionMutatorHandle
+	Transition(name string, m VariationTransitionMutator) TransitionMutatorHandle
+	InfoBasedTransition(name string, m androidTransitionMutator) TransitionMutatorHandle
 }
 
 type RegisterMutatorFunc func(RegisterMutatorsContext)
@@ -337,8 +338,22 @@ func (x *registerMutatorsContext) BottomUpBlueprint(name string, m blueprint.Bot
 	return mutator
 }
 
-func (x *registerMutatorsContext) Transition(name string, m TransitionMutator) TransitionMutatorHandle {
-	atm := &androidTransitionMutator{
+func (x *registerMutatorsContext) Transition(name string, m VariationTransitionMutator) TransitionMutatorHandle {
+	atm := &androidTransitionMutatorAdapter{
+		finalPhase: x.finalPhase,
+		mutator:    variationTransitionMutatorAdapter{m},
+		name:       name,
+	}
+	mutator := &mutator{
+		name:              name,
+		transitionMutator: atm,
+	}
+	x.mutators = append(x.mutators, mutator)
+	return mutator
+}
+
+func (x *registerMutatorsContext) InfoBasedTransition(name string, m androidTransitionMutator) TransitionMutatorHandle {
+	atm := &androidTransitionMutatorAdapter{
 		finalPhase: x.finalPhase,
 		mutator:    m,
 		name:       name,

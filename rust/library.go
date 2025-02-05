@@ -202,6 +202,9 @@ type libraryInterface interface {
 }
 
 func (library *libraryDecorator) nativeCoverage() bool {
+	if library.BuildStubs() {
+		return false
+	}
 	return true
 }
 

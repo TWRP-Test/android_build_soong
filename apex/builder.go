@@ -20,12 +20,14 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"android/soong/aconfig"
 	"android/soong/android"
+	"android/soong/dexpreopt"
 	"android/soong/java"
 
 	"github.com/google/blueprint"
@@ -542,6 +544,64 @@ func runAssembleVintf(ctx android.ModuleContext, vintfFragment android.Path) and
 	return processed
 }
 
+// installApexSystemServerFiles installs dexpreopt and dexjar files for system server classpath entries
+// provided by the apex.  They are installed here instead of in library module because there may be multiple
+// variants of the library, generally one for the "main" apex and another with a different min_sdk_version
+// for the Android Go version of the apex.  Both variants would attempt to install to the same locations,
+// and the library variants cannot determine which one should.  The apex module is better equipped to determine
+// if it is "selected".
+// This assumes that the jars produced by different min_sdk_version values are identical, which is currently
+// true but may not be true if the min_sdk_version difference between the variants spans version that changed
+// the dex format.
+func (a *apexBundle) installApexSystemServerFiles(ctx android.ModuleContext) {
+	// If performInstalls is set this module is responsible for creating the install rules.
+	performInstalls := a.GetOverriddenBy() == "" && !a.testApex && a.installable()
+	// TODO(b/234351700): Remove once ART does not have separated debug APEX, or make the selection
+	// explicit in the ART Android.bp files.
+	if ctx.Config().UseDebugArt() {
+		if ctx.ModuleName() == "com.android.art" {
+			performInstalls = false
+		}
+	} else {
+		if ctx.ModuleName() == "com.android.art.debug" {
+			performInstalls = false
+		}
+	}
+
+	psi := android.PrebuiltSelectionInfoMap{}
+	ctx.VisitDirectDeps(func(am android.Module) {
+		if info, exists := android.OtherModuleProvider(ctx, am, android.PrebuiltSelectionInfoProvider); exists {
+			psi = info
+		}
+	})
+
+	if len(psi.GetSelectedModulesForApiDomain(ctx.ModuleName())) > 0 {
+		performInstalls = false
+	}
+
+	for _, fi := range a.filesInfo {
+		for _, install := range fi.systemServerDexpreoptInstalls {
+			var installedFile android.InstallPath
+			if performInstalls {
+				installedFile = ctx.InstallFile(install.InstallDirOnDevice, install.InstallFileOnDevice, install.OutputPathOnHost)
+			} else {
+				// Another module created the install rules, but this module should still depend on
+				// the installed locations.
+				installedFile = install.InstallDirOnDevice.Join(ctx, install.InstallFileOnDevice)
+			}
+			a.extraInstalledFiles = append(a.extraInstalledFiles, installedFile)
+			a.extraInstalledPairs = append(a.extraInstalledPairs, installPair{install.OutputPathOnHost, installedFile})
+		}
+		if performInstalls {
+			for _, dexJar := range fi.systemServerDexJars {
+				// Copy the system server dex jar to a predefined location where dex2oat will find it.
+				android.CopyFileRule(ctx, dexJar,
+					android.PathForOutput(ctx, dexpreopt.SystemServerDexjarsDir, dexJar.Base()))
+			}
+		}
+	}
+}
+
 // buildApex creates build rules to build an APEX using apexer.
 func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 	suffix := imageApexSuffix
@@ -985,9 +1045,9 @@ func (a *apexBundle) buildApex(ctx android.ModuleContext) {
 		a.SkipInstall()
 	}
 
+	installDeps := slices.Concat(a.compatSymlinks, a.extraInstalledFiles)
 	// Install to $OUT/soong/{target,host}/.../apex.
-	a.installedFile = ctx.InstallFile(a.installDir, a.Name()+installSuffix, a.outputFile,
-		a.compatSymlinks...)
+	a.installedFile = ctx.InstallFile(a.installDir, a.Name()+installSuffix, a.outputFile, installDeps...)
 
 	// installed-files.txt is dist'ed
 	a.installedFilesFile = a.buildInstalledFilesFile(ctx, a.outputFile, imageDir)

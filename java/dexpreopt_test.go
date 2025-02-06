@@ -17,7 +17,6 @@ package java
 import (
 	"fmt"
 	"runtime"
-	"strings"
 	"testing"
 
 	"android/soong/android"
@@ -309,7 +308,7 @@ func TestDex2oatToolDeps(t *testing.T) {
 	testDex2oatToolDep(false, true, false, prebuiltDex2oatPath)
 }
 
-func TestDexpreoptBuiltInstalledForApex(t *testing.T) {
+func TestApexSystemServerDexpreoptInstalls(t *testing.T) {
 	preparers := android.GroupFixturePreparers(
 		PrepareForTestWithDexpreopt,
 		PrepareForTestWithFakeApexMutator,
@@ -329,25 +328,35 @@ func TestDexpreoptBuiltInstalledForApex(t *testing.T) {
 	module := ctx.ModuleForTests("service-foo", "android_common_apex1000")
 	library := module.Module().(*Library)
 
-	installs := library.dexpreopter.DexpreoptBuiltInstalledForApex()
+	installs := library.dexpreopter.ApexSystemServerDexpreoptInstalls()
+	dexJars := library.dexpreopter.ApexSystemServerDexJars()
 
 	android.AssertIntEquals(t, "install count", 2, len(installs))
+	android.AssertIntEquals(t, "dexjar count", 1, len(dexJars))
 
-	android.AssertStringEquals(t, "installs[0] FullModuleName",
-		"service-foo-dexpreopt-arm64-apex@com.android.apex1@javalib@service-foo.jar@classes.odex",
-		installs[0].FullModuleName())
+	android.AssertPathRelativeToTopEquals(t, "installs[0] OutputPathOnHost",
+		"out/soong/.intermediates/service-foo/android_common_apex1000/dexpreopt/service-foo/oat/arm64/javalib.odex",
+		installs[0].OutputPathOnHost)
 
-	android.AssertStringEquals(t, "installs[0] SubModuleName",
-		"-dexpreopt-arm64-apex@com.android.apex1@javalib@service-foo.jar@classes.odex",
-		installs[0].SubModuleName())
+	android.AssertPathRelativeToTopEquals(t, "installs[0] InstallDirOnDevice",
+		"out/target/product/test_device/system/framework/oat/arm64",
+		installs[0].InstallDirOnDevice)
 
-	android.AssertStringEquals(t, "installs[1] FullModuleName",
-		"service-foo-dexpreopt-arm64-apex@com.android.apex1@javalib@service-foo.jar@classes.vdex",
-		installs[1].FullModuleName())
+	android.AssertStringEquals(t, "installs[0] InstallFileOnDevice",
+		"apex@com.android.apex1@javalib@service-foo.jar@classes.odex",
+		installs[0].InstallFileOnDevice)
 
-	android.AssertStringEquals(t, "installs[1] SubModuleName",
-		"-dexpreopt-arm64-apex@com.android.apex1@javalib@service-foo.jar@classes.vdex",
-		installs[1].SubModuleName())
+	android.AssertPathRelativeToTopEquals(t, "installs[1] OutputPathOnHost",
+		"out/soong/.intermediates/service-foo/android_common_apex1000/dexpreopt/service-foo/oat/arm64/javalib.vdex",
+		installs[1].OutputPathOnHost)
+
+	android.AssertPathRelativeToTopEquals(t, "installs[1] InstallDirOnDevice",
+		"out/target/product/test_device/system/framework/oat/arm64",
+		installs[1].InstallDirOnDevice)
+
+	android.AssertStringEquals(t, "installs[1] InstallFileOnDevice",
+		"apex@com.android.apex1@javalib@service-foo.jar@classes.vdex",
+		installs[1].InstallFileOnDevice)
 
 	// Not an APEX system server jar.
 	result = preparers.RunTestWithBp(t, `
@@ -361,98 +370,11 @@ func TestDexpreoptBuiltInstalledForApex(t *testing.T) {
 	module = ctx.ModuleForTests("foo", "android_common")
 	library = module.Module().(*Library)
 
-	installs = library.dexpreopter.DexpreoptBuiltInstalledForApex()
+	installs = library.dexpreopter.ApexSystemServerDexpreoptInstalls()
+	dexJars = library.dexpreopter.ApexSystemServerDexJars()
 
 	android.AssertIntEquals(t, "install count", 0, len(installs))
-}
-
-func filterDexpreoptEntriesList(entriesList []android.AndroidMkEntries) []android.AndroidMkEntries {
-	var results []android.AndroidMkEntries
-	for _, entries := range entriesList {
-		if strings.Contains(entries.EntryMap["LOCAL_MODULE"][0], "-dexpreopt-") {
-			results = append(results, entries)
-		}
-	}
-	return results
-}
-
-func verifyEntries(t *testing.T, message string, expectedModule string,
-	expectedPrebuiltModuleFile string, expectedModulePath string, expectedInstalledModuleStem string,
-	entries android.AndroidMkEntries) {
-	android.AssertStringEquals(t, message+" LOCAL_MODULE", expectedModule,
-		entries.EntryMap["LOCAL_MODULE"][0])
-
-	android.AssertStringEquals(t, message+" LOCAL_MODULE_CLASS", "ETC",
-		entries.EntryMap["LOCAL_MODULE_CLASS"][0])
-
-	android.AssertStringDoesContain(t, message+" LOCAL_PREBUILT_MODULE_FILE",
-		entries.EntryMap["LOCAL_PREBUILT_MODULE_FILE"][0], expectedPrebuiltModuleFile)
-
-	android.AssertStringDoesContain(t, message+" LOCAL_MODULE_PATH",
-		entries.EntryMap["LOCAL_MODULE_PATH"][0], expectedModulePath)
-
-	android.AssertStringEquals(t, message+" LOCAL_INSTALLED_MODULE_STEM",
-		expectedInstalledModuleStem, entries.EntryMap["LOCAL_INSTALLED_MODULE_STEM"][0])
-
-	android.AssertStringEquals(t, message+" LOCAL_NOT_AVAILABLE_FOR_PLATFORM",
-		"false", entries.EntryMap["LOCAL_NOT_AVAILABLE_FOR_PLATFORM"][0])
-}
-
-func TestAndroidMkEntriesForApex(t *testing.T) {
-	preparers := android.GroupFixturePreparers(
-		PrepareForTestWithDexpreopt,
-		PrepareForTestWithFakeApexMutator,
-		dexpreopt.FixtureSetApexSystemServerJars("com.android.apex1:service-foo"),
-	)
-
-	// An APEX system server jar.
-	result := preparers.RunTestWithBp(t, `
-		java_library {
-			name: "service-foo",
-			installable: true,
-			srcs: ["a.java"],
-			apex_available: ["com.android.apex1"],
-			sdk_version: "current",
-		}`)
-	ctx := result.TestContext
-	module := ctx.ModuleForTests("service-foo", "android_common_apex1000")
-
-	entriesList := android.AndroidMkEntriesForTest(t, ctx, module.Module())
-	entriesList = filterDexpreoptEntriesList(entriesList)
-
-	android.AssertIntEquals(t, "entries count", 2, len(entriesList))
-
-	verifyEntries(t,
-		"entriesList[0]",
-		"service-foo-dexpreopt-arm64-apex@com.android.apex1@javalib@service-foo.jar@classes.odex",
-		"/dexpreopt/service-foo/oat/arm64/javalib.odex",
-		"/system/framework/oat/arm64",
-		"apex@com.android.apex1@javalib@service-foo.jar@classes.odex",
-		entriesList[0])
-
-	verifyEntries(t,
-		"entriesList[1]",
-		"service-foo-dexpreopt-arm64-apex@com.android.apex1@javalib@service-foo.jar@classes.vdex",
-		"/dexpreopt/service-foo/oat/arm64/javalib.vdex",
-		"/system/framework/oat/arm64",
-		"apex@com.android.apex1@javalib@service-foo.jar@classes.vdex",
-		entriesList[1])
-
-	// Not an APEX system server jar.
-	result = preparers.RunTestWithBp(t, `
-		java_library {
-			name: "foo",
-			installable: true,
-			srcs: ["a.java"],
-			sdk_version: "current",
-		}`)
-	ctx = result.TestContext
-	module = ctx.ModuleForTests("foo", "android_common")
-
-	entriesList = android.AndroidMkEntriesForTest(t, ctx, module.Module())
-	entriesList = filterDexpreoptEntriesList(entriesList)
-
-	android.AssertIntEquals(t, "entries count", 0, len(entriesList))
+	android.AssertIntEquals(t, "dexjar count", 0, len(dexJars))
 }
 
 func TestGenerateProfileEvenIfDexpreoptIsDisabled(t *testing.T) {

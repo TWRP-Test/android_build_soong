@@ -333,6 +333,25 @@ type distCopy struct {
 	dest string
 }
 
+func (d *distCopy) String() string {
+	if len(d.dest) == 0 {
+		return d.from.String()
+	}
+	return fmt.Sprintf("%s:%s", d.from.String(), d.dest)
+}
+
+type distCopies []distCopy
+
+func (d *distCopies) Strings() (ret []string) {
+	if d == nil {
+		return
+	}
+	for _, dist := range *d {
+		ret = append(ret, dist.String())
+	}
+	return
+}
+
 // Compute the contributions that the module makes to the dist.
 func (a *AndroidMkEntries) getDistContributions(mod blueprint.Module) *distContributions {
 	amod := mod.(Module).base()
@@ -821,6 +840,26 @@ func writeValueIfChanged(ctx SingletonContext, path string, value string) {
 	}
 }
 
+func getMakeVarsDistContributions(mctx *makeVarsContext) *distContributions {
+	if len(mctx.dists) == 0 {
+		return nil
+	}
+
+	copyGoals := []*copiesForGoals{}
+	for _, dist := range mctx.dists {
+		for _, goal := range dist.goals {
+			copy := &copiesForGoals{}
+			copy.goals = goal
+			copy.copies = dist.paths
+			copyGoals = append(copyGoals, copy)
+		}
+	}
+
+	contribution := &distContributions{}
+	contribution.copiesForGoals = copyGoals
+	return contribution
+}
+
 // getSoongOnlyDataFromMods gathers data from the given modules needed in soong-only builds.
 // Currently, this is the dist contributions, and the module-info.json contents.
 func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module) ([]distContributions, []*ModuleInfoJSON) {
@@ -853,6 +892,11 @@ func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module)
 				}
 			}
 		} else {
+			mctx := &makeVarsContext{
+				SingletonContext: ctx.(SingletonContext),
+				config:           ctx.Config(),
+				pctx:             pctx,
+			}
 			switch x := mod.(type) {
 			case AndroidMkDataProvider:
 				data := x.AndroidMk()
@@ -885,6 +929,21 @@ func getSoongOnlyDataFromMods(ctx fillInEntriesContext, mods []blueprint.Module)
 						allDistContributions = append(allDistContributions, *contribution)
 					}
 				}
+			case ModuleMakeVarsProvider:
+				if !x.Enabled(ctx) {
+					continue
+				}
+				x.MakeVars(mctx)
+				if contribution := getMakeVarsDistContributions(mctx); contribution != nil {
+					allDistContributions = append(allDistContributions, *contribution)
+				}
+
+			case SingletonMakeVarsProvider:
+				x.MakeVars(mctx)
+				if contribution := getMakeVarsDistContributions(mctx); contribution != nil {
+					allDistContributions = append(allDistContributions, *contribution)
+				}
+
 			default:
 				// Not exported to make so no make variables to set.
 			}

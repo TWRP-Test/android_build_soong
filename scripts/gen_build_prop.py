@@ -372,9 +372,6 @@ def append_additional_system_props(args):
       props = list(filter(lambda x: not x.startswith("ro.setupwizard.mode="), props))
       props.append("ro.setupwizard.mode=OPTIONAL")
 
-    if not config["SdkBuild"]:
-      # To speedup startup of non-preopted builds, don't verify or compile the boot image.
-      props.append("dalvik.vm.image-dex2oat-filter=extract")
     # b/323566535
     props.append("init.svc_debug.no_fatal.zygote=true")
 

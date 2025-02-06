@@ -674,7 +674,10 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 
 	flags.RustFlags = append(flags.RustFlags, deps.depFlags...)
 	flags.LinkFlags = append(flags.LinkFlags, deps.depLinkFlags...)
-	flags.LinkFlags = append(flags.LinkFlags, deps.linkObjects...)
+	flags.LinkFlags = append(flags.LinkFlags, deps.rustLibObjects...)
+	flags.LinkFlags = append(flags.LinkFlags, deps.sharedLibObjects...)
+	flags.LinkFlags = append(flags.LinkFlags, deps.staticLibObjects...)
+	flags.LinkFlags = append(flags.LinkFlags, deps.wholeStaticLibObjects...)
 
 	if String(library.Properties.Version_script) != "" {
 		if String(library.Properties.Extra_exported_symbols) != "" {
@@ -722,9 +725,17 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 		ret.kytheFile = TransformSrctoShared(ctx, crateRootPath, deps, flags, outputFile).kytheFile
 	}
 
+	// rlibs and dylibs propagate their shared, whole static, and rustlib dependencies
 	if library.rlib() || library.dylib() {
 		library.flagExporter.exportLinkDirs(deps.linkDirs...)
-		library.flagExporter.exportLinkObjects(deps.linkObjects...)
+		library.flagExporter.exportRustLibs(deps.rustLibObjects...)
+		library.flagExporter.exportSharedLibs(deps.sharedLibObjects...)
+		library.flagExporter.exportWholeStaticLibs(deps.wholeStaticLibObjects...)
+	}
+
+	// rlibs also propagate their staticlibs dependencies
+	if library.rlib() {
+		library.flagExporter.exportStaticLibs(deps.staticLibObjects...)
 	}
 
 	// Since we have FFI rlibs, we need to collect their includes as well
@@ -759,6 +770,7 @@ func (library *libraryDecorator) compile(ctx ModuleContext, flags Flags, deps Pa
 	}
 	cc.AddStubDependencyProviders(ctx)
 
+	// Set our flagexporter provider to export relevant Rust flags
 	library.flagExporter.setProvider(ctx)
 
 	return ret

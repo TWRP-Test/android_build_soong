@@ -143,3 +143,13 @@ func init() {
 		return ctx.Config().RBEWrapper()
 	})
 }
+
+// CopyFileRule creates a ninja rule to copy path to outPath.
+func CopyFileRule(ctx ModuleContext, path Path, outPath OutputPath) {
+	ctx.Build(pctx, BuildParams{
+		Rule:        Cp,
+		Input:       path,
+		Output:      outPath,
+		Description: "copy " + outPath.Base(),
+	})
+}

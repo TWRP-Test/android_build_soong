@@ -1163,6 +1163,10 @@ func (f *filesystemCreator) GenerateAndroidBuildActions(ctx android.ModuleContex
 
 	ctx.Phony("product_config_to_bp", generatedBp)
 
+	if !ctx.Config().KatiEnabled() {
+		// Cannot diff since the kati packaging rules will not be created.
+		return
+	}
 	var diffTestFiles []android.Path
 	for _, partitionType := range partitions.types() {
 		diffTestFile := f.createFileListDiffTest(ctx, partitionType, partitions.nameForType(partitionType))

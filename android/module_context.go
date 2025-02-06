@@ -639,6 +639,9 @@ func (m *moduleContext) packageFile(fullInstallPath InstallPath, srcPath Path, e
 
 func (m *moduleContext) installFile(installPath InstallPath, name string, srcPath Path, deps []InstallPath,
 	executable bool, hooks bool, checkbuild bool, extraZip *extraFilesZip) InstallPath {
+	if _, ok := srcPath.(InstallPath); ok {
+		m.ModuleErrorf("Src path cannot be another installed file. Please use a path from source or intermediates instead.")
+	}
 
 	fullInstallPath := installPath.Join(m, name)
 	if hooks {

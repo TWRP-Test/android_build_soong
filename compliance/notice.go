@@ -91,8 +91,10 @@ func (nx *NoticeXmlModule) GenerateAndroidBuildActions(ctx android.ModuleContext
 
 	nx.outputFile = output.OutputPath
 
-	installPath := android.PathForModuleInPartitionInstall(ctx, nx.props.Partition_name, "etc")
-	ctx.PackageFile(installPath, "NOTICE.xml.gz", nx.outputFile)
+	if android.Bool(ctx.Config().ProductVariables().UseSoongNoticeXML) {
+		installPath := android.PathForModuleInPartitionInstall(ctx, nx.props.Partition_name, "etc")
+		ctx.InstallFile(installPath, "NOTICE.xml.gz", nx.outputFile)
+	}
 }
 
 func (nx *NoticeXmlModule) AndroidMkEntries() []android.AndroidMkEntries {

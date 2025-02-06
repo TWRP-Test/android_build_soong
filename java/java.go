@@ -402,7 +402,12 @@ type JavaInfo struct {
 
 	BuiltInstalled string
 
-	BuiltInstalledForApex []dexpreopterInstall
+	// ApexSystemServerDexpreoptInstalls stores the list of dexpreopt artifacts if this is a system server
+	// jar in an apex.
+	ApexSystemServerDexpreoptInstalls []DexpreopterInstall
+
+	// ApexSystemServerDexJars stores the list of dex jars if this is a system server jar in an apex.
+	ApexSystemServerDexJars android.Paths
 
 	// The config is used for two purposes:
 	// - Passing dexpreopt information about libraries from Soong to Make. This is needed when
@@ -590,7 +595,7 @@ var (
 )
 
 func IsLibDepTag(depTag blueprint.DependencyTag) bool {
-	return depTag == libTag || depTag == sdkLibTag
+	return depTag == libTag
 }
 
 func IsStaticLibDepTag(depTag blueprint.DependencyTag) bool {
@@ -1129,7 +1134,8 @@ func (j *Library) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		javaInfo.BootDexJarPath = j.bootDexJarPath
 		javaInfo.UncompressDexState = j.uncompressDexState
 		javaInfo.Active = j.active
-		javaInfo.BuiltInstalledForApex = j.builtInstalledForApex
+		javaInfo.ApexSystemServerDexpreoptInstalls = j.apexSystemServerDexpreoptInstalls
+		javaInfo.ApexSystemServerDexJars = j.apexSystemServerDexJars
 		javaInfo.BuiltInstalled = j.builtInstalled
 		javaInfo.ConfigPath = j.configPath
 		javaInfo.OutputProfilePathOnHost = j.outputProfilePathOnHost
@@ -1172,7 +1178,6 @@ func (j *Library) javaLibraryModuleInfoJSON(ctx android.ModuleContext) *android.
 
 	if j.hideApexVariantFromMake {
 		moduleInfoJSON.Disabled = true
-		j.dexpreopter.ModuleInfoJSONForApex(ctx)
 	}
 	return moduleInfoJSON
 }
@@ -1883,8 +1888,8 @@ func (j *Test) generateAndroidBuildActionsWithConfig(ctx android.ModuleContext, 
 			dataPath := android.DataPath{SrcPath: data}
 			ctx.InstallTestData(pathInTestCases, []android.DataPath{dataPath})
 		}
-		if j.installFile != nil {
-			ctx.InstallFile(pathInTestCases, ctx.ModuleName()+".jar", j.installFile)
+		if j.outputFile != nil {
+			ctx.InstallFile(pathInTestCases, ctx.ModuleName()+".jar", j.outputFile)
 		}
 	}
 }

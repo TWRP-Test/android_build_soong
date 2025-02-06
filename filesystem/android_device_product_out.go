@@ -51,7 +51,7 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 		if partition == "system_ext" {
 			partition = "systemext"
 		}
-		partition = partition + "imgage"
+		partition = partition + "image"
 		ctx.Phony(info.ModuleName, imgInstallPath)
 		ctx.Phony(partition, imgInstallPath)
 		for _, fip := range info.FullInstallPaths {

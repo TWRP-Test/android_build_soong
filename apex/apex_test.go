@@ -9803,7 +9803,16 @@ func TestAndroidMk_DexpreoptBuiltInstalledForApex(t *testing.T) {
 	var builder strings.Builder
 	data.Custom(&builder, apexBundle.BaseModuleName(), "TARGET_", "", data)
 	androidMk := builder.String()
-	ensureContains(t, androidMk, "LOCAL_REQUIRED_MODULES := foo.myapex foo-dexpreopt-arm64-apex@myapex@javalib@foo.jar@classes.odex foo-dexpreopt-arm64-apex@myapex@javalib@foo.jar@classes.vdex\n")
+	out := ctx.Config().OutDir()
+	ensureContains(t, androidMk, "LOCAL_SOONG_INSTALL_PAIRS += "+
+		filepath.Join(out, "soong/.intermediates/foo/android_common_apex10000/dexpreopt/foo/oat/arm64/javalib.odex")+
+		":"+
+		filepath.Join(out, "target/product/test_device/system/framework/oat/arm64/apex@myapex@javalib@foo.jar@classes.odex")+
+		" "+
+		filepath.Join(out, "soong/.intermediates/foo/android_common_apex10000/dexpreopt/foo/oat/arm64/javalib.vdex")+
+		":"+
+		filepath.Join(out, "target/product/test_device/system/framework/oat/arm64/apex@myapex@javalib@foo.jar@classes.vdex")+
+		"\n")
 }
 
 func TestAndroidMk_RequiredModules(t *testing.T) {

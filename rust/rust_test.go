@@ -204,7 +204,7 @@ func TestDepsTracking(t *testing.T) {
 		t.Errorf("Static library dependency not detected (dependency missing from AndroidMkStaticLibs)")
 	}
 
-	if !strings.Contains(rustc.Args["rustcFlags"], "-lstatic=wholestatic") {
+	if !strings.Contains(rustc.Args["rustcFlags"], "-lstatic:+whole-archive=wholestatic") {
 		t.Errorf("-lstatic flag not being passed to rustc for static library %#v", rustc.Args["rustcFlags"])
 	}
 
@@ -574,4 +574,177 @@ func TestStdLinkMismatch(t *testing.T) {
 			prefer_rlib: true,
 		}
 	`)
+}
+
+func TestRustLinkPropagation(t *testing.T) {
+	// Test static and whole static propagation behavior
+	//
+	//  Whole static libs propagate through rlibs and through dylibs to
+	//  dependencies further down. rustc does not re-export whole-archived
+	//  static libs for dylibs, so this simulates re-exporting those symbols.
+	//
+	//  Static libs only propagate through rlibs to some final dylib. We propagate
+	//  normal static libs because we allow rustlib dependencies to represent
+	//  either rlibs or dylibs. Not propagating static libs through rlibs would
+	//  mean we'd need to always redeclare static libs throughout a dependency tree
+	//  We don't propagate past dylibs because they represent a final link.
+
+	ctx := testRust(t, `
+	rust_library_rlib {
+		name: "librlib1",
+		crate_name: "rlib1",
+		srcs: ["src/lib.rs"],
+		static_libs: ["libcc_static_rlib1"],
+		whole_static_libs: ["libcc_whole_static_rlib1"],
+	}
+
+	rust_library_dylib {
+		name: "libdylib1",
+		crate_name: "dylib1",
+		static_libs: ["libcc_static_dylib1"],
+		srcs: ["src/lib.rs"],
+		whole_static_libs: ["libcc_whole_static_dylib1"],
+	}
+
+	rust_library_rlib {
+		name: "librlib2",
+		crate_name: "rlib2",
+		srcs: ["src/lib.rs"],
+		rlibs: ["librlib1"],
+		static_libs: ["libcc_static_rlib2"],
+		whole_static_libs: ["libcc_whole_static_rlib2"],
+	}
+
+	rust_library_dylib {
+		name: "libdylib2",
+		crate_name: "dylib2",
+		srcs: ["src/lib.rs"],
+		rlibs: ["librlib1"],
+		rustlibs: ["libdylib1"],
+		static_libs: ["libcc_static_dylib2"],
+		whole_static_libs: ["libcc_whole_static_dylib2"],
+	}
+
+	cc_library_static {
+		name: "libcc_static_rlib1",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_static_rlib2",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_static_dylib1",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_static_dylib2",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_whole_static_rlib1",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_whole_static_rlib2",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_whole_static_dylib1",
+		srcs:["foo.c"],
+	}
+
+	cc_library_static {
+		name: "libcc_whole_static_dylib2",
+		srcs:["foo.c"],
+	}
+
+	rust_library_rlib {
+		name: "librlib3",
+		crate_name: "rlib3",
+		srcs: ["src/lib.rs"],
+		rlibs: ["librlib2"],
+	}
+
+	rust_library_dylib {
+		name: "libdylib3",
+		crate_name: "dylib3",
+		srcs: ["src/lib.rs"],
+		rlibs: ["librlib2"],
+		rustlibs: ["libdylib2"],
+	}
+	`)
+
+	librlib3 := ctx.ModuleForTests("librlib3", "android_arm64_armv8-a_rlib_dylib-std").Rule("rustc")
+	libdylib3 := ctx.ModuleForTests("libdylib3", "android_arm64_armv8-a_dylib").Rule("rustc")
+
+	// Test static lib propagation from:
+	// rlib -> rlib
+	if !strings.Contains(librlib3.Args["linkFlags"], "libcc_static_rlib2.a") {
+		t.Errorf("direct dependency static lib not propagating from rlib to rlib; linkFlags %#v",
+			librlib3.Args["linkFlags"])
+	}
+	// rlib -> rlib -> rlib
+	if !strings.Contains(librlib3.Args["linkFlags"], "libcc_static_rlib1.a") {
+		t.Errorf("indirect dependency static lib not propagating from rlib to rlib: linkFlags %#v",
+			librlib3.Args["linkFlags"])
+	}
+	// rlib -> rlib -> dylib
+	if !strings.Contains(libdylib3.Args["linkFlags"], "libcc_static_rlib1.a") {
+		t.Errorf("indirect dependency static lib not propagating from rlib to dylib: linkFlags %#v",
+			libdylib3.Args["linkFlags"])
+	}
+	// rlib -> dylib
+	if !strings.Contains(libdylib3.Args["linkFlags"], "libcc_static_rlib2.a") {
+		t.Errorf("direct dependency static lib not propagating from rlib to dylib: linkFlags: %#v",
+			libdylib3.Args["linkFlags"])
+	}
+	// dylib -> dylib (negative case, should not propagate)
+	if strings.Contains(libdylib3.Args["linkFlags"], "libcc_static_dylib2.a") {
+		t.Errorf("direct dependency static lib propagating from dylib to dylib: linkFlags: %#v",
+			libdylib3.Args["linkFlags"])
+	}
+	// dylib -> dylib -> dylib (negative case, should not propagate)
+	if strings.Contains(libdylib3.Args["linkFlags"], "libcc_static_dylib1.a") {
+		t.Errorf("indirect dependency static lib propagating from dylib to dylib: linkFlags: %#v",
+			libdylib3.Args["linkFlags"])
+	}
+
+	// Test whole static lib propagation from:
+	// rlib -> rlib
+	if !strings.Contains(librlib3.Args["linkFlags"], "libcc_whole_static_rlib2.a") {
+		t.Errorf("direct dependency whole static lib not propagating from rlib to rlib: linkFlags %#v",
+			librlib3.Args["linkFlags"])
+	}
+	// rlib -> rlib -> rlib
+	if !strings.Contains(librlib3.Args["linkFlags"], "libcc_whole_static_rlib1.a") {
+		t.Errorf("indirect dependency whole static lib not propagating from rlib to rlib: linkFlags %#v",
+			librlib3.Args["linkFlags"])
+	}
+	// rlib -> dylib
+	if !strings.Contains(libdylib3.Args["linkFlags"], "libcc_whole_static_rlib2.a") {
+		t.Errorf("direct dependency whole static lib not propagating from rlib to dylib: linkFlags %#v",
+			libdylib3.Args["linkFlags"])
+	}
+	// rlib -> rlib -> dylib
+	if !strings.Contains(libdylib3.Args["linkFlags"], "libcc_whole_static_rlib1.a") {
+		t.Errorf("indirect dependency whole static lib not propagating from rlib to dylib: linkFlags %#v",
+			libdylib3.Args["linkFlags"])
+	}
+	// dylib -> dylib
+	if !strings.Contains(libdylib3.Args["linkFlags"], "libcc_whole_static_dylib2.a") {
+		t.Errorf("direct dependency whole static lib not propagating from dylib to dylib: linkFlags %#v",
+			libdylib3.Args["linkFlags"])
+	}
+	// dylib -> dylib -> dylib
+	if !strings.Contains(libdylib3.Args["linkFlags"], "libcc_whole_static_dylib1.a") {
+		t.Errorf("indirect dependency whole static lib not propagating from dylib to dylib: linkFlags %#v",
+			libdylib3.Args["linkFlags"])
+	}
 }

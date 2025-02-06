@@ -226,11 +226,6 @@ func (a *apexBundle) writeRequiredModules(w io.Writer, moduleNames []string) {
 	required = append(required, a.required...)
 	targetRequired = append(targetRequired, a.TargetRequiredModuleNames()...)
 	hostRequired = append(hostRequired, a.HostRequiredModuleNames()...)
-	for _, fi := range a.filesInfo {
-		required = append(required, fi.requiredModuleNames...)
-		targetRequired = append(targetRequired, fi.targetRequiredModuleNames...)
-		hostRequired = append(hostRequired, fi.hostRequiredModuleNames...)
-	}
 	android.AndroidMkEmitAssignList(w, "LOCAL_REQUIRED_MODULES", moduleNames, a.makeModulesToInstall, required)
 	android.AndroidMkEmitAssignList(w, "LOCAL_TARGET_REQUIRED_MODULES", targetRequired)
 	android.AndroidMkEmitAssignList(w, "LOCAL_HOST_REQUIRED_MODULES", hostRequired)
@@ -261,6 +256,7 @@ func (a *apexBundle) androidMkForType() android.AndroidMkData {
 				fmt.Fprintln(w, "LOCAL_SOONG_INSTALLED_MODULE :=", a.installedFile.String())
 				fmt.Fprintln(w, "LOCAL_SOONG_INSTALL_PAIRS :=", a.outputFile.String()+":"+a.installedFile.String())
 				fmt.Fprintln(w, "LOCAL_SOONG_INSTALL_SYMLINKS := ", strings.Join(a.compatSymlinks.Strings(), " "))
+				fmt.Fprintln(w, "LOCAL_SOONG_INSTALL_PAIRS +=", a.extraInstalledPairs.String())
 			}
 			fmt.Fprintln(w, "LOCAL_APEX_KEY_PATH := ", a.apexKeysPath.String())
 

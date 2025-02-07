@@ -176,7 +176,7 @@ func TestDexpreoptBootJarsWithSourceArtApex(t *testing.T) {
 		"out/soong/dexpreopt_arm64/dex_bootjars_input/foo.jar",
 		"out/soong/dexpreopt_arm64/dex_bootjars_input/bar.jar",
 		"out/soong/dexpreopt_arm64/dex_bootjars_input/baz.jar",
-		"out/soong/.intermediates/art-bootclasspath-fragment/android_common_apex10000/art-bootclasspath-fragment/boot.prof",
+		"out/soong/.intermediates/art-bootclasspath-fragment/android_common_com.android.art/art-bootclasspath-fragment/boot.prof",
 		"out/soong/.intermediates/default/java/dex_bootjars/android_common/boot/boot.prof",
 		"out/soong/dexpreopt/uffd_gc_flag.txt",
 	}
@@ -396,7 +396,7 @@ func TestDexpreoptProfileWithMultiplePrebuiltArtApexes(t *testing.T) {
 		{
 			desc:                         "Source apex com.android.art is selected, profile should come from source java library",
 			selectedArtApexContributions: "art.source.contributions",
-			expectedProfile:              "out/soong/.intermediates/art-bootclasspath-fragment/android_common_apex10000/art-bootclasspath-fragment/boot.prof",
+			expectedProfile:              "out/soong/.intermediates/art-bootclasspath-fragment/android_common_com.android.art/art-bootclasspath-fragment/boot.prof",
 		},
 		{
 			desc:                         "Prebuilt apex prebuilt_com.android.art is selected, profile should come from .prof deapexed from the prebuilt",

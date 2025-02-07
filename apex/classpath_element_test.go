@@ -198,11 +198,11 @@ func TestCreateClasspathElements(t *testing.T) {
 
 	result := preparer.RunTest(t)
 
-	artFragment := result.Module("art-bootclasspath-fragment", "android_common_apex10000")
+	artFragment := result.Module("art-bootclasspath-fragment", "android_common_com.android.art")
 	artBaz := result.Module("baz", "android_common_apex10000")
 	artQuuz := result.Module("quuz", "android_common_apex10000")
 
-	myFragment := result.Module("mybootclasspath-fragment", "android_common_apex10000")
+	myFragment := result.Module("mybootclasspath-fragment", "android_common_myapex")
 	myBar := result.Module("bar", "android_common_apex10000")
 
 	other := result.Module("othersdklibrary", "android_common_apex10000")

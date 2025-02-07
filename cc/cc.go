@@ -839,6 +839,7 @@ type libraryDependencyTag struct {
 
 	reexportFlags       bool
 	explicitlyVersioned bool
+	explicitlyImpl      bool
 	dataLib             bool
 	ndk                 bool
 
@@ -933,6 +934,11 @@ var (
 	aidlLibraryTag        = dependencyTag{name: "aidl_library"}
 	llndkHeaderLibTag     = dependencyTag{name: "llndk_header_lib"}
 )
+
+func IsExplicitImplSharedDepTag(depTag blueprint.DependencyTag) bool {
+	ccLibDepTag, ok := depTag.(libraryDependencyTag)
+	return ok && ccLibDepTag.shared() && ccLibDepTag.explicitlyImpl
+}
 
 func IsSharedDepTag(depTag blueprint.DependencyTag) bool {
 	ccLibDepTag, ok := depTag.(libraryDependencyTag)
@@ -2699,6 +2705,9 @@ func AddSharedLibDependenciesWithVersions(ctx android.BottomUpMutatorContext, mo
 		variations = append(variations, blueprint.Variation{Mutator: "version", Variation: version})
 		if tag, ok := depTag.(libraryDependencyTag); ok {
 			tag.explicitlyVersioned = true
+			if version == "" {
+				tag.explicitlyImpl = true
+			}
 			// depTag is an interface that contains a concrete non-pointer struct.  That makes the local
 			// tag variable a copy of the contents of depTag, and updating it doesn't change depTag.  Reassign
 			// the modified copy to depTag.
@@ -4074,7 +4083,7 @@ func (c *Module) OutgoingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 
 func (c *Module) IncomingDepIsInSameApex(depTag blueprint.DependencyTag) bool {
 	if c.HasStubsVariants() {
-		if IsSharedDepTag(depTag) {
+		if IsSharedDepTag(depTag) && !IsExplicitImplSharedDepTag(depTag) {
 			// dynamic dep to a stubs lib crosses APEX boundary
 			return false
 		}

@@ -58,6 +58,10 @@ func platformSystemServerClasspathFactory() android.Module {
 	return m
 }
 
+func (m *platformSystemServerClasspathModule) UniqueApexVariations() bool {
+	return true
+}
+
 func (p *platformSystemServerClasspathModule) AndroidMkEntries() (entries []android.AndroidMkEntries) {
 	return p.classpathFragmentBase().androidMkEntries()
 }
@@ -114,6 +118,9 @@ func systemServerClasspathFactory() android.Module {
 	initClasspathFragment(m, SYSTEMSERVERCLASSPATH)
 	android.InitAndroidArchModule(m, android.DeviceSupported, android.MultilibCommon)
 	return m
+}
+func (m *SystemServerClasspathModule) UniqueApexVariations() bool {
+	return true
 }
 
 func (s *SystemServerClasspathModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {

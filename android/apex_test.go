@@ -193,7 +193,7 @@ func Test_mergeApexVariations(t *testing.T) {
 			},
 		},
 		{
-			name: "merge different UsePlatformApis but don't allow using platform api",
+			name: "don't merge different UsePlatformApis",
 			in: []ApexInfo{
 				{
 					ApexVariationName: "foo",
@@ -213,13 +213,20 @@ func Test_mergeApexVariations(t *testing.T) {
 				{
 					ApexVariationName: "apex10000",
 					MinSdkVersion:     FutureApiLevel,
-					InApexVariants:    []string{"foo", "bar"},
+					InApexVariants:    []string{"foo"},
+					ForPrebuiltApex:   NotForPrebuiltApex,
+				},
+				{
+					ApexVariationName: "apex10000_p",
+					MinSdkVersion:     FutureApiLevel,
+					UsePlatformApis:   true,
+					InApexVariants:    []string{"bar"},
 					ForPrebuiltApex:   NotForPrebuiltApex,
 				},
 			},
 			wantAliases: [][2]string{
 				{"foo", "apex10000"},
-				{"bar", "apex10000"},
+				{"bar", "apex10000_p"},
 			},
 		},
 		{
@@ -242,7 +249,7 @@ func Test_mergeApexVariations(t *testing.T) {
 			},
 			wantMerged: []ApexInfo{
 				{
-					ApexVariationName: "apex10000",
+					ApexVariationName: "apex10000_p",
 					MinSdkVersion:     FutureApiLevel,
 					UsePlatformApis:   true,
 					InApexVariants:    []string{"foo", "bar"},
@@ -250,8 +257,8 @@ func Test_mergeApexVariations(t *testing.T) {
 				},
 			},
 			wantAliases: [][2]string{
-				{"foo", "apex10000"},
-				{"bar", "apex10000"},
+				{"foo", "apex10000_p"},
+				{"bar", "apex10000_p"},
 			},
 		},
 	}

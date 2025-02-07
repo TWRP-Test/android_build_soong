@@ -15,6 +15,8 @@
 package java
 
 import (
+	"github.com/google/blueprint"
+
 	"android/soong/android"
 	"android/soong/dexpreopt"
 )
@@ -33,8 +35,17 @@ var (
 	platformBootclasspathArtBootJarDepTag  = bootclasspathDependencyTag{name: "art-boot-jar"}
 	platformBootclasspathBootJarDepTag     = bootclasspathDependencyTag{name: "platform-boot-jar"}
 	platformBootclasspathApexBootJarDepTag = bootclasspathDependencyTag{name: "apex-boot-jar"}
-	platformBootclasspathImplLibDepTag     = dependencyTag{name: "impl-lib-tag"}
 )
+
+type platformBootclasspathImplLibDepTagType struct {
+	blueprint.BaseDependencyTag
+}
+
+func (p platformBootclasspathImplLibDepTagType) ExcludeFromVisibilityEnforcement() {}
+
+var platformBootclasspathImplLibDepTag platformBootclasspathImplLibDepTagType
+
+var _ android.ExcludeFromVisibilityEnforcementTag = platformBootclasspathImplLibDepTag
 
 type platformBootclasspathModule struct {
 	android.ModuleBase

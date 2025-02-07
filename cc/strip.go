@@ -23,10 +23,8 @@ import (
 // StripProperties defines the type of stripping applied to the module.
 type StripProperties struct {
 	Strip struct {
-		// none forces all stripping to be disabled.
-		// Device modules default to stripping enabled leaving mini debuginfo.
-		// Host modules default to stripping disabled, but can be enabled by setting any other
-		// strip boolean property.
+		// Device and host modules default to stripping enabled leaving mini debuginfo.
+		// This can be disabled by setting none to true.
 		None *bool `android:"arch_variant"`
 
 		// all forces stripping everything, including the mini debug info.

@@ -16,12 +16,12 @@ package rust
 
 import (
 	"android/soong/android"
+
 	"github.com/google/blueprint"
 
 	"android/soong/cc"
 )
 
-var CovLibraryName = "libprofile-clang-extras"
 var ProfilerBuiltins = "libprofiler_builtins.rust_sysroot"
 
 // Add '%c' to default specifier after we resolve http://b/210012154
@@ -38,12 +38,20 @@ func (cov *coverage) props() []interface{} {
 	return []interface{}{&cov.Properties}
 }
 
+func getClangProfileLibraryName(ctx ModuleContextIntf) string {
+	if ctx.RustModule().UseSdk() {
+		return "libprofile-clang-extras_ndk"
+	} else {
+		return "libprofile-clang-extras"
+	}
+}
+
 func (cov *coverage) deps(ctx DepsContext, deps Deps) Deps {
 	if cov.Properties.NeedCoverageVariant {
 		if ctx.Device() {
 			ctx.AddVariationDependencies([]blueprint.Variation{
 				{Mutator: "link", Variation: "static"},
-			}, cc.CoverageDepTag, CovLibraryName)
+			}, cc.CoverageDepTag, getClangProfileLibraryName(ctx))
 		}
 
 		// no_std modules are missing libprofiler_builtins which provides coverage, so we need to add it as a dependency.
@@ -66,7 +74,7 @@ func (cov *coverage) flags(ctx ModuleContext, flags Flags, deps PathDeps) (Flags
 		flags.RustFlags = append(flags.RustFlags,
 			"-C instrument-coverage", "-g")
 		if ctx.Device() {
-			m := ctx.GetDirectDepProxyWithTag(CovLibraryName, cc.CoverageDepTag)
+			m := ctx.GetDirectDepProxyWithTag(getClangProfileLibraryName(ctx), cc.CoverageDepTag)
 			coverage := android.OtherModuleProviderOrDefault(ctx, m, cc.LinkableInfoProvider)
 			flags.LinkFlags = append(flags.LinkFlags,
 				profileInstrFlag, "-g", coverage.OutputFile.Path().String(), "-Wl,--wrap,open")

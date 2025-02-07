@@ -293,6 +293,9 @@ type bootImageConfig struct {
 	// Profiles imported from APEXes, in addition to the profile at the default path. Each entry must
 	// be the name of an APEX module.
 	profileImports []string
+
+	// The name of the module that provides boot image profiles, if any.
+	profileProviderModule string
 }
 
 // Target-dependent description of a boot image.
@@ -563,6 +566,9 @@ func addDependenciesOntoSelectedBootImageApexes(ctx android.BottomUpMutatorConte
 				// The prebuilt might have been renamed by prebuilt_rename mutator if the source module does not exist.
 				// Remove the prebuilt_ prefix.
 				ctx.AddFarVariationDependencies(apexVariationOfSelected, dexpreoptBootJarDepTag, android.RemoveOptionalPrebuiltPrefix(selected))
+			} else {
+				// Couldn't find a dependency, do it again to report an error.
+				ctx.AddFarVariationDependencies(apexVariationOfSelected, dexpreoptBootJarDepTag, selected)
 			}
 		}
 	}

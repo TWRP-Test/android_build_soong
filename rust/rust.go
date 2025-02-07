@@ -377,6 +377,9 @@ func (mod *Module) Toc() android.OptionalPath {
 }
 
 func (mod *Module) UseSdk() bool {
+	if cc.CanUseSdk(mod) {
+		return String(mod.Properties.Sdk_version) != ""
+	}
 	return false
 }
 
@@ -2129,7 +2132,7 @@ func (mod *Module) IncomingDepIsInSameApex(depTag blueprint.DependencyTag) bool 
 	}
 
 	if mod.HasStubsVariants() {
-		if cc.IsSharedDepTag(depTag) {
+		if cc.IsSharedDepTag(depTag) && !cc.IsExplicitImplSharedDepTag(depTag) {
 			// dynamic dep to a stubs lib crosses APEX boundary
 			return false
 		}

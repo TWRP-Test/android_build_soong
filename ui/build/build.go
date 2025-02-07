@@ -427,6 +427,9 @@ func evaluateWhatToRun(config Config, verboseln func(v ...interface{})) int {
 	if config.Checkbuild() {
 		what |= RunBuildTests
 	}
+	if value, ok := config.environ.Get("RUN_BUILD_TESTS"); ok && value == "true" {
+		what |= RunBuildTests
+	}
 	if !config.SkipConfig() {
 		what |= RunProductConfig
 	} else {

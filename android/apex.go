@@ -105,6 +105,9 @@ func (i ApexInfo) AddJSONData(d *map[string]interface{}) {
 // thus wouldn't be merged.
 func (i ApexInfo) mergedName() string {
 	name := "apex" + strconv.Itoa(i.MinSdkVersion.FinalOrFutureInt())
+	if i.UsePlatformApis {
+		name += "_p"
+	}
 	return name
 }
 

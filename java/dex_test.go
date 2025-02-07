@@ -16,6 +16,7 @@ package java
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"android/soong/android"
@@ -311,14 +312,25 @@ func TestD8(t *testing.T) {
 			name: "static_lib",
 			srcs: ["foo.java"],
 		}
+
+		android_app {
+			name: "app",
+			srcs: ["foo.java"],
+			platform_apis: true,
+			optimize: {
+				enabled: false,
+			},
+		}
 	`)
 
 	foo := result.ModuleForTests("foo", "android_common")
 	lib := result.ModuleForTests("lib", "android_common")
+	app := result.ModuleForTests("app", "android_common")
 	staticLib := result.ModuleForTests("static_lib", "android_common")
 
 	fooJavac := foo.Rule("javac")
 	fooD8 := foo.Rule("d8")
+	appD8 := app.Rule("d8")
 	libHeader := lib.Output("turbine-combined/lib.jar").Output
 	staticLibHeader := staticLib.Output("turbine-combined/static_lib.jar").Output
 
@@ -331,6 +343,16 @@ func TestD8(t *testing.T) {
 		fooD8.Args["d8Flags"], libHeader.String())
 	android.AssertStringDoesNotContain(t, "expected no  static_lib header jar in foo javac classpath",
 		fooD8.Args["d8Flags"], staticLibHeader.String())
+
+	// A --release flag is added only for targets that opt out of default R8 behavior (e.g., apps).
+	// For library targets that don't use R8 by default, no --debug or --release flag should be
+	// added, instead relying on default D8 behavior (--debug).
+	android.AssertStringDoesContain(t, "expected --release in app d8 flags",
+		appD8.Args["d8Flags"], "--release")
+	android.AssertStringDoesNotContain(t, "expected no --release flag in lib d8 flags",
+		fooD8.Args["d8Flags"], "--release")
+	android.AssertStringDoesNotContain(t, "expected no --debug flag in lib d8 flags",
+		fooD8.Args["d8Flags"], "--debug")
 }
 
 func TestProguardFlagsInheritanceStatic(t *testing.T) {
@@ -732,6 +754,9 @@ func TestDebugReleaseFlags(t *testing.T) {
 			name: "app",
 			srcs: ["foo.java"],
 			platform_apis: true,
+			optimize: {
+				enabled: %s,
+			},
 			dxflags: ["%s"]
 		}
 	`
@@ -740,6 +765,7 @@ func TestDebugReleaseFlags(t *testing.T) {
 		name          string
 		envVar        string
 		isEng         bool
+		useD8         bool
 		dxFlags       string
 		expectedFlags string
 	}{
@@ -779,6 +805,19 @@ func TestDebugReleaseFlags(t *testing.T) {
 			// Eng mode does *not* override explicit dxflags.
 			expectedFlags: "--release",
 		},
+		{
+			name:  "app_d8",
+			useD8: true,
+			// D8 usage w/ apps should explicitly enable --release mode.
+			expectedFlags: "--release",
+		},
+		{
+			name:    "app_d8_debug",
+			useD8:   true,
+			dxFlags: "--debug",
+			// D8 usage w/ apps respects overriding dxFlags.
+			expectedFlags: "--debug",
+		},
 	}
 
 	for _, tc := range testcases {
@@ -801,11 +840,16 @@ func TestDebugReleaseFlags(t *testing.T) {
 					}),
 				)
 			}
-			result := fixturePreparer.RunTestWithBp(t, fmt.Sprintf(bp, tc.dxFlags))
+			result := fixturePreparer.RunTestWithBp(t, fmt.Sprintf(bp, strconv.FormatBool(!tc.useD8), tc.dxFlags))
 
-			appR8 := result.ModuleForTests("app", "android_common").Rule("r8")
-			android.AssertStringDoesContain(t, "expected flag in R8 flags",
-				appR8.Args["r8Flags"], tc.expectedFlags)
+			dexRuleKey := "r8"
+			if tc.useD8 {
+				dexRuleKey = "d8"
+			}
+			dexFlagsKey := dexRuleKey + "Flags"
+			appDex := result.ModuleForTests("app", "android_common").Rule(dexRuleKey)
+			android.AssertStringDoesContain(t, "expected flag in dex flags",
+				appDex.Args[dexFlagsKey], tc.expectedFlags)
 
 			var unexpectedFlags string
 			if tc.expectedFlags == "--debug" {
@@ -814,8 +858,8 @@ func TestDebugReleaseFlags(t *testing.T) {
 				unexpectedFlags = "--debug"
 			}
 			if unexpectedFlags != "" {
-				android.AssertStringDoesNotContain(t, "unexpected flag in R8 flags",
-					appR8.Args["r8Flags"], unexpectedFlags)
+				android.AssertStringDoesNotContain(t, "unexpected flag in dex flags",
+					appDex.Args[dexFlagsKey], unexpectedFlags)
 			}
 		})
 	}

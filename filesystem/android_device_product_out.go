@@ -36,6 +36,7 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 	filesystemInfos := a.getFsInfos(ctx)
 
 	var deps android.Paths
+	var depsNoImg android.Paths // subset of deps without any img files. used for sbom creation.
 
 	for _, partition := range android.SortedKeys(filesystemInfos) {
 		info := filesystemInfos[partition]
@@ -86,6 +87,7 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 				ctx.Phony(info.ModuleName, fip.FullInstallPath)
 				ctx.Phony(partition, fip.FullInstallPath)
 				deps = append(deps, fip.FullInstallPath)
+				depsNoImg = append(depsNoImg, fip.FullInstallPath)
 				ctx.Phony("sync_"+partition, fip.FullInstallPath)
 				ctx.Phony("sync", fip.FullInstallPath)
 			}
@@ -93,6 +95,8 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 
 		deps = append(deps, imgInstallPath)
 	}
+
+	a.createComplianceMetadataTimestamp(ctx, depsNoImg)
 
 	// List all individual files to be copied to PRODUCT_OUT here
 	if a.deviceProps.Bootloader != nil {
@@ -174,6 +178,17 @@ func (a *androidDevice) copyFilesToProductOutForSoongOnly(ctx android.ModuleCont
 	})
 
 	return copyToProductOutTimestamp
+}
+
+// createComplianceMetadataTimestampForSoongOnly creates a timestamp file in m --soong-only
+// this timestamp file depends on installed files of the main `android_device`.
+// Any changes to installed files of the main `android_device` will retrigger SBOM generation
+func (a *androidDevice) createComplianceMetadataTimestamp(ctx android.ModuleContext, installedFiles android.Paths) {
+	ctx.Build(pctx, android.BuildParams{
+		Rule:      android.Touch,
+		Implicits: installedFiles,
+		Output:    android.PathForOutput(ctx, "compliance-metadata", ctx.Config().DeviceProduct(), "installed_files.stamp"),
+	})
 }
 
 // Returns a mapping from partition type -> FilesystemInfo. This includes filesystems that are

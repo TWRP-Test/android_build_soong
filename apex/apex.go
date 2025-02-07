@@ -1032,9 +1032,9 @@ func (a *apexBundle) ApexInfoMutator(mctx android.TopDownMutatorContext) {
 	// be built for this apexBundle.
 
 	apexVariationName := mctx.ModuleName() // could be com.android.foo
-	if overridable, ok := mctx.Module().(android.OverridableModule); ok && overridable.GetOverriddenBy() != "" {
+	if a.GetOverriddenBy() != "" {
 		// use the overridden name com.mycompany.android.foo
-		apexVariationName = overridable.GetOverriddenBy()
+		apexVariationName = a.GetOverriddenBy()
 	}
 
 	a.properties.ApexVariationName = apexVariationName
@@ -1202,8 +1202,6 @@ func (a *apexTransitionMutator) Split(ctx android.BaseModuleContext) []string {
 			return []string{overridable.GetOverriddenBy()}
 		}
 		return []string{ai.ApexVariationName()}
-	} else if _, ok := ctx.Module().(*OverrideApex); ok {
-		return []string{ctx.ModuleName()}
 	}
 	return []string{""}
 }
@@ -1220,8 +1218,6 @@ func (a *apexTransitionMutator) IncomingTransition(ctx android.IncomingTransitio
 			return overridable.GetOverriddenBy()
 		}
 		return ai.ApexVariationName()
-	} else if _, ok := ctx.Module().(*OverrideApex); ok {
-		return ctx.Module().Name()
 	}
 
 	return ""
@@ -1663,6 +1659,10 @@ func apexFileForFilesystem(ctx android.BaseModuleContext, buildFile android.Path
 // to the child modules. Returning false makes the visit to continue in the sibling or the parent
 // modules. This is used in check* functions below.
 func (a *apexBundle) WalkPayloadDeps(ctx android.BaseModuleContext, do android.PayloadDepsCallback) {
+	apexVariationName := ctx.ModuleName()
+	if overrideName := a.GetOverriddenBy(); overrideName != "" {
+		apexVariationName = overrideName
+	}
 	ctx.WalkDeps(func(child, parent android.Module) bool {
 		am, ok := child.(android.ApexModule)
 		if !ok || !am.CanHaveApexVariants() {
@@ -1682,7 +1682,7 @@ func (a *apexBundle) WalkPayloadDeps(ctx android.BaseModuleContext, do android.P
 		}
 
 		ai, _ := android.OtherModuleProvider(ctx, child, android.ApexInfoProvider)
-		externalDep := !android.InList(ctx.ModuleName(), ai.InApexVariants)
+		externalDep := !android.InList(apexVariationName, ai.InApexVariants)
 
 		// Visit actually
 		return do(ctx, parent, am, externalDep)

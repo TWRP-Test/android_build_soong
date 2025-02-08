@@ -64,6 +64,7 @@ func registerJavaBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("java_api_library", ApiLibraryFactory)
 	ctx.RegisterModuleType("java_api_contribution", ApiContributionFactory)
 	ctx.RegisterModuleType("java_api_contribution_import", ApiContributionImportFactory)
+	ctx.RegisterModuleType("java_genrule_combiner", GenruleCombinerFactory)
 
 	// This mutator registers dependencies on dex2oat for modules that should be
 	// dexpreopted. This is done late when the final variants have been
@@ -373,7 +374,7 @@ type JavaInfo struct {
 
 	ProvidesUsesLibInfo *ProvidesUsesLibInfo
 
-	ModuleWithUsesLibraryInfo *ModuleWithUsesLibraryInfo
+	MissingOptionalUsesLibs []string
 
 	ModuleWithSdkDepInfo *ModuleWithSdkDepInfo
 
@@ -3679,11 +3680,11 @@ func addMissingOptionalUsesLibsFromDep(ctx android.ModuleContext, depModule andr
 	usesLibrary *usesLibrary) {
 
 	dep, ok := android.OtherModuleProvider(ctx, depModule, JavaInfoProvider)
-	if !ok || dep.ModuleWithUsesLibraryInfo == nil {
+	if !ok {
 		return
 	}
 
-	for _, lib := range dep.ModuleWithUsesLibraryInfo.UsesLibrary.usesLibraryProperties.Missing_optional_uses_libs {
+	for _, lib := range dep.MissingOptionalUsesLibs {
 		if !android.InList(lib, usesLibrary.usesLibraryProperties.Missing_optional_uses_libs) {
 			usesLibrary.usesLibraryProperties.Missing_optional_uses_libs =
 				append(usesLibrary.usesLibraryProperties.Missing_optional_uses_libs, lib)
@@ -3771,9 +3772,7 @@ func setExtraJavaInfo(ctx android.ModuleContext, module android.Module, javaInfo
 	}
 
 	if mwul, ok := module.(ModuleWithUsesLibrary); ok {
-		javaInfo.ModuleWithUsesLibraryInfo = &ModuleWithUsesLibraryInfo{
-			UsesLibrary: mwul.UsesLibrary(),
-		}
+		javaInfo.MissingOptionalUsesLibs = mwul.UsesLibrary().usesLibraryProperties.Missing_optional_uses_libs
 	}
 
 	if mwsd, ok := module.(moduleWithSdkDep); ok {

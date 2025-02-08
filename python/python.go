@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"android/soong/cc"
+
 	"github.com/google/blueprint"
 	"github.com/google/blueprint/proptools"
 
@@ -38,19 +39,6 @@ type PythonLibraryInfo struct {
 }
 
 var PythonLibraryInfoProvider = blueprint.NewProvider[PythonLibraryInfo]()
-
-func init() {
-	registerPythonMutators(android.InitRegistrationContext)
-}
-
-func registerPythonMutators(ctx android.RegistrationContext) {
-	ctx.PreDepsMutators(RegisterPythonPreDepsMutators)
-}
-
-// Exported to support other packages using Python modules in tests.
-func RegisterPythonPreDepsMutators(ctx android.RegisterMutatorsContext) {
-	ctx.Transition("python_version", &versionSplitTransitionMutator{})
-}
 
 // the version-specific properties that apply to python modules.
 type VersionProperties struct {
@@ -127,18 +115,14 @@ type BaseProperties struct {
 		Py3 VersionProperties `android:"arch_variant"`
 	} `android:"arch_variant"`
 
-	// the actual version each module uses after variations created.
-	// this property name is hidden from users' perspectives, and soong will populate it during
-	// runtime.
-	Actual_version string `blueprint:"mutated"`
-
-	// whether the module is required to be built with actual_version.
-	// this is set by the python version mutator based on version-specific properties
+	// This enabled property is to accept the collapsed enabled property from the VersionProperties.
+	// It is unused now, as all builds should be python3.
 	Enabled *bool `blueprint:"mutated"`
 
-	// whether the binary is required to be built with embedded launcher for this actual_version.
-	// this is set by the python version mutator based on version-specific properties
-	Embedded_launcher *bool `blueprint:"mutated"`
+	// whether the binary is required to be built with an embedded python interpreter, defaults to
+	// true. This allows taking the resulting binary outside of the build and running it on machines
+	// that don't have python installed or may have an older version of python.
+	Embedded_launcher *bool
 }
 
 // Used to store files of current module after expanding dependencies
@@ -252,78 +236,11 @@ var (
 	pathComponentRegexp      = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]*$`)
 	pyExt                    = ".py"
 	protoExt                 = ".proto"
-	pyVersion2               = "PY2"
-	pyVersion3               = "PY3"
 	internalPath             = "internal"
 )
 
 type basePropertiesProvider interface {
 	getBaseProperties() *BaseProperties
-}
-
-type versionSplitTransitionMutator struct{}
-
-func (versionSplitTransitionMutator) Split(ctx android.BaseModuleContext) []string {
-	if base, ok := ctx.Module().(basePropertiesProvider); ok {
-		props := base.getBaseProperties()
-		var variants []string
-		// PY3 is first so that we alias the PY3 variant rather than PY2 if both
-		// are available
-		if proptools.BoolDefault(props.Version.Py3.Enabled, true) {
-			variants = append(variants, pyVersion3)
-		}
-		if proptools.BoolDefault(props.Version.Py2.Enabled, false) {
-			if ctx.ModuleName() != "py2-cmd" &&
-				ctx.ModuleName() != "py2-stdlib" {
-				ctx.PropertyErrorf("version.py2.enabled", "Python 2 is no longer supported, please convert to python 3.")
-			}
-			variants = append(variants, pyVersion2)
-		}
-		return variants
-	}
-	return []string{""}
-}
-
-func (versionSplitTransitionMutator) OutgoingTransition(ctx android.OutgoingTransitionContext, sourceVariation string) string {
-	return ""
-}
-
-func (versionSplitTransitionMutator) IncomingTransition(ctx android.IncomingTransitionContext, incomingVariation string) string {
-	if incomingVariation != "" {
-		return incomingVariation
-	}
-	if base, ok := ctx.Module().(basePropertiesProvider); ok {
-		props := base.getBaseProperties()
-		if proptools.BoolDefault(props.Version.Py3.Enabled, true) {
-			return pyVersion3
-		} else {
-			return pyVersion2
-		}
-	}
-
-	return ""
-}
-
-func (versionSplitTransitionMutator) Mutate(ctx android.BottomUpMutatorContext, variation string) {
-	if variation == "" {
-		return
-	}
-	if base, ok := ctx.Module().(basePropertiesProvider); ok {
-		props := base.getBaseProperties()
-		props.Actual_version = variation
-
-		var versionProps *VersionProperties
-		if variation == pyVersion3 {
-			versionProps = &props.Version.Py3
-		} else if variation == pyVersion2 {
-			versionProps = &props.Version.Py2
-		}
-
-		err := proptools.AppendMatchingProperties([]interface{}{props}, versionProps, nil)
-		if err != nil {
-			panic(err)
-		}
-	}
 }
 
 func anyHasExt(paths []string, ext string) bool {
@@ -345,19 +262,26 @@ func (p *PythonLibraryModule) anySrcHasExt(ctx android.BottomUpMutatorContext, e
 //   - if required, specifies launcher and adds launcher dependencies,
 //   - applies python version mutations to Python dependencies
 func (p *PythonLibraryModule) DepsMutator(ctx android.BottomUpMutatorContext) {
-	android.ProtoDeps(ctx, &p.protoProperties)
+	// Flatten the version.py3 props down into the main property struct. Leftover from when
+	// there was both python2 and 3 in the build, and properties could be different between them.
+	if base, ok := ctx.Module().(basePropertiesProvider); ok {
+		props := base.getBaseProperties()
 
-	versionVariation := []blueprint.Variation{
-		{"python_version", p.properties.Actual_version},
+		err := proptools.AppendMatchingProperties([]interface{}{props}, &props.Version.Py3, nil)
+		if err != nil {
+			panic(err)
+		}
 	}
+
+	android.ProtoDeps(ctx, &p.protoProperties)
 
 	// If sources contain a proto file, add dependency on libprotobuf-python
 	if p.anySrcHasExt(ctx, protoExt) && p.Name() != "libprotobuf-python" {
-		ctx.AddVariationDependencies(versionVariation, pythonLibTag, "libprotobuf-python")
+		ctx.AddDependency(ctx.Module(), pythonLibTag, "libprotobuf-python")
 	}
 
 	// Add python library dependencies for this python version variation
-	ctx.AddVariationDependencies(versionVariation, pythonLibTag, android.LastUniqueStrings(p.properties.Libs)...)
+	ctx.AddDependency(ctx.Module(), pythonLibTag, android.LastUniqueStrings(p.properties.Libs)...)
 
 	// Emulate the data property for java_data but with the arch variation overridden to "common"
 	// so that it can point to java modules.
@@ -394,55 +318,38 @@ func (p *PythonLibraryModule) AddDepsOnPythonLauncherAndStdlib(ctx android.Botto
 		launcherSharedLibDeps = append(launcherSharedLibDeps, "libc_musl")
 	}
 
-	switch p.properties.Actual_version {
-	case pyVersion2:
-		stdLib = "py2-stdlib"
-
-		launcherModule = "py2-launcher"
-		if autorun {
-			launcherModule = "py2-launcher-autorun"
-		}
-
-		launcherSharedLibDeps = append(launcherSharedLibDeps, "libc++")
-	case pyVersion3:
-		var prebuiltStdLib bool
-		if targetForDeps.Os.Bionic() {
-			prebuiltStdLib = false
-		} else if ctx.Config().VendorConfig("cpython3").Bool("force_build_host") {
-			prebuiltStdLib = false
-		} else {
-			prebuiltStdLib = true
-		}
-
-		if prebuiltStdLib {
-			stdLib = "py3-stdlib-prebuilt"
-		} else {
-			stdLib = "py3-stdlib"
-		}
-
-		launcherModule = "py3-launcher"
-		if autorun {
-			launcherModule = "py3-launcher-autorun"
-		}
-		if ctx.Config().HostStaticBinaries() && targetForDeps.Os == android.LinuxMusl {
-			launcherModule += "-static"
-		}
-		if ctx.Device() {
-			launcherSharedLibDeps = append(launcherSharedLibDeps, "liblog")
-		}
-	default:
-		panic(fmt.Errorf("unknown Python Actual_version: %q for module: %q.",
-			p.properties.Actual_version, ctx.ModuleName()))
+	var prebuiltStdLib bool
+	if targetForDeps.Os.Bionic() {
+		prebuiltStdLib = false
+	} else if ctx.Config().VendorConfig("cpython3").Bool("force_build_host") {
+		prebuiltStdLib = false
+	} else {
+		prebuiltStdLib = true
 	}
+
+	if prebuiltStdLib {
+		stdLib = "py3-stdlib-prebuilt"
+	} else {
+		stdLib = "py3-stdlib"
+	}
+
+	launcherModule = "py3-launcher"
+	if autorun {
+		launcherModule = "py3-launcher-autorun"
+	}
+	if ctx.Config().HostStaticBinaries() && targetForDeps.Os == android.LinuxMusl {
+		launcherModule += "-static"
+	}
+	if ctx.Device() {
+		launcherSharedLibDeps = append(launcherSharedLibDeps, "liblog")
+	}
+
 	targetVariations := targetForDeps.Variations()
 	if ctx.ModuleName() != stdLib {
-		stdLibVariations := make([]blueprint.Variation, 0, len(targetVariations)+1)
-		stdLibVariations = append(stdLibVariations, blueprint.Variation{Mutator: "python_version", Variation: p.properties.Actual_version})
-		stdLibVariations = append(stdLibVariations, targetVariations...)
 		// Using AddFarVariationDependencies for all of these because they can be for a different
 		// platform, like if the python module itself was being compiled for device, we may want
 		// the python interpreter built for host so that we can precompile python sources.
-		ctx.AddFarVariationDependencies(stdLibVariations, stdLibTag, stdLib)
+		ctx.AddFarVariationDependencies(targetVariations, stdLibTag, stdLib)
 	}
 	ctx.AddFarVariationDependencies(targetVariations, launcherTag, launcherModule)
 	ctx.AddFarVariationDependencies(targetVariations, launcherSharedLibTag, launcherSharedLibDeps...)
@@ -450,6 +357,9 @@ func (p *PythonLibraryModule) AddDepsOnPythonLauncherAndStdlib(ctx android.Botto
 
 // GenerateAndroidBuildActions performs build actions common to all Python modules
 func (p *PythonLibraryModule) GenerateAndroidBuildActions(ctx android.ModuleContext) {
+	if proptools.BoolDefault(p.properties.Version.Py2.Enabled, false) {
+		ctx.PropertyErrorf("version.py2.enabled", "Python 2 is no longer supported, please convert to python 3.")
+	}
 	expandedSrcs := android.PathsForModuleSrcExcludes(ctx, p.properties.Srcs, p.properties.Exclude_srcs)
 	// Keep before any early returns.
 	android.SetProvider(ctx, android.TestOnlyProviderKey, android.TestModuleInformation{

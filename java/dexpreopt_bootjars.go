@@ -15,6 +15,7 @@
 package java
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -225,7 +226,6 @@ var artApexNames = []string{
 }
 
 var (
-	dexpreoptBootJarDepTag          = bootclasspathDependencyTag{name: "dexpreopt-boot-jar"}
 	dexBootJarsFragmentsKey         = android.NewOnceKey("dexBootJarsFragments")
 	apexContributionsMetadataDepTag = dependencyTag{name: "all_apex_contributions"}
 )
@@ -467,9 +467,6 @@ func dexpreoptBootJarsFactory() android.SingletonModule {
 func RegisterDexpreoptBootJarsComponents(ctx android.RegistrationContext) {
 	ctx.RegisterParallelSingletonModuleType("dex_bootjars", dexpreoptBootJarsFactory)
 	ctx.RegisterModuleType("art_boot_images", artBootImagesFactory)
-	ctx.FinalDepsMutators(func(ctx android.RegisterMutatorsContext) {
-		ctx.BottomUp("dex_bootjars_deps", DexpreoptBootJarsMutator)
-	})
 }
 
 func SkipDexpreoptBootJars(ctx android.PathContext) bool {
@@ -505,12 +502,6 @@ type dexpreoptBootJars struct {
 func (dbj *dexpreoptBootJars) DepsMutator(ctx android.BottomUpMutatorContext) {
 	// Create a dependency on all_apex_contributions to determine the selected mainline module
 	ctx.AddDependency(ctx.Module(), apexContributionsMetadataDepTag, "all_apex_contributions")
-}
-
-func DexpreoptBootJarsMutator(ctx android.BottomUpMutatorContext) {
-	if _, ok := ctx.Module().(*dexpreoptBootJars); !ok {
-		return
-	}
 
 	if dexpreopt.IsDex2oatNeeded(ctx) {
 		// Add a dependency onto the dex2oat tool which is needed for creating the boot image. The
@@ -524,7 +515,7 @@ func DexpreoptBootJarsMutator(ctx android.BottomUpMutatorContext) {
 			continue
 		}
 		// For accessing the boot jars.
-		addDependenciesOntoBootImageModules(ctx, config.modules, dexpreoptBootJarDepTag)
+		addDependenciesOntoBootImageModules(ctx, config.modules, dexpreoptBootJar)
 		// Create a dependency on the apex selected using RELEASE_APEX_CONTRIBUTIONS_*
 		// TODO: b/308174306 - Remove the direct depedendency edge to the java_library (source/prebuilt) once all mainline modules
 		// have been flagged using RELEASE_APEX_CONTRIBUTIONS_*
@@ -537,11 +528,11 @@ func DexpreoptBootJarsMutator(ctx android.BottomUpMutatorContext) {
 
 	if ctx.OtherModuleExists("platform-bootclasspath") {
 		// For accessing all bootclasspath fragments.
-		addDependencyOntoApexModulePair(ctx, "platform", "platform-bootclasspath", platformBootclasspathDepTag)
+		addDependencyOntoApexModulePair(ctx, "platform", "platform-bootclasspath", platform)
 	} else if ctx.OtherModuleExists("art-bootclasspath-fragment") {
 		// For accessing the ART bootclasspath fragment on a thin manifest (e.g., master-art) where
 		// platform-bootclasspath doesn't exist.
-		addDependencyOntoApexModulePair(ctx, "com.android.art", "art-bootclasspath-fragment", bootclasspathFragmentDepTag)
+		addDependencyOntoApexModulePair(ctx, "com.android.art", "art-bootclasspath-fragment", fragment)
 	}
 }
 
@@ -559,17 +550,11 @@ func addDependenciesOntoSelectedBootImageApexes(ctx android.BottomUpMutatorConte
 			// We need to add a dep on only the apex listed in `contents` of the selected apex_contributions module
 			// This is not available in a structured format in `apex_contributions`, so this hack adds a dep on all `contents`
 			// (some modules like art.module.public.api do not have an apex variation since it is a pure stub module that does not get installed)
-			apexVariationOfSelected := append(ctx.Target().Variations(), blueprint.Variation{Mutator: "apex", Variation: apex})
-			if ctx.OtherModuleDependencyVariantExists(apexVariationOfSelected, selected) {
-				ctx.AddFarVariationDependencies(apexVariationOfSelected, dexpreoptBootJarDepTag, selected)
-			} else if ctx.OtherModuleDependencyVariantExists(apexVariationOfSelected, android.RemoveOptionalPrebuiltPrefix(selected)) {
-				// The prebuilt might have been renamed by prebuilt_rename mutator if the source module does not exist.
-				// Remove the prebuilt_ prefix.
-				ctx.AddFarVariationDependencies(apexVariationOfSelected, dexpreoptBootJarDepTag, android.RemoveOptionalPrebuiltPrefix(selected))
-			} else {
-				// Couldn't find a dependency, do it again to report an error.
-				ctx.AddFarVariationDependencies(apexVariationOfSelected, dexpreoptBootJarDepTag, selected)
+			tag := bootclasspathDependencyTag{
+				typ: dexpreoptBootJar,
 			}
+
+			ctx.AddFarVariationDependencies(ctx.Target().Variations(), tag, android.RemoveOptionalPrebuiltPrefix(selected))
 		}
 	}
 }
@@ -577,23 +562,55 @@ func addDependenciesOntoSelectedBootImageApexes(ctx android.BottomUpMutatorConte
 func gatherBootclasspathFragments(ctx android.ModuleContext) map[string]android.Module {
 	return ctx.Config().Once(dexBootJarsFragmentsKey, func() interface{} {
 		fragments := make(map[string]android.Module)
+
+		type moduleInApexPair struct {
+			module string
+			apex   string
+		}
+
+		var modulesInApexes []moduleInApexPair
+
+		// Find the list of modules in apexes.
 		ctx.WalkDeps(func(child, parent android.Module) bool {
 			if !isActiveModule(ctx, child) {
 				return false
 			}
 			tag := ctx.OtherModuleDependencyTag(child)
-			if tag == platformBootclasspathDepTag {
-				return true
-			}
-			if tag == bootclasspathFragmentDepTag {
-				apexInfo, _ := android.OtherModuleProvider(ctx, child, android.ApexInfoProvider)
-				for _, apex := range apexInfo.InApexVariants {
-					fragments[apex] = child
+			if bcpTag, ok := tag.(bootclasspathDependencyTag); ok {
+				if bcpTag.typ == platform {
+					return true
 				}
-				return false
+				if bcpTag.typ == fragment {
+					if bcpTag.moduleInApex == "" {
+						panic(fmt.Errorf("expected fragment to be in apex"))
+					}
+					modulesInApexes = append(modulesInApexes, moduleInApexPair{bcpTag.moduleInApex, ctx.OtherModuleName(child)})
+					return true
+				}
 			}
 			return false
 		})
+
+		for _, moduleInApex := range modulesInApexes {
+			// Find a desired module in an apex.
+			ctx.WalkDeps(func(child, parent android.Module) bool {
+				t := ctx.OtherModuleDependencyTag(child)
+				if bcpTag, ok := t.(bootclasspathDependencyTag); ok {
+					if bcpTag.typ == platform {
+						return true
+					}
+					if bcpTag.typ == fragment && ctx.OtherModuleName(child) == moduleInApex.apex {
+						// This is the dependency from this module to the apex, recurse into it.
+						return true
+					}
+				} else if android.RemoveOptionalPrebuiltPrefix(ctx.OtherModuleName(child)) == moduleInApex.module {
+					// This is the desired module inside the apex.
+					fragments[android.RemoveOptionalPrebuiltPrefix(moduleInApex.apex)] = child
+				}
+				return false
+			})
+		}
+
 		return fragments
 	}).(map[string]android.Module)
 }
@@ -717,7 +734,8 @@ func getModulesForImage(ctx android.ModuleContext, imageConfig *bootImageConfig)
 	modules := make([]apexJarModulePair, 0, imageConfig.modules.Len())
 	for i := 0; i < imageConfig.modules.Len(); i++ {
 		found := false
-		for _, module := range gatherApexModulePairDepsWithTag(ctx, dexpreoptBootJarDepTag) {
+		dexpreoptBootJarModules, _ := gatherApexModulePairDepsWithTag(ctx, dexpreoptBootJar)
+		for _, module := range dexpreoptBootJarModules {
 			name := android.RemoveOptionalPrebuiltPrefix(module.Name())
 			if name == imageConfig.modules.Jar(i) {
 				modules = append(modules, apexJarModulePair{
@@ -800,11 +818,16 @@ func getDexJarForApex(ctx android.ModuleContext, pair apexJarModulePair, apexNam
 				"APEX '%[2]s' doesn't exist or is not added as a dependency of dex_bootjars",
 				pair.jarModule.Name(),
 				pair.apex)
+			return nil
 		}
 		bootclasspathFragmentInfo, _ := android.OtherModuleProvider(ctx, fragment, BootclasspathFragmentApexContentInfoProvider)
 		jar, err := bootclasspathFragmentInfo.DexBootJarPathForContentModule(pair.jarModule)
 		if err != nil {
-			ctx.ModuleErrorf("%s", err)
+			if ctx.Config().AllowMissingDependencies() {
+				ctx.AddMissingDependencies([]string{pair.jarModule.String()})
+			} else {
+				ctx.ModuleErrorf("%s", err)
+			}
 		}
 		return jar
 	}
@@ -963,9 +986,16 @@ func getProfilePathForApex(ctx android.ModuleContext, apexName string, apexNameT
 
 func getApexNameToApexExportsInfoMap(ctx android.ModuleContext) apexNameToApexExportsInfoMap {
 	apexNameToApexExportsInfoMap := apexNameToApexExportsInfoMap{}
-	ctx.VisitDirectDepsWithTag(dexpreoptBootJarDepTag, func(am android.Module) {
-		if info, exists := android.OtherModuleProvider(ctx, am, android.ApexExportsInfoProvider); exists {
-			apexNameToApexExportsInfoMap[info.ApexName] = info
+
+	ctx.VisitDirectDeps(func(am android.Module) {
+		tag := ctx.OtherModuleDependencyTag(am)
+		if bcpTag, ok := tag.(bootclasspathDependencyTag); ok && bcpTag.typ == dexpreoptBootJar {
+			if bcpTag.moduleInApex == "" {
+				info, exists := android.OtherModuleProvider(ctx, am, android.ApexExportsInfoProvider)
+				if exists {
+					apexNameToApexExportsInfoMap[info.ApexName] = info
+				}
+			}
 		}
 	})
 	return apexNameToApexExportsInfoMap
@@ -1448,24 +1478,33 @@ func artBootImagesFactory() android.Module {
 
 func (dbj *artBootImages) DepsMutator(ctx android.BottomUpMutatorContext) {
 	// Create a dependency on `dex_bootjars` to access the intermediate locations of host art boot image.
-	ctx.AddVariationDependencies(ctx.Config().AndroidCommonTarget.Variations(), dexpreoptBootJarDepTag, "dex_bootjars")
+	tag := bootclasspathDependencyTag{
+		typ: dexpreoptBootJar,
+	}
+	ctx.AddVariationDependencies(ctx.Config().AndroidCommonTarget.Variations(), tag, "dex_bootjars")
 }
 
 func (d *artBootImages) GenerateAndroidBuildActions(ctx android.ModuleContext) {
-	ctx.VisitDirectDepsWithTag(dexpreoptBootJarDepTag, func(m android.Module) {
-		hostInstallsInfo, ok := android.OtherModuleProvider(ctx, m, artBootImageHostInfoProvider)
-		if !ok {
-			ctx.ModuleErrorf("Could not find information about the host variant of ART boot image")
-		}
-		installs := d.installFile(ctx, hostInstallsInfo.installs)
-		if len(installs) > 0 {
-			d.outputFile = android.OptionalPathForPath(installs[0])
-			// Create a phony target that can ART run-tests can depend on.
-			ctx.Phony(d.Name(), installs...)
-		} else {
-			// this might be true e.g. when building with `WITH_DEXPREOPT=false`
-			// create an empty file so that the `art_boot_images` is known to the packaging system.
-			d.outputFile = android.OptionalPathForPath(android.PathForModuleOut(ctx, "undefined_art_boot_images"))
+	ctx.VisitDirectDeps(func(m android.Module) {
+		tag := ctx.OtherModuleDependencyTag(m)
+		if bcpTag, ok := tag.(bootclasspathDependencyTag); ok && bcpTag.typ == dexpreoptBootJar {
+			if bcpTag.moduleInApex != "" {
+				panic("unhandled moduleInApex")
+			}
+			hostInstallsInfo, ok := android.OtherModuleProvider(ctx, m, artBootImageHostInfoProvider)
+			if !ok {
+				ctx.ModuleErrorf("Could not find information about the host variant of ART boot image")
+			}
+			installs := d.installFile(ctx, hostInstallsInfo.installs)
+			if len(installs) > 0 {
+				d.outputFile = android.OptionalPathForPath(installs[0])
+				// Create a phony target that can ART run-tests can depend on.
+				ctx.Phony(d.Name(), installs...)
+			} else {
+				// this might be true e.g. when building with `WITH_DEXPREOPT=false`
+				// create an empty file so that the `art_boot_images` is known to the packaging system.
+				d.outputFile = android.OptionalPathForPath(android.PathForModuleOut(ctx, "undefined_art_boot_images"))
+			}
 		}
 	})
 }

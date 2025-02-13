@@ -104,6 +104,7 @@ var (
 				`        --mode=exported` +
 				`        --allow-instrumentation ${use_new_storage}` +
 				`        --new-exported ${use_new_exported}` +
+				`        --single-exported-file true` +
 				`        --check-api-level ${check_api_level}` +
 				`        --out ${out}.tmp; ` +
 				`  fi ` +
@@ -131,4 +132,5 @@ func RegisterBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("aconfig_value_set", ValueSetFactory)
 	ctx.RegisterSingletonModuleType("all_aconfig_declarations", AllAconfigDeclarationsFactory)
 	ctx.RegisterParallelSingletonType("exported_java_aconfig_library", ExportedJavaDeclarationsLibraryFactory)
+	ctx.RegisterModuleType("all_aconfig_declarations_extension", AllAconfigDeclarationsExtensionFactory)
 }

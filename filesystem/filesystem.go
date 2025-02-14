@@ -36,6 +36,7 @@ import (
 func init() {
 	registerBuildComponents(android.InitRegistrationContext)
 	registerMutators(android.InitRegistrationContext)
+	pctx.HostBinToolVariable("fileslist", "fileslist")
 }
 
 func registerBuildComponents(ctx android.RegistrationContext) {
@@ -54,11 +55,24 @@ func registerMutators(ctx android.RegistrationContext) {
 	})
 }
 
-// Remember to add referenced files to implicits!
-var textFileProcessorRule = pctx.AndroidStaticRule("text_file_processing", blueprint.RuleParams{
-	Command:     "build/soong/scripts/text_file_processor.py $in $out",
-	CommandDeps: []string{"build/soong/scripts/text_file_processor.py"},
-})
+var (
+	// Remember to add referenced files to implicits!
+	textFileProcessorRule = pctx.AndroidStaticRule("text_file_processing", blueprint.RuleParams{
+		Command:     "build/soong/scripts/text_file_processor.py $in $out",
+		CommandDeps: []string{"build/soong/scripts/text_file_processor.py"},
+	})
+
+	// Remember to add the output image file as an implicit dependency!
+	installedFilesJsonRule = pctx.AndroidStaticRule("installed_files_json", blueprint.RuleParams{
+		Command:     `${fileslist} ${rootDir} > ${out}`,
+		CommandDeps: []string{"${fileslist}"},
+	}, "rootDir")
+
+	installedFilesTxtRule = pctx.AndroidStaticRule("installed_files_txt", blueprint.RuleParams{
+		Command:     `build/make/tools/fileslist_util.py -c ${in} > ${out}`,
+		CommandDeps: []string{"build/make/tools/fileslist_util.py"},
+	})
+)
 
 type filesystem struct {
 	android.ModuleBase
@@ -76,6 +90,8 @@ type filesystem struct {
 	entries []string
 
 	filesystemBuilder filesystemBuilder
+
+	selinuxFc android.Path
 }
 
 type filesystemBuilder interface {
@@ -358,6 +374,11 @@ func (fs fsType) IsUnknown() bool {
 	return fs == unknown
 }
 
+type InstalledFilesStruct struct {
+	Txt  android.Path
+	Json android.Path
+}
+
 type FilesystemInfo struct {
 	// The built filesystem image
 	Output android.Path
@@ -391,6 +412,15 @@ type FilesystemInfo struct {
 	SpecsForSystemOther map[string]android.PackagingSpec
 
 	FullInstallPaths []FullInstallPathInfo
+
+	// Installed files list
+	InstalledFiles InstalledFilesStruct
+
+	// Path to compress hints file for erofs filesystems
+	// This will be nil for other fileystems like ext4
+	ErofsCompressHints android.Path
+
+	SelinuxFc android.Path
 }
 
 // FullInstallPathInfo contains information about the "full install" paths of all the files
@@ -498,6 +528,34 @@ func (f *filesystem) ModifyPackagingSpec(ps *android.PackagingSpec) {
 	}
 }
 
+func buildInstalledFiles(ctx android.ModuleContext, partition string, rootDir android.Path, image android.Path) (txt android.ModuleOutPath, json android.ModuleOutPath) {
+	fileName := "installed-files"
+	if len(partition) > 0 {
+		fileName += fmt.Sprintf("-%s", partition)
+	}
+	txt = android.PathForModuleOut(ctx, fmt.Sprintf("%s.txt", fileName))
+	json = android.PathForModuleOut(ctx, fmt.Sprintf("%s.json", fileName))
+
+	ctx.Build(pctx, android.BuildParams{
+		Rule:        installedFilesJsonRule,
+		Implicit:    image,
+		Output:      json,
+		Description: "Installed file list json",
+		Args: map[string]string{
+			"rootDir": rootDir.String(),
+		},
+	})
+
+	ctx.Build(pctx, android.BuildParams{
+		Rule:        installedFilesTxtRule,
+		Input:       json,
+		Output:      txt,
+		Description: "Installed file list txt",
+	})
+
+	return txt, json
+}
+
 var pctx = android.NewPackageContext("android/soong/filesystem")
 
 func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -578,6 +636,17 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	fileListFile := android.PathForModuleOut(ctx, "fileList")
 	android.WriteFileRule(ctx, fileListFile, f.installedFilesList())
 
+	partitionName := f.partitionName()
+	if partitionName == "system" {
+		partitionName = ""
+	}
+	installedFileTxt, installedFileJson := buildInstalledFiles(ctx, partitionName, rootDir, f.output)
+
+	var erofsCompressHints android.Path
+	if f.properties.Erofs.Compress_hints != nil {
+		erofsCompressHints = android.PathForModuleSrc(ctx, *f.properties.Erofs.Compress_hints)
+	}
+
 	fsInfo := FilesystemInfo{
 		Output:                 f.output,
 		OutputHermetic:         outputHermetic,
@@ -590,6 +659,12 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		BuildImagePropFileDeps: buildImagePropFileDeps,
 		SpecsForSystemOther:    f.systemOtherFiles(ctx),
 		FullInstallPaths:       fullInstallPaths,
+		InstalledFiles: InstalledFilesStruct{
+			Txt:  installedFileTxt,
+			Json: installedFileJson,
+		},
+		ErofsCompressHints: erofsCompressHints,
+		SelinuxFc:          f.selinuxFc,
 	}
 
 	android.SetProvider(ctx, FilesystemProvider, fsInfo)
@@ -936,12 +1011,12 @@ func (f *filesystem) buildPropFile(ctx android.ModuleContext) (android.Path, and
 	if f.properties.File_contexts != nil && f.properties.Precompiled_file_contexts != nil {
 		ctx.ModuleErrorf("file_contexts and precompiled_file_contexts cannot both be set")
 	} else if f.properties.File_contexts != nil {
-		addPath("selinux_fc", f.buildFileContexts(ctx))
+		f.selinuxFc = f.buildFileContexts(ctx)
 	} else if f.properties.Precompiled_file_contexts != nil {
-		src := android.PathForModuleSrc(ctx, *f.properties.Precompiled_file_contexts)
-		if src != nil {
-			addPath("selinux_fc", src)
-		}
+		f.selinuxFc = android.PathForModuleSrc(ctx, *f.properties.Precompiled_file_contexts)
+	}
+	if f.selinuxFc != nil {
+		addPath("selinux_fc", f.selinuxFc)
 	}
 	if timestamp := proptools.String(f.properties.Fake_timestamp); timestamp != "" {
 		addStr("timestamp", timestamp)

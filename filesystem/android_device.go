@@ -70,7 +70,9 @@ type DeviceProperties struct {
 	// blueprint:"mutated" and still set it from filesystem_creator
 	Main_device *bool
 
-	Ab_ota_updater *bool
+	Ab_ota_updater    *bool
+	Ab_ota_partitions []string
+	Ab_ota_keys       []string
 }
 
 type androidDevice struct {
@@ -237,6 +239,26 @@ func (a *androidDevice) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	ctx.CheckbuildFile(allImagesStamp)
 
 	a.setVbmetaPhonyTargets(ctx)
+
+	a.distFiles(ctx)
+}
+
+func (a *androidDevice) distFiles(ctx android.ModuleContext) {
+	if !ctx.Config().KatiEnabled() {
+		if proptools.Bool(a.deviceProps.Main_device) {
+			fsInfoMap := a.getFsInfos(ctx)
+			for _, partition := range android.SortedKeys(fsInfoMap) {
+				fsInfo := fsInfoMap[partition]
+				if fsInfo.InstalledFiles.Json != nil {
+					ctx.DistForGoal("droidcore-unbundled", fsInfo.InstalledFiles.Json)
+				}
+				if fsInfo.InstalledFiles.Txt != nil {
+					ctx.DistForGoal("droidcore-unbundled", fsInfo.InstalledFiles.Txt)
+				}
+			}
+		}
+	}
+
 }
 
 func (a *androidDevice) MakeVars(ctx android.MakeVarsModuleContext) {
@@ -398,8 +420,12 @@ func (a *androidDevice) copyImagesToTargetZip(ctx android.ModuleContext, builder
 		superPartition := ctx.GetDirectDepProxyWithTag(*a.partitionProps.Super_partition_name, superPartitionDepTag)
 		if info, ok := android.OtherModuleProvider(ctx, superPartition, SuperImageProvider); ok {
 			for _, partition := range android.SortedKeys(info.SubImageInfo) {
-				builder.Command().Textf("cp ").Input(info.SubImageInfo[partition].OutputHermetic).Textf(" %s/IMAGES/", targetFilesDir.String())
-				builder.Command().Textf("cp ").Input(info.SubImageInfo[partition].MapFile).Textf(" %s/IMAGES/", targetFilesDir.String())
+				if info.SubImageInfo[partition].OutputHermetic != nil {
+					builder.Command().Textf("cp ").Input(info.SubImageInfo[partition].OutputHermetic).Textf(" %s/IMAGES/", targetFilesDir.String())
+				}
+				if info.SubImageInfo[partition].MapFile != nil {
+					builder.Command().Textf("cp ").Input(info.SubImageInfo[partition].MapFile).Textf(" %s/IMAGES/", targetFilesDir.String())
+				}
 			}
 		} else {
 			ctx.ModuleErrorf("Super partition %s does set SuperImageProvider\n", superPartition.Name())
@@ -415,9 +441,24 @@ func (a *androidDevice) copyMetadataToTargetZip(ctx android.ModuleContext, build
 			info, _ := android.OtherModuleProvider(ctx, child, android.OutputFilesProvider)
 			builder.Command().Textf("cp").Inputs(info.DefaultOutputFiles).Textf(" %s/META/", targetFilesDir.String())
 		})
+		builder.Command().Textf("cp").Input(android.PathForSource(ctx, "external/zucchini/version_info.h")).Textf(" %s/META/zucchini_config.txt", targetFilesDir.String())
+		builder.Command().Textf("cp").Input(android.PathForSource(ctx, "system/update_engine/update_engine.conf")).Textf(" %s/META/update_engine_config.txt", targetFilesDir.String())
+		if a.getFsInfos(ctx)["system"].ErofsCompressHints != nil {
+			builder.Command().Textf("cp").Input(a.getFsInfos(ctx)["system"].ErofsCompressHints).Textf(" %s/META/erofs_default_compress_hints.txt", targetFilesDir.String())
+		}
+		// ab_partitions.txt
+		abPartitionsSorted := android.SortedUniqueStrings(a.deviceProps.Ab_ota_partitions)
+		abPartitionsSortedString := proptools.ShellEscape(strings.Join(abPartitionsSorted, "\\n"))
+		builder.Command().Textf("echo -e").Flag(abPartitionsSortedString).Textf(" > %s/META/ab_partitions.txt", targetFilesDir.String())
+		// otakeys.txt
+		abOtaKeysSorted := android.SortedUniqueStrings(a.deviceProps.Ab_ota_keys)
+		abOtaKeysSortedString := proptools.ShellEscape(strings.Join(abOtaKeysSorted, "\\n"))
+		builder.Command().Textf("echo -e").Flag(abOtaKeysSortedString).Textf(" > %s/META/otakeys.txt", targetFilesDir.String())
+		// selinuxfc
+		if a.getFsInfos(ctx)["system"].SelinuxFc != nil {
+			builder.Command().Textf("cp").Input(a.getFsInfos(ctx)["system"].SelinuxFc).Textf(" %s/META/file_contexts.bin", targetFilesDir.String())
+		}
 	}
-	builder.Command().Textf("cp").Input(android.PathForSource(ctx, "external/zucchini/version_info.h")).Textf(" %s/META/zucchini_config.txt", targetFilesDir.String())
-	builder.Command().Textf("cp").Input(android.PathForSource(ctx, "system/update_engine/update_engine.conf")).Textf(" %s/META/update_engine_config.txt", targetFilesDir.String())
 }
 
 func (a *androidDevice) getFilesystemInfo(ctx android.ModuleContext, depName string) FilesystemInfo {

@@ -1282,13 +1282,6 @@ func (j *Library) createApiXmlFile(ctx android.ModuleContext) {
 			Input:  j.implementationAndResourcesJar,
 			Output: j.apiXmlFile,
 		})
-	}
-}
-
-var _ android.ModuleMakeVarsProvider = (*Library)(nil)
-
-func (j *Library) MakeVars(ctx android.MakeVarsModuleContext) {
-	if j.apiXmlFile != nil {
 		ctx.DistForGoal("dist_files", j.apiXmlFile)
 	}
 }
@@ -3286,8 +3279,16 @@ func (j *Import) ClassLoaderContexts() dexpreopt.ClassLoaderContextMap {
 var _ android.ApexModule = (*Import)(nil)
 
 // Implements android.ApexModule
-func (j *Import) OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool {
-	return j.depIsInSameApex(tag)
+func (m *Import) GetDepInSameApexChecker() android.DepInSameApexChecker {
+	return JavaImportDepInSameApexChecker{}
+}
+
+type JavaImportDepInSameApexChecker struct {
+	android.BaseDepInSameApexChecker
+}
+
+func (m JavaImportDepInSameApexChecker) OutgoingDepIsInSameApex(tag blueprint.DependencyTag) bool {
+	return depIsInSameApex(tag)
 }
 
 // Implements android.ApexModule

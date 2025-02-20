@@ -387,6 +387,9 @@ type InstalledFilesStruct struct {
 type FilesystemInfo struct {
 	// The built filesystem image
 	Output android.Path
+	// Returns the output file that is signed by avbtool. If this module is not signed, returns
+	// nil.
+	SignedOutputPath android.Path
 	// An additional hermetic filesystem image.
 	// e.g. this will contain inodes with pinned timestamps.
 	// This will be copied to target_files.zip
@@ -397,6 +400,9 @@ type FilesystemInfo struct {
 	// to add a dependency on the Output file, as you cannot add dependencies on directories
 	// in ninja.
 	RootDir android.Path
+	// Extra root directories that are also built into the partition. Currently only used for
+	// including the recovery partition files into the vendor_boot image.
+	ExtraRootDirs android.Paths
 	// The rebased staging directory used to build the output filesystem. If consuming this, make
 	// sure to add a dependency on the Output file, as you cannot add dependencies on directories
 	// in ninja. In many cases this is the same as RootDir, only in the system partition is it
@@ -612,6 +618,7 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	var outputHermetic android.WritablePath
 	var buildImagePropFile android.Path
 	var buildImagePropFileDeps android.Paths
+	var extraRootDirs android.Paths
 	switch f.fsType(ctx) {
 	case ext4Type, erofsType, f2fsType:
 		buildImagePropFile, buildImagePropFileDeps = f.buildPropFile(ctx)
@@ -625,9 +632,9 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		f.buildImageUsingBuildImage(ctx, hermeticBuilder, buildImageParams{rootDir, propFileHermetic, buildImagePropFileDeps, outputHermetic})
 		mapFile = f.getMapFile(ctx)
 	case compressedCpioType:
-		f.output = f.buildCpioImage(ctx, builder, rootDir, true)
+		f.output, extraRootDirs = f.buildCpioImage(ctx, builder, rootDir, true)
 	case cpioType:
-		f.output = f.buildCpioImage(ctx, builder, rootDir, false)
+		f.output, extraRootDirs = f.buildCpioImage(ctx, builder, rootDir, false)
 	default:
 		return
 	}
@@ -655,10 +662,12 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	}
 
 	fsInfo := FilesystemInfo{
-		Output:                 f.output,
+		Output:                 f.OutputPath(),
+		SignedOutputPath:       f.SignedOutputPath(),
 		OutputHermetic:         outputHermetic,
 		FileListFile:           fileListFile,
 		RootDir:                rootDir,
+		ExtraRootDirs:          extraRootDirs,
 		RebasedDir:             rebasedDir,
 		MapFile:                mapFile,
 		ModuleName:             ctx.ModuleName(),
@@ -1157,7 +1166,7 @@ func (f *filesystem) buildCpioImage(
 	builder *android.RuleBuilder,
 	rootDir android.OutputPath,
 	compressed bool,
-) android.Path {
+) (android.Path, android.Paths) {
 	if proptools.Bool(f.properties.Use_avb) {
 		ctx.PropertyErrorf("use_avb", "signing compresed cpio image using avbtool is not supported."+
 			"Consider adding this to bootimg module and signing the entire boot image.")
@@ -1197,7 +1206,7 @@ func (f *filesystem) buildCpioImage(
 	// rootDir is not deleted. Might be useful for quick inspection.
 	builder.Build("build_cpio_image", fmt.Sprintf("Creating filesystem %s", f.BaseModuleName()))
 
-	return output
+	return output, rootDirs
 }
 
 var validPartitions = []string{
@@ -1498,4 +1507,11 @@ func (f *filesystem) MakeVars(ctx android.MakeVarsModuleContext) {
 	if f.Name() == ctx.Config().SoongDefinedSystemImage() {
 		ctx.StrictRaw("SOONG_DEFINED_SYSTEM_IMAGE_PATH", f.output.String())
 	}
+}
+
+func setCommonFilesystemInfo(ctx android.ModuleContext, m Filesystem) {
+	android.SetProvider(ctx, FilesystemProvider, FilesystemInfo{
+		Output:           m.OutputPath(),
+		SignedOutputPath: m.SignedOutputPath(),
+	})
 }

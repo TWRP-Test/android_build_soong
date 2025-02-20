@@ -41,6 +41,14 @@ func init() {
 	registerShBuildComponents(android.InitRegistrationContext)
 }
 
+type ShBinaryInfo struct {
+	SubDir     string
+	OutputFile android.Path
+	Symlinks   []string
+}
+
+var ShBinaryInfoProvider = blueprint.NewProvider[ShBinaryInfo]()
+
 func registerShBuildComponents(ctx android.RegistrationContext) {
 	ctx.RegisterModuleType("sh_binary", ShBinaryFactory)
 	ctx.RegisterModuleType("sh_binary_host", ShBinaryHostFactory)
@@ -314,6 +322,12 @@ func (s *ShBinary) generateAndroidBuildActions(ctx android.ModuleContext) {
 
 	s.properties.SubName = s.GetSubname(ctx)
 
+	android.SetProvider(ctx, ShBinaryInfoProvider, ShBinaryInfo{
+		SubDir:     s.SubDir(),
+		OutputFile: s.OutputFile(),
+		Symlinks:   s.Symlinks(),
+	})
+
 	ctx.SetOutputFiles(android.Paths{s.outputFilePath}, "")
 }
 
@@ -530,6 +544,28 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		MkAppClass:           mkEntries.Class,
 		InstallDir:           s.installDir,
 	})
+
+	moduleInfoJSON := ctx.ModuleInfoJSON()
+	moduleInfoJSON.Class = []string{"NATIVE_TESTS"}
+	if len(s.testProperties.Test_suites) > 0 {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, s.testProperties.Test_suites...)
+	} else {
+		moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "null-suite")
+	}
+	if proptools.Bool(s.testProperties.Test_options.Unit_test) {
+		moduleInfoJSON.IsUnitTest = "true"
+		if ctx.Host() {
+			moduleInfoJSON.CompatibilitySuites = append(moduleInfoJSON.CompatibilitySuites, "host-unit-tests")
+		}
+	}
+	moduleInfoJSON.DataDependencies = append(moduleInfoJSON.DataDependencies, s.testProperties.Data_bins...)
+	if s.testConfig != nil {
+		if _, ok := s.testConfig.(android.WritablePath); ok {
+			moduleInfoJSON.AutoTestConfig = []string{"true"}
+		}
+		moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, s.testConfig.String())
+	}
+	moduleInfoJSON.TestConfig = append(moduleInfoJSON.TestConfig, s.extraTestConfigs.Strings()...)
 }
 
 func addArch(archType string, paths android.Paths) []string {

@@ -162,6 +162,7 @@ type LinkableInfo struct {
 	OnlyInVendorRamdisk bool
 	InRecovery          bool
 	OnlyInRecovery      bool
+	InVendor            bool
 	Installable         *bool
 	// RelativeInstallPath returns the relative install path for this module.
 	RelativeInstallPath string
@@ -173,7 +174,8 @@ type LinkableInfo struct {
 	ImplementationModuleNameForMake string
 	IsStubsImplementationRequired   bool
 	// Symlinks returns a list of symlinks that should be created for this module.
-	Symlinks []string
+	Symlinks               []string
+	APIListCoverageXMLPath android.ModuleOutPath
 }
 
 var LinkableInfoProvider = blueprint.NewProvider[*LinkableInfo]()
@@ -2392,6 +2394,7 @@ func CreateCommonLinkableInfo(ctx android.ModuleContext, mod VersionedLinkableIn
 		OnlyInVendorRamdisk:  mod.OnlyInVendorRamdisk(),
 		InRecovery:           mod.InRecovery(),
 		OnlyInRecovery:       mod.OnlyInRecovery(),
+		InVendor:             mod.InVendor(),
 		Installable:          mod.Installable(),
 		RelativeInstallPath:  mod.RelativeInstallPath(),
 		// TODO(b/362509506): remove this once all apex_exclude uses are switched to stubs.
@@ -2401,16 +2404,14 @@ func CreateCommonLinkableInfo(ctx android.ModuleContext, mod VersionedLinkableIn
 		ImplementationModuleNameForMake: mod.ImplementationModuleNameForMake(),
 		Symlinks:                        mod.Symlinks(),
 	}
-	if mod.VersionedInterface() != nil {
-		info.IsStubsImplementationRequired = mod.VersionedInterface().IsStubsImplementationRequired()
-	}
-	return info
-}
 
-func setOutputFilesIfNotEmpty(ctx ModuleContext, files android.Paths, tag string) {
-	if len(files) > 0 {
-		ctx.SetOutputFiles(files, tag)
+	vi := mod.VersionedInterface()
+	if vi != nil {
+		info.IsStubsImplementationRequired = vi.IsStubsImplementationRequired()
+		info.APIListCoverageXMLPath = vi.GetAPIListCoverageXMLPath()
 	}
+
+	return info
 }
 
 func (c *Module) setOutputFiles(ctx ModuleContext) {
@@ -4042,15 +4043,6 @@ func installable(c LinkableInterface, apexInfo android.ApexInfo) bool {
 	// be installable because it will likely to be included in the APEX and won't appear
 	// in the system partition.
 	if apexInfo.IsForPlatform() {
-		return ret
-	}
-
-	// Special case for modules that are configured to be installed to /data, which includes
-	// test modules. For these modules, both APEX and non-APEX variants are considered as
-	// installable. This is because even the APEX variants won't be included in the APEX, but
-	// will anyway be installed to /data/*.
-	// See b/146995717
-	if c.InstallInData() {
 		return ret
 	}
 

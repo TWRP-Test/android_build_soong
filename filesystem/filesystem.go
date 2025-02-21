@@ -384,6 +384,11 @@ type InstalledFilesStruct struct {
 	Json android.Path
 }
 
+type InstalledModuleInfo struct {
+	Name      string
+	Variation string
+}
+
 type FilesystemInfo struct {
 	// The built filesystem image
 	Output android.Path
@@ -434,6 +439,8 @@ type FilesystemInfo struct {
 	SelinuxFc android.Path
 
 	FilesystemConfig android.Path
+
+	Owners []InstalledModuleInfo
 }
 
 // FullInstallPathInfo contains information about the "full install" paths of all the files
@@ -593,7 +600,8 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	specs := f.gatherFilteredPackagingSpecs(ctx)
 
 	var fullInstallPaths []FullInstallPathInfo
-	for _, spec := range specs {
+	for _, specRel := range android.SortedKeys(specs) {
+		spec := specs[specRel]
 		fullInstallPaths = append(fullInstallPaths, FullInstallPathInfo{
 			FullInstallPath:     spec.FullInstallPath(),
 			RequiresFullInstall: spec.RequiresFullInstall(),
@@ -682,6 +690,7 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		ErofsCompressHints: erofsCompressHints,
 		SelinuxFc:          f.selinuxFc,
 		FilesystemConfig:   f.generateFilesystemConfig(ctx, rootDir, rebasedDir),
+		Owners:             f.gatherOwners(specs),
 	}
 
 	android.SetProvider(ctx, FilesystemProvider, fsInfo)
@@ -1333,6 +1342,18 @@ func (f *filesystem) SignedOutputPath() android.Path {
 // for symbol lookup by imitating "activated" paths.
 func (f *filesystem) gatherFilteredPackagingSpecs(ctx android.ModuleContext) map[string]android.PackagingSpec {
 	return f.PackagingBase.GatherPackagingSpecsWithFilterAndModifier(ctx, f.filesystemBuilder.FilterPackagingSpec, f.filesystemBuilder.ModifyPackagingSpec)
+}
+
+func (f *filesystem) gatherOwners(specs map[string]android.PackagingSpec) []InstalledModuleInfo {
+	var owners []InstalledModuleInfo
+	for _, p := range android.SortedKeys(specs) {
+		spec := specs[p]
+		owners = append(owners, InstalledModuleInfo{
+			Name:      spec.Owner(),
+			Variation: spec.Variation(),
+		})
+	}
+	return owners
 }
 
 // Dexpreopt files are installed to system_other. Collect the packaingSpecs for the dexpreopt files

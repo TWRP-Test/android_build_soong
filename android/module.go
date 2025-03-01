@@ -1662,7 +1662,7 @@ func (m *ModuleBase) generateModuleTarget(ctx *moduleContext) {
 		var checkbuildTarget Path
 		var uncheckedModule bool
 		var skipAndroidMkProcessing bool
-		if ctx.EqualModules(m.module, module) {
+		if EqualModules(m.module, module) {
 			allInstalledFiles = append(allInstalledFiles, ctx.installFiles...)
 			checkbuildTarget = ctx.checkbuildTarget
 			uncheckedModule = ctx.uncheckedModule
@@ -2370,8 +2370,16 @@ func (m *ModuleBase) GenerateBuildActions(blueprintCtx blueprint.ModuleContext) 
 		})
 	}
 
-	if v, ok := m.module.(ModuleMakeVarsProvider); m.Enabled(ctx) && ok {
-		SetProvider(ctx, ModuleMakeVarsInfoProvider, v.MakeVars(ctx))
+	if m.Enabled(ctx) {
+		if v, ok := m.module.(ModuleMakeVarsProvider); ok {
+			SetProvider(ctx, ModuleMakeVarsInfoProvider, v.MakeVars(ctx))
+		}
+
+		if am, ok := m.module.(AndroidMkDataProvider); ok {
+			SetProvider(ctx, AndroidMkDataInfoProvider, AndroidMkDataInfo{
+				Class: am.AndroidMk().Class,
+			})
+		}
 	}
 }
 
@@ -2928,7 +2936,6 @@ type OutputFilesProviderModuleContext interface {
 	OtherModuleProviderContext
 	Module() Module
 	GetOutputFiles() OutputFilesInfo
-	EqualModules(m1, m2 Module) bool
 }
 
 // TODO(b/397766191): Change the signature to take ModuleProxy
@@ -2940,7 +2947,7 @@ func outputFilesForModule(ctx PathContext, module Module, tag string) (Paths, er
 	}
 
 	if octx, ok := ctx.(OutputFilesProviderModuleContext); ok {
-		if octx.EqualModules(octx.Module(), module) {
+		if EqualModules(octx.Module(), module) {
 			// It is the current module, we can access the srcs through interface
 			if sourceFileProducer, ok := module.(SourceFileProducer); ok {
 				return sourceFileProducer.Srcs(), nil
@@ -2967,7 +2974,7 @@ func outputFilesForModuleFromProvider(ctx PathContext, module Module, tag string
 	var outputFiles OutputFilesInfo
 
 	if mctx, isMctx := ctx.(OutputFilesProviderModuleContext); isMctx {
-		if !mctx.EqualModules(mctx.Module(), module) {
+		if !EqualModules(mctx.Module(), module) {
 			outputFiles, _ = OtherModuleProvider(mctx, module, OutputFilesProvider)
 		} else {
 			outputFiles = mctx.GetOutputFiles()
@@ -3171,14 +3178,6 @@ func (c *buildTargetSingleton) GenerateBuildActions(ctx SingletonContext) {
 type IDEInfo interface {
 	IDEInfo(ctx BaseModuleContext, ideInfo *IdeInfo)
 	BaseModuleName() string
-}
-
-// Extract the base module name from the Import name.
-// Often the Import name has a prefix "prebuilt_".
-// Remove the prefix explicitly if needed
-// until we find a better solution to get the Import name.
-type IDECustomizedModuleName interface {
-	IDECustomizedModuleName() string
 }
 
 // Collect information for opening IDE project files in java/jdeps.go.

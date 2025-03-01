@@ -1849,7 +1849,7 @@ func (a *apexBundle) depVisitor(vctx *visitorContext, ctx android.ModuleContext,
 		return false
 	}
 	depName := ctx.OtherModuleName(child)
-	if ctx.EqualModules(parent, ctx.Module()) {
+	if android.EqualModules(parent, ctx.Module()) {
 		switch depTag {
 		case sharedLibTag, jniLibTag:
 			isJniLib := depTag == jniLibTag
@@ -2263,6 +2263,8 @@ func (a *apexBundle) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		FlatListPath: a.FlatListPath(),
 		Updatable:    a.Updatable(),
 	})
+
+	android.SetProvider(ctx, filesystem.ApexKeyPathInfoProvider, filesystem.ApexKeyPathInfo{a.apexKeysPath})
 }
 
 // Set prebuiltInfoProvider. This will be used by `apex_prebuiltinfo_singleton` to print out a metadata file
@@ -2891,7 +2893,7 @@ func (a *apexBundle) verifyNativeImplementationLibs(ctx android.ModuleContext) {
 
 				tag := ctx.OtherModuleDependencyTag(child)
 
-				if ctx.EqualModules(parent, ctx.Module()) {
+				if android.EqualModules(parent, ctx.Module()) {
 					if !checkApexTag(tag) {
 						return false
 					}

@@ -294,18 +294,26 @@ func (a *androidDevice) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 }
 
 func buildComplianceMetadata(ctx android.ModuleContext, tags ...blueprint.DependencyTag) {
+	// Collect metadata from deps
 	filesContained := make([]string, 0)
+	prebuiltFilesCopied := make([]string, 0)
 	for _, tag := range tags {
 		ctx.VisitDirectDepsProxyWithTag(tag, func(m android.ModuleProxy) {
 			if complianceMetadataInfo, ok := android.OtherModuleProvider(ctx, m, android.ComplianceMetadataProvider); ok {
 				filesContained = append(filesContained, complianceMetadataInfo.GetFilesContained()...)
+				prebuiltFilesCopied = append(prebuiltFilesCopied, complianceMetadataInfo.GetPrebuiltFilesCopied()...)
 			}
 		})
 	}
-	sort.Strings(filesContained)
-
+	// Merge to module's ComplianceMetadataInfo
 	complianceMetadataInfo := ctx.ComplianceMetadataInfo()
+	filesContained = append(filesContained, complianceMetadataInfo.GetFilesContained()...)
+	sort.Strings(filesContained)
 	complianceMetadataInfo.SetFilesContained(filesContained)
+
+	prebuiltFilesCopied = append(prebuiltFilesCopied, complianceMetadataInfo.GetPrebuiltFilesCopied()...)
+	sort.Strings(prebuiltFilesCopied)
+	complianceMetadataInfo.SetPrebuiltFilesCopied(prebuiltFilesCopied)
 }
 
 // Returns a list of modules that are installed, which are collected from the dependency
@@ -673,7 +681,13 @@ func (a *androidDevice) copyMetadataToTargetZip(ctx android.ModuleContext, build
 		}
 		if partition == "vendor_ramdisk" {
 			// Create vendor_boot_filesystem_config from the assembled VENDOR_BOOT/RAMDISK intermediates directory
-			a.generateFilesystemConfigForTargetFiles(ctx, builder, nil, targetFilesDir.String(), targetFilesDir.String()+"/VENDOR_BOOT/RAMDISK", "vendor_boot_filesystem_config.txt")
+			vendorRamdiskStagingDir := targetFilesDir.String() + "/VENDOR_BOOT/RAMDISK"
+			vendorRamdiskFsConfigOut := targetFilesDir.String() + "/META/vendor_boot_filesystem_config.txt"
+			fsConfigBin := ctx.Config().HostToolPath(ctx, "fs_config")
+			builder.Command().Textf(
+				`(cd %s; find . -type d | sed 's,$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,,' | %s -C -D %s -R \"\" > %s`,
+				vendorRamdiskStagingDir, fsConfigBin, vendorRamdiskStagingDir, vendorRamdiskFsConfigOut).
+				Implicit(fsConfigBin)
 		}
 	}
 	// Copy ramdisk_node_list
@@ -936,7 +950,9 @@ func (a *androidDevice) buildApkCertsInfo(ctx android.ModuleContext, allInstalle
 			apkCerts = append(apkCerts, formatLine(info.Certificate, info.InstallApkName+".apk", partition))
 		} else if info, ok := android.OtherModuleProvider(ctx, installedModule, java.AppInfosProvider); ok {
 			for _, certInfo := range info {
-				apkCerts = append(apkCerts, formatLine(certInfo.Certificate, certInfo.InstallApkName+".apk", partition))
+				// Partition information of apk-in-apex is not exported to the legacy Make packaging system.
+				// Hardcode the partition to "system"
+				apkCerts = append(apkCerts, formatLine(certInfo.Certificate, certInfo.InstallApkName+".apk", "system"))
 			}
 		} else if info, ok := android.OtherModuleProvider(ctx, installedModule, java.RuntimeResourceOverlayInfoProvider); ok {
 			apkCerts = append(apkCerts, formatLine(info.Certificate, info.OutputFile.Base(), partition))

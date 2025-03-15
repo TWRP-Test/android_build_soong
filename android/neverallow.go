@@ -252,6 +252,7 @@ func createInstallInRootAllowingRules() []Rule {
 			NotModuleType("prebuilt_system").
 			NotModuleType("prebuilt_first_stage_ramdisk").
 			NotModuleType("prebuilt_res").
+			NotModuleType("prebuilt_any").
 			Because("install_in_root is only for init_first_stage or librecovery_ui_ext."),
 	}
 }
@@ -309,6 +310,10 @@ func createLimitGenruleRules() []Rule {
 		"trusty_tee_package_goog",
 		"trusty_tee_package",
 		// Trusty vm target names
+		"trusty_desktop_vm_arm64.bin",
+		"trusty_desktop_vm_x86_64.elf",
+		"trusty_desktop_test_vm_arm64.bin",
+		"trusty_desktop_test_vm_x86_64.elf",
 		"trusty_test_vm_arm64.bin",
 		"trusty_test_vm_x86_64.elf",
 		"trusty_test_vm_os_arm64.bin",
@@ -364,6 +369,7 @@ func createKotlinPluginRule() []Rule {
 func createPrebuiltEtcBpDefineRule() Rule {
 	return NeverAllow().
 		ModuleType(
+			"prebuilt_any",
 			"prebuilt_usr_srec",
 			"prebuilt_priv_app",
 			"prebuilt_rfs",
@@ -381,6 +387,7 @@ func createPrebuiltEtcBpDefineRule() Rule {
 			"prebuilt_first_stage_ramdisk",
 			"prebuilt_radio",
 			"prebuilt_gpu",
+			"prebuilt_vendor_overlay",
 		).
 		DefinedInBpFile().
 		Because("module type not allowed to be defined in bp file")

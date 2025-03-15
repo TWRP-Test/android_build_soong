@@ -510,7 +510,7 @@ func (s *ShTest) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 				// so that it's compatible with the default rpath values.
 				var relPath string
 				linkableInfo := android.OtherModuleProviderOrDefault(ctx, dep, cc.LinkableInfoProvider)
-				commonInfo := android.OtherModuleProviderOrDefault(ctx, dep, android.CommonModuleInfoProvider)
+				commonInfo := android.OtherModulePointerProviderOrDefault(ctx, dep, android.CommonModuleInfoProvider)
 
 				if commonInfo.Target.Arch.ArchType.Multilib == "lib64" {
 					relPath = filepath.Join("lib64", linkableInfo.OutputFile.Path().Base())
@@ -612,6 +612,8 @@ func (s *ShTest) AndroidMkEntries() []android.AndroidMkEntries {
 				if len(s.extraTestConfigs) > 0 {
 					entries.AddStrings("LOCAL_EXTRA_FULL_TEST_CONFIGS", s.extraTestConfigs.Strings()...)
 				}
+
+				entries.SetBoolIfTrue("LOCAL_DISABLE_AUTO_GENERATE_TEST_CONFIG", !proptools.BoolDefault(s.testProperties.Auto_gen_config, true))
 
 				s.testProperties.Test_options.SetAndroidMkEntries(entries)
 			},

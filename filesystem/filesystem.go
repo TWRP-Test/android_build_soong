@@ -463,6 +463,9 @@ type FilesystemInfo struct {
 	AvbAlgorithm     string
 	AvbHashAlgorithm string
 	AvbKey           android.Path
+	PartitionName    string
+	// HasOrIsRecovery returns true for recovery and for ramdisks with a recovery partition.
+	HasOrIsRecovery bool
 }
 
 // FullInstallPathInfo contains information about the "full install" paths of all the files
@@ -720,6 +723,8 @@ func (f *filesystem) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 		HasFsverity:         f.properties.Fsverity.Inputs.GetOrDefault(ctx, nil) != nil,
 		PropFileForMiscInfo: propFileForMiscInfo,
 		PartitionSize:       f.properties.Partition_size,
+		PartitionName:       f.partitionName(),
+		HasOrIsRecovery:     f.hasOrIsRecovery(ctx),
 	}
 	if proptools.Bool(f.properties.Use_avb) {
 		fsInfo.UseAvb = true
@@ -1177,10 +1182,6 @@ func (f *filesystem) buildPropFileForMiscInfo(ctx android.ModuleContext) android
 
 	if proptools.Bool(f.properties.Use_avb) {
 		addStr("avb_"+f.partitionName()+"_hashtree_enable", "true")
-		if f.properties.Avb_private_key != nil {
-			key := android.PathForModuleSrc(ctx, *f.properties.Avb_private_key)
-			addStr("avb_"+f.partitionName()+"_key_path", key.String())
-		}
 		addStr("avb_"+f.partitionName()+"_add_hashtree_footer_args", strings.TrimSpace(f.getAvbAddHashtreeFooterArgs(ctx)))
 	}
 
@@ -1305,6 +1306,19 @@ func includeFilesInstalledFiles(ctx android.ModuleContext) (ret []depset.DepSet[
 		}
 	})
 	return
+}
+
+func (f *filesystem) hasOrIsRecovery(ctx android.ModuleContext) bool {
+	if f.partitionName() == "recovery" {
+		return true
+	}
+	ret := false
+	ctx.VisitDirectDepsWithTag(interPartitionInstallDependencyTag, func(m android.Module) {
+		if fsProvider, ok := android.OtherModuleProvider(ctx, m, FilesystemProvider); ok && fsProvider.PartitionName == "recovery" {
+			ret = true
+		}
+	})
+	return ret
 }
 
 func (f *filesystem) buildCpioImage(

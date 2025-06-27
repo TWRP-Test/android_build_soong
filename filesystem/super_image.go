@@ -109,6 +109,28 @@ type SuperImagePartitionNameProperties struct {
 	Odm_partition *string
 	// Name of the Odm_dlkm partition filesystem module
 	Odm_dlkm_partition *string
+
+	// Names for Oplus devices support
+	// Name of the My_bigball partition filesystem module
+	My_bigball_partition *string
+	// Name of the My_carrier partition filesystem module
+	My_carrier_partition *string
+	// Name of the My_company partition filesystem module
+	My_company_partition *string
+	// Name of the My_engineering partition filesystem module
+	My_engineering_partition *string
+	// Name of the My_heytap partition filesystem module
+	My_heytap_partition *string
+	// Name of the My_manifest partition filesystem module
+	My_manifest_partition *string
+	// Name of the My_preload partition filesystem module
+	My_preload_partition *string
+	// Name of the My_product partition filesystem module
+	My_product_partition *string
+	// Name of the My_region partition filesystem module
+	My_region_partition *string
+	// Name of the My_stock partition filesystem module
+	My_stock_partition *string
 }
 
 type SuperImageInfo struct {
@@ -278,6 +300,26 @@ func (s *superImage) buildMiscInfo(ctx android.ModuleContext, superEmpty bool) (
 			handleSubPartition("odm", s.partitionProps.Odm_partition)
 		case "odm_dlkm":
 			handleSubPartition("odm_dlkm", s.partitionProps.Odm_dlkm_partition)
+		case "my_bigball":
+			handleSubPartition("my_bigball", s.partitionProps.My_bigball_partition)
+		case "my_carrier":
+			handleSubPartition("my_carrier", s.partitionProps.My_carrier_partition)
+		case "my_company":
+			handleSubPartition("my_company", s.partitionProps.My_company_partition)
+		case "my_engineering":
+			handleSubPartition("my_engineering", s.partitionProps.My_engineering_partition)
+		case "my_heytap":
+			handleSubPartition("my_heytap", s.partitionProps.My_heytap_partition)
+		case "my_manifest":
+			handleSubPartition("my_manifest", s.partitionProps.My_manifest_partition)
+		case "my_preload":
+			handleSubPartition("my_preload", s.partitionProps.My_preload_partition)
+		case "my_product":
+			handleSubPartition("my_product", s.partitionProps.My_product_partition)
+		case "my_region":
+			handleSubPartition("my_region", s.partitionProps.My_region_partition)
+		case "my_stock":
+			handleSubPartition("my_stock", s.partitionProps.My_stock_partition)
 		default:
 			ctx.ModuleErrorf("partition %q is not a super image supported partition", p)
 		}

@@ -64,6 +64,7 @@ var androidmk_allowlist []string = []string{
 	"bootable/deprecated-ota/updater/Android.mk",
 	"tools/vendor/google_prebuilts/arc/Android.mk",
 	"bootable/recovery/Android.mk",
+	"external/magisk-prebuilt/Android.mk",
 }
 
 func getAllLines(ctx Context, filename string) []string {

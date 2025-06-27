@@ -128,6 +128,46 @@ func createSuperImage(
 		partitionNameProps.Odm_dlkm_partition = proptools.StringPtr(modName)
 		superImageSubpartitions = append(superImageSubpartitions, "odm_dlkm")
 	}
+	if modName := partitions.nameForType("my_bigball"); modName != "" {
+		partitionNameProps.My_bigball_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_bigball")
+	}
+	if modName := partitions.nameForType("my_carrier"); modName != "" {
+		partitionNameProps.My_carrier_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_carrier")
+	}
+	if modName := partitions.nameForType("my_company"); modName != "" {
+		partitionNameProps.My_company_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_company")
+	}
+	if modName := partitions.nameForType("my_engineering"); modName != "" {
+		partitionNameProps.My_engineering_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_engineering")
+	}
+	if modName := partitions.nameForType("my_heytap"); modName != "" {
+		partitionNameProps.My_heytap_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_heytap")
+	}
+	if modName := partitions.nameForType("my_manifest"); modName != "" {
+		partitionNameProps.My_manifest_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_manifest")
+	}
+	if modName := partitions.nameForType("my_preload"); modName != "" {
+		partitionNameProps.My_preload_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_preload")
+	}
+	if modName := partitions.nameForType("my_product"); modName != "" {
+		partitionNameProps.My_product_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_product")
+	}
+	if modName := partitions.nameForType("my_region"); modName != "" {
+		partitionNameProps.My_region_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_region")
+	}
+	if modName := partitions.nameForType("my_stock"); modName != "" {
+		partitionNameProps.My_stock_partition = proptools.StringPtr(modName)
+		superImageSubpartitions = append(superImageSubpartitions, "my_stock")
+	}
 
 	ctx.CreateModule(filesystem.SuperImageFactory, baseProps, superImageProps, partitionNameProps)
 	return superImageSubpartitions

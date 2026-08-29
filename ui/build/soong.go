@@ -214,6 +214,9 @@ func (pb PrimaryBuilderFactory) primaryBuilderInvocation(config Config) bootstra
 
 	commonArgs = append(commonArgs, "-l", filepath.Join(pb.config.FileListDir(), "Android.bp.list"))
 	invocationEnv := make(map[string]string)
+	if goMemLimit := os.Getenv("SOONG_GOMEMLIMIT"); goMemLimit != "" {
+		invocationEnv["GOMEMLIMIT"] = goMemLimit
+	}
 	if pb.debugPort != "" {
 		//debug mode
 		commonArgs = append(commonArgs, "--delve_listen", pb.debugPort,
